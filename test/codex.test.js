@@ -182,3 +182,34 @@ test("e2e trust helper reproduces hashes Codex itself stored in the spike", asyn
     "sha256:9cc2d922f75b2e4650d9b905f43f189e04fbdce7c46daa651f05e60a54660d03");
   assert.match(trustEntries(), /\[hooks\.state\."intent@intentcomputing:hooks\/codex-hooks\.json:stop:0:0"\]\ntrusted_hash = "sha256:[0-9a-f]{64}"/);
 });
+
+test("C1: a slow service never holds the Codex Stop near its limit and queued reviews are kept", async () => {
+  const http = await import("node:http");
+  const sockets = [];
+  const hang = http.createServer(() => { /* never answers */ });
+  hang.on("connection", (s) => sockets.push(s));
+  await new Promise((r) => hang.listen(0, "127.0.0.1", r));
+  const ctx = setup();
+  const env = { ...ctx.env, INTENT_API_URL: `http://127.0.0.1:${hang.address().port}` };
+  // A queued review plus an edit: two submits would be 16 s at 8 s each.
+  fs.writeFileSync(path.join(ctx.repo, "queued.py"), "Q = 1\n");
+  const { enqueue } = await import("../lib/queue.js");
+  enqueue(ctx.repo, "request", ["queued.py"]);
+  await run("prompt", cfx("prompt", ctx.repo, ctx.transcript), env);
+  fs.writeFileSync(path.join(ctx.repo, "edited.py"), "def e(x):\n    y = x\n    return y\n");
+  const r = await run("stop", cfx("stop", ctx.repo, ctx.transcript), env);
+  for (const s of sockets) s.destroy();
+  hang.close();
+  assert.equal(r.code, 0);
+  assert.ok(r.ms < 12000, `stop took ${r.ms} ms`);
+  assert.equal(fs.readdirSync(path.join(ctx.repo, ".intent", ".queue")).length, 1, "queued review kept");
+});
+
+test("Codex consent notice points at the ways Codex can turn it off", async () => {
+  const ctx = setup();
+  fs.writeFileSync(path.join(ctx.data, "global.json"), "{}");
+  const r = await run("session-start", cfx("session-start", ctx.repo, ctx.transcript), { ...ctx.env, INTENT_API_KEY: TEST_KEY });
+  const text = r.json.hookSpecificOutput.additionalContext;
+  assert.match(text, /INTENT_DISABLED=1/);
+  assert.doesNotMatch(text, /\/intent:off/);
+});

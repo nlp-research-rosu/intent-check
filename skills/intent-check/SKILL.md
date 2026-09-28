@@ -33,4 +33,6 @@ In Codex, run the same script by its path relative to this file: `node <folder o
 
 ## Turning it off
 
-`/intent:off` stops all uploads until `/intent:on`. `INTENT_DISABLED=1` and `DO_NOT_TRACK=1` do the same.
+- Claude Code: `/intent:off` stops all uploads until `/intent:on`.
+- Codex has no plugin slash commands: when the user asks to turn Intent Check off (or on), run `node <folder of this SKILL.md>/../../bin/intent.js off` (or `on`). It writes Codex's plugin data folder, so it may need approval to run outside the sandbox.
+- Anywhere: `INTENT_DISABLED=1` or `DO_NOT_TRACK=1` in the environment stops all uploads.

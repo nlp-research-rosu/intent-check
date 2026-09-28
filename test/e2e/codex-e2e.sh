@@ -4,9 +4,11 @@
 #
 #   INTENT_API_URL=https://web-staging-7e1c.up.railway.app E2E_APPROVE_SECRET=... test/e2e/codex-e2e.sh
 #
-# Isolation: a throwaway CODEX_HOME with auth.json SYMLINKED from ~/.codex (so token refresh keeps
-# working and ~/.codex is never written), the plugin installed from this checkout into that home,
-# and the hooks trusted by pre-seeding [hooks.state] hashes in that home's config.toml only.
+# Isolation: a throwaway CODEX_HOME with auth.json SYMLINKED from ~/.codex, so a token refresh
+# during the run writes through to the real ~/.codex/auth.json (that is the point: a copy would go
+# stale and break the real login). Nothing else under ~/.codex is written. The plugin is installed
+# from this checkout into the throwaway home, and its hooks are trusted by pre-seeding
+# [hooks.state] hashes in that home's config.toml only.
 #
 # Steps: first prompt shows the connect line (as hook context) → scripted approve → key saved →
 # seeded-bug edit via apply_patch → Stop returns fast, .intent/ written by the detached poller →
@@ -36,7 +38,14 @@ log() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*"; }
 ok() { PASS=$((PASS + 1)); log "PASS $*"; }
 bad() { FAIL=$((FAIL + 1)); log "FAIL $*"; }
 wait_for() { local t=$1; shift; local end=$((SECONDS + t)); until "$@"; do [ $SECONDS -ge $end ] && return 1; sleep 2; done; }
-cleanup() { if [ "${KEEP:-0}" = 1 ]; then log "kept $WORK"; else rm -rf "$WORK"; fi; }
+cleanup() {
+  # Detached finisher / connect-poll processes run from the throwaway plugin cache; stop them first
+  # or they recreate $WORK/home after it is removed.
+  local pids
+  pids="$(pgrep -f "$WORK/home/plugins/cache" || true)"
+  [ -n "$pids" ] && kill $pids 2>/dev/null || true
+  if [ "${KEEP:-0}" = 1 ]; then log "kept $WORK"; else rm -rf "$WORK"; fi
+}
 trap cleanup EXIT
 
 cx() { (cd "$REPO" && INTENT_DEBUG=1 INTENT_API_URL="$INTENT_API_URL" codex exec --skip-git-repo-check -s workspace-write -m "$MODEL" "$@" </dev/null) 2>&1; }
