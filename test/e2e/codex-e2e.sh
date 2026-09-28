@@ -44,6 +44,9 @@ cleanup() {
   local pids
   pids="$(pgrep -f "$WORK/home/plugins/cache" || true)"
   [ -n "$pids" ] && kill $pids 2>/dev/null || true
+  sleep 1
+  pids="$(pgrep -f "$WORK/home/plugins/cache" || true)"
+  [ -n "$pids" ] && kill -9 $pids 2>/dev/null || true
   if [ "${KEEP:-0}" = 1 ]; then log "kept $WORK"; else rm -rf "$WORK"; fi
 }
 trap cleanup EXIT

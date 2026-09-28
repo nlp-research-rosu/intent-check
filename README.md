@@ -16,7 +16,7 @@ Obvious secrets (private keys, cloud and API tokens, `KEY=value` lines with rand
 
 Every upload is listed in `.intent/.sent.log` in your repo (paths, sizes, time, URL; never contents). Results are written to `.intent/`, which is meant to be committed; its README explains how to keep it out of git.
 
-Turn it off with `/intent:off` (back on with `/intent:on`), or set `INTENT_DISABLED=1` or `DO_NOT_TRACK=1`. While off, nothing is sent.
+Turn it off with `/intent:off` in Claude Code (back on with `/intent:on`), or set `INTENT_DISABLED=1` or `DO_NOT_TRACK=1` on either host. While off, nothing is sent.
 
 ## Install (Claude Code)
 
@@ -36,7 +36,20 @@ codex plugin marketplace add nlp-research-rosu/intent-check
 codex plugin add intent@intentcomputing
 ```
 
-Then start `codex` and choose "Trust all and continue" when it says the plugin's hooks need review (or trust them in `/hooks`). Codex cannot wake an idle session, so concerns reach the agent with your next message; clean checks stay silent.
+Then start `codex` and choose "Trust all and continue" when it says the plugin's hooks need review (or trust them in `/hooks`). Your first prompt shows the link to connect your account.
+
+- Codex cannot wake an idle session, so concerns reach the agent with your next message (or at the end of the same turn, if the check already finished). Clean checks stay silent.
+- Codex does not load plugin slash commands, so there is no `/intent:off`. To turn checks off, set `INTENT_DISABLED=1` when starting Codex, or ask the agent to turn Intent Check off (it runs the plugin's `intent.js off`, which may need your approval to write outside the sandbox).
+- To ask for a review, ask the agent to check specific files ("check auth.py with Intent Check") or the whole repo.
+
+## Sample reports
+
+Reports from the staging service (the prover's reasoning is best-effort and written by a model; nothing on these pages is machine-checked):
+
+- [orders.ts: pagination](https://web-staging-7e1c.up.railway.app/r/hiZgexLlGTOQXVzAWhk34K)
+- [dedupe.go: order of results](https://web-staging-7e1c.up.railway.app/r/bi3H6Unhcno5VSnrBXLkiF)
+- [Proration rounding](https://web-staging-7e1c.up.railway.app/r/uiYAh9zW5Amlzptx6N63I1)
+- [pricing.py: a discount that can go below zero](https://web-staging-7e1c.up.railway.app/r/E8EThM8yhwZzvJNsXhzuSG)
 
 ## Development
 

@@ -16,7 +16,7 @@ const PRICING = "# pricing.py\ndef apply_discount(price_cents: int, percent: int
 let fp;
 before(async () => { fp = createFakeProver(); await fp.listen(); });
 after(() => fp.close());
-beforeEach(() => Object.assign(fp.state, { scenario: "concerns", pollsBeforeDone: 0, submitStatus: null, concern: null }));
+beforeEach(() => Object.assign(fp.state, { scenario: "concerns", pollsBeforeDone: 0, submitStatus: null, concern: null, submitDelayMs: 0, idem: new Map() }));
 
 function cfx(name, dir, transcript, patch = {}) {
   const raw = fs.readFileSync(path.join(FX, `${name}.json`), "utf8").split("/work/proj").join(dir);
@@ -212,4 +212,44 @@ test("Codex consent notice points at the ways Codex can turn it off", async () =
   const text = r.json.hookSpecificOutput.additionalContext;
   assert.match(text, /INTENT_DISABLED=1/);
   assert.doesNotMatch(text, /\/intent:off/);
+});
+
+test("r2-4: Codex Stop while off drops queued reviews", async () => {
+  const ctx = setup();
+  fs.writeFileSync(path.join(ctx.repo, "q.py"), "Q = 1\n");
+  const { enqueue } = await import("../lib/queue.js");
+  enqueue(ctx.repo, "request", ["q.py"]);
+  const n = fp.jobRequests().length;
+  const r = await run("stop", cfx("stop", ctx.repo, ctx.transcript), { ...ctx.env, INTENT_DISABLED: "1" });
+  assert.equal(r.code, 0);
+  assert.deepEqual(fs.readdirSync(path.join(ctx.repo, ".intent", ".queue")), []);
+  assert.equal(fp.jobRequests().length, n);
+});
+
+test("r2-5: every job of a Codex Stop gets its result, even when the first settles at once", async () => {
+  fp.state.scenario = "no_concerns";
+  const ctx = setup();
+  fs.writeFileSync(path.join(ctx.repo, "q.py"), "Q = 1\n");
+  const { enqueue } = await import("../lib/queue.js");
+  enqueue(ctx.repo, "request", ["q.py"]);
+  await turn(ctx, { "pricing.py": PRICING });
+  for (const f of ["pricing.py", "q.py"]) {
+    assert.ok(await waitFor(() => fs.existsSync(path.join(ctx.repo, ".intent", f, "meta.json")), { timeoutMs: 15000 }), f);
+  }
+});
+
+test("r2-1: a slow submit that the server did create is replayed at the next Stop, not duplicated", async () => {
+  fp.state.scenario = "no_concerns";
+  fp.state.submitDelayMs = 9000; // longer than the Codex submit timeout (8 s)
+  const ctx = setup();
+  fs.writeFileSync(path.join(ctx.repo, "q.py"), "Q = 1\n");
+  const { enqueue } = await import("../lib/queue.js");
+  enqueue(ctx.repo, "request", ["q.py"]);
+  const jobsBefore = fp.state.jobs.size;
+  await run("stop", cfx("stop", ctx.repo, ctx.transcript), ctx.env);
+  assert.equal(fs.readdirSync(path.join(ctx.repo, ".intent", ".queue")).length, 1, "put back after the timeout");
+  fp.state.submitDelayMs = 0;
+  await run("stop", cfx("stop", ctx.repo, ctx.transcript), ctx.env);
+  assert.equal(fp.state.jobs.size - jobsBefore, 1, "one server job for both attempts");
+  assert.ok(await waitFor(() => fs.existsSync(path.join(ctx.repo, ".intent", "q.py", "meta.json")), { timeoutMs: 15000 }));
 });

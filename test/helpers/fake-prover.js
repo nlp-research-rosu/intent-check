@@ -89,9 +89,18 @@ export function createFakeProver(opts = {}) {
         if (st.failPath && body && Array.isArray(body.units) && body.units.some((u) => u.path === st.failPath)) {
           return json(res, 500, { error: { code: "internal", message: "x", reason: null } });
         }
-        const job_id = id22();
-        st.jobs.set(job_id, { request: body, polls: 0, created: Date.now() });
-        return json(res, 202, { job_id, url: `${base}/r/${job_id}`, status: "queued" });
+        // Idempotency-Key: a repeat returns the original job (contract README).
+        const idem = req.headers["idempotency-key"];
+        st.idem = st.idem || new Map();
+        let job_id = idem && st.idem.get(idem);
+        if (!job_id) {
+          job_id = id22();
+          st.jobs.set(job_id, { request: body, polls: 0, created: Date.now() });
+          if (idem) st.idem.set(idem, job_id);
+        }
+        const reply = () => json(res, 202, { job_id, url: `${base}/r/${job_id}`, status: "queued" });
+        if (st.submitDelayMs) return void setTimeout(reply, st.submitDelayMs);
+        return reply();
       }
       const jm = url.pathname.match(/^\/v1\/jobs\/([A-Za-z0-9]+)$/);
       if (req.method === "GET" && jm) {
