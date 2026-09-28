@@ -86,6 +86,9 @@ export function createFakeProver(opts = {}) {
       if (req.method === "POST" && url.pathname === "/v1/jobs") {
         if (!authed) return json(res, 401, { error: { code: "unauthorized", message: "bad key" } });
         if (st.submitStatus) return json(res, st.submitStatus.status, { error: { code: st.submitStatus.code, message: "x", reason: null } });
+        if (st.failPath && body && Array.isArray(body.units) && body.units.some((u) => u.path === st.failPath)) {
+          return json(res, 500, { error: { code: "internal", message: "x", reason: null } });
+        }
         const job_id = id22();
         st.jobs.set(job_id, { request: body, polls: 0, created: Date.now() });
         return json(res, 202, { job_id, url: `${base}/r/${job_id}`, status: "queued" });
