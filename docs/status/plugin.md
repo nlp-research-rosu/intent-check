@@ -12,7 +12,9 @@ Milestone: M2a (Claude Code plugin core). Stacked PRs (each merges into the one 
 
 ## Current step
 
-PRs #1-#5 merged (main 675c8d8). #6 (M2b, now based on main) and #7 (M5, based on feat/plugin-m2b) carry the review fixes; origin/main is merged into both. Tests 139 (m2b) / 151 (m5) on Node 22 and 18. `test/e2e/codex-e2e.sh` against staging: 13/13 PASS (2026-09-28 22:03), real Codex login intact, no leftover processes or temp dirs.
+Second re-review of #6/#7 fixed (queue retries with stable Idempotency-Key and a 3-try cap, per-item failures, imperative 'without asking' rules, loud off/on failure, non-git subfolder queues, Codex off drops the queue, finisher refresh). Tests 143 (m2b) / 158 (m5) on Node 22 and 18. Against staging on 2026-09-28: claude-e2e 14/14 (22:30-22:33), codex-e2e 13/13 (22:28-22:30), Codex login intact.
+
+#1-#5 merged (main 675c8d8). #6 (M2b, now based on main) and #7 (M5, based on feat/plugin-m2b) carry the review fixes; origin/main is merged into both. Tests 139 (m2b) / 151 (m5) on Node 22 and 18. `test/e2e/codex-e2e.sh` against staging: 13/13 PASS (2026-09-28 22:03), real Codex login intact, no leftover processes or temp dirs.
 
 ## Next step
 
