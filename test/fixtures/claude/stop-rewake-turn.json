@@ -1,0 +1,13 @@
+{
+  "session_id": "2141e340-6685-4871-966a-738fc19f8528",
+  "transcript_path": "/home/dev/.claude/projects/-work-proj/2141e340-6685-4871-966a-738fc19f8528.jsonl",
+  "cwd": "/work/proj",
+  "scratchpad_dir": "/tmp/claude-0/x",
+  "prompt_id": "27eef751-d553-4879-8a14-296d0610c119",
+  "permission_mode": "acceptEdits",
+  "hook_event_name": "Stop",
+  "stop_hook_active": true,
+  "last_assistant_message": "Docstring added to `sub()` function.",
+  "background_tasks": [],
+  "session_crons": []
+}

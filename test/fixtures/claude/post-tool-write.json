@@ -1,0 +1,20 @@
+{
+  "session_id": "2141e340-6685-4871-966a-738fc19f8528",
+  "transcript_path": "/home/dev/.claude/projects/-work-proj/2141e340-6685-4871-966a-738fc19f8528.jsonl",
+  "cwd": "/work/proj",
+  "prompt_id": "d3a3be64-116c-4b7b-b067-58027856de38",
+  "permission_mode": "acceptEdits",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Write",
+  "tool_input": { "file_path": "/work/proj/notes.py", "content": "X = 1" },
+  "tool_response": {
+    "type": "create",
+    "filePath": "/work/proj/notes.py",
+    "content": "X = 1",
+    "originalFile": null,
+    "structuredPatch": [],
+    "userModified": false
+  },
+  "tool_use_id": "toolu_01WriteExample000000000000",
+  "duration_ms": 12
+}
