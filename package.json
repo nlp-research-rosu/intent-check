@@ -4,9 +4,11 @@
   "private": true,
   "description": "Intent Check plugin for Claude Code and Codex. Zero runtime dependencies.",
   "type": "module",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test test/*.test.js",
     "contract:check": "node contract/hash.mjs"
   }
 }

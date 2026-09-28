@@ -1,0 +1,21 @@
+Intent Check plugin
+Copyright 2026 Intent Computing
+
+This product includes logic ported from the security-guidance plugin in
+https://github.com/anthropics/claude-plugins-official (plugins/security-guidance),
+Copyright Anthropic, PBC, licensed under the Apache License, Version 2.0
+(https://www.apache.org/licenses/LICENSE-2.0). Ported parts, rewritten in JavaScript:
+
+- the git-baseline diff: `git stash create` (or HEAD) at UserPromptSubmit, diff against
+  it at Stop, untracked-file snapshot, "dirty now and changed since baseline" review set
+  (lib/git.js, lib/changes.js, lib/hooks.js)
+- the locked read-then-clear of per-session state at Stop, and restoring the consumed
+  paths after a transient failure (lib/state.js, lib/runner.js)
+- the rewake fire cap, the one-hour finding dedupe, the stop_hook_active loop guard, and
+  the rewake framing and stdout rewakeSummary protocol (lib/runner.js, lib/claude.js,
+  hooks/hooks.json)
+- kill switches and a local log that never holds file contents (lib/config.js, lib/log.js)
+
+The secret-redaction rules in lib/redact.js are adapted from gitleaks' default
+configuration (https://github.com/gitleaks/gitleaks), Copyright Zachary Rice,
+licensed under the MIT License.
