@@ -1,16 +1,16 @@
 # Plugin agent status
 
-Milestone: M2a (Claude Code plugin core). Four stacked PRs (each merges into the one before; merge in order):
+Milestone: M2a (Claude Code plugin core). Five stacked PRs (each merges into the one before; merge in order 1→5):
 
 1. `feat/plugin-m2a` → main: core libraries (config, git baseline, change set, trigger filter, redaction, payload, `.intent/` writer) with unit tests.
 2. `feat/plugin-m2a-client` → `feat/plugin-m2a`: session state + locks, prover API client, agent-text sanitiser, fake prover.
 3. `feat/plugin-m2a-wiring` → `feat/plugin-m2a-client`: hooks, Stop runner, connect flow, CLI, packaging (Claude + Codex placeholder), captured-payload replay and fake-prover integration tests.
 4. `feat/plugin-m2a-e2e` → `feat/plugin-m2a-wiring`: `test/e2e/claude-e2e.sh`, README (what is sent, install), connect/config/packaging tests.
+5. `feat/plugin-m2a-fixes` → `feat/plugin-m2a-e2e`: review fixes 1-10, `UnitRequest.regions`, e2e script fixes.
 
 ## Current step
 
-M2a complete; four PRs open. Tests: `npm test` 101/101 on Node 22.22 and Node 18.20 (docker node:18-alpine); `node contract/hash.mjs` ok; `claude plugin validate .` ok.
-Live smoke (claude 2.1.284, `--plugin-dir`, `-p`, haiku, fake prover): SessionStart hook output accepted; headless Stop detached, submitted, wrote `.intent/`; `--resume` next prompt received the concern note.
+Gate A passed (orchestrator, staging). Review fixes 1-10 + contract `regions` + e2e script fixes are on `feat/plugin-m2a-fixes` (PR 5 into `feat/plugin-m2a-e2e`). origin/main (contract regions, 15b3321) is merged down the whole stack. Tests: `npm test` 115/115 on Node 22 and Node 18.
 
 ## Next step
 
