@@ -1,13 +1,15 @@
 # Plugin agent status
 
-Milestone: M2a (Claude Code plugin core). Two stacked PRs:
+Milestone: M2a (Claude Code plugin core). Four stacked PRs (each merges into the one before; merge in order):
 
-1. `feat/plugin-m2a` → main: core libraries (config, state, git baseline, change set, trigger filter, redaction, payload, `.intent/` writer, agent-text sanitiser) with unit tests.
-2. `feat/plugin-m2a-wiring` → `feat/plugin-m2a`: hooks, Stop runner, connect flow, CLI, packaging (Claude + Codex placeholder), captured-payload replay tests, fake-prover integration tests, `test/e2e/claude-e2e.sh`.
+1. `feat/plugin-m2a` → main: core libraries (config, git baseline, change set, trigger filter, redaction, payload, `.intent/` writer) with unit tests.
+2. `feat/plugin-m2a-client` → `feat/plugin-m2a`: session state + locks, prover API client, agent-text sanitiser, fake prover.
+3. `feat/plugin-m2a-wiring` → `feat/plugin-m2a-client`: hooks, Stop runner, connect flow, CLI, packaging (Claude + Codex placeholder), captured-payload replay and fake-prover integration tests.
+4. `feat/plugin-m2a-e2e` → `feat/plugin-m2a-wiring`: `test/e2e/claude-e2e.sh`, README (what is sent, install), connect/config/packaging tests.
 
 ## Current step
 
-M2a complete; both PRs open. Tests: `npm test` 93/93 on Node 22.22 and Node 18.20 (docker node:18-alpine); `node contract/hash.mjs` ok; `claude plugin validate .` ok.
+M2a complete; four PRs open. Tests: `npm test` 101/101 on Node 22.22 and Node 18.20 (docker node:18-alpine); `node contract/hash.mjs` ok; `claude plugin validate .` ok.
 Live smoke (claude 2.1.284, `--plugin-dir`, `-p`, haiku, fake prover): SessionStart hook output accepted; headless Stop detached, submitted, wrote `.intent/`; `--resume` next prompt received the concern note.
 
 ## Next step

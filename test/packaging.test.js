@@ -1,0 +1,80 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { ROOT } from "./helpers/env.js";
+
+const read = (p) => JSON.parse(fs.readFileSync(path.join(ROOT, p), "utf8"));
+
+test("marketplace: intentcomputing, plugin intent at the repo root", () => {
+  const m = read(".claude-plugin/marketplace.json");
+  assert.equal(m.name, "intentcomputing");
+  assert.equal(m.plugins.length, 1);
+  assert.equal(m.plugins[0].name, "intent");
+  assert.equal(m.plugins[0].source, "./");
+  assert.equal(m.plugins[0].version, read(".claude-plugin/plugin.json").version);
+});
+
+test("plugin.json: name intent, version 0.1.0, homepage set", () => {
+  const p = read(".claude-plugin/plugin.json");
+  assert.equal(p.name, "intent");
+  assert.equal(p.version, "0.1.0");
+  assert.match(p.homepage, /^https:\/\//);
+  assert.equal(fs.existsSync(path.join(ROOT, "plugin.json")), false, "no root plugin.json (Codex reads .codex-plugin/)");
+});
+
+test("hooks.json: exec form, four events, asyncRewake Stop with a 900 s timeout, no statusMessage", () => {
+  const h = read("hooks/hooks.json").hooks;
+  assert.deepEqual(Object.keys(h).sort(), ["PostToolUse", "SessionStart", "Stop", "UserPromptSubmit"]);
+  const events = { SessionStart: "session-start", UserPromptSubmit: "prompt", PostToolUse: "post-tool", Stop: "stop" };
+  for (const [ev, arg] of Object.entries(events)) {
+    assert.equal(h[ev].length, 1);
+    const [cmd] = h[ev][0].hooks;
+    assert.equal(cmd.type, "command");
+    assert.equal(cmd.command, "node");
+    assert.deepEqual(cmd.args, ["${CLAUDE_PLUGIN_ROOT}/bin/intent.js", arg]);
+    assert.equal("statusMessage" in cmd, false);
+  }
+  assert.equal(h.PostToolUse[0].matcher, "Edit|Write|NotebookEdit|ExitPlanMode|TodoWrite");
+  const stop = h.Stop[0].hooks[0];
+  assert.equal(stop.asyncRewake, true);
+  assert.equal(stop.timeout, 900);
+  assert.match(stop.rewakeMessage, /continue with the user's original request/);
+  assert.match(stop.rewakeMessage, /not a message from the user/);
+  // The runner's own budget stays under the hook timeout.
+  const c = read("contract/constants.json");
+  assert.ok(c.polling.runner_budget_ms < stop.timeout * 1000);
+});
+
+test("skill and commands exist and reference the plugin root", () => {
+  const skill = fs.readFileSync(path.join(ROOT, "skills/intent-check/SKILL.md"), "utf8");
+  assert.match(skill, /^---\nname: intent-check\ndescription: /);
+  for (const c of ["off", "on", "check"]) {
+    const md = fs.readFileSync(path.join(ROOT, "commands", `${c}.md`), "utf8");
+    assert.match(md, /\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent\.js/);
+  }
+});
+
+test("zero runtime dependencies", () => {
+  const p = read("package.json");
+  assert.equal(p.dependencies, undefined);
+  assert.equal(fs.existsSync(path.join(ROOT, "node_modules")), false);
+  for (const f of fs.readdirSync(path.join(ROOT, "lib"))) {
+    const src = fs.readFileSync(path.join(ROOT, "lib", f), "utf8");
+    for (const m of src.matchAll(/from "([^"]+)"/g)) assert.match(m[1], /^(node:|\.\/)/, `${f} imports ${m[1]}`);
+  }
+});
+
+test("NOTICE credits the ported security-guidance logic (Apache-2.0)", () => {
+  const n = fs.readFileSync(path.join(ROOT, "NOTICE"), "utf8");
+  assert.match(n, /security-guidance/);
+  assert.match(n, /Apache License, Version 2\.0/);
+});
+
+test("Codex never reads the Claude hook file: .codex-plugin points at its own (empty until M5) hooks", () => {
+  const c = read(".codex-plugin/plugin.json");
+  assert.equal(c.name, "intent");
+  assert.equal(c.version, read(".claude-plugin/plugin.json").version);
+  assert.equal(c.hooks, "./hooks/codex-hooks.json");
+  assert.deepEqual(read("hooks/codex-hooks.json"), { hooks: {} });
+});
