@@ -1,20 +1,21 @@
 # Plugin agent status
 
-Milestone: M2a (Claude Code plugin core). Five stacked PRs (each merges into the one before; merge in order 1→5):
+Milestone: M2a (Claude Code plugin core). Stacked PRs (each merges into the one before; merge in order):
 
 1. `feat/plugin-m2a` → main: core libraries (config, git baseline, change set, trigger filter, redaction, payload, `.intent/` writer) with unit tests.
 2. `feat/plugin-m2a-client` → `feat/plugin-m2a`: session state + locks, prover API client, agent-text sanitiser, fake prover.
 3. `feat/plugin-m2a-wiring` → `feat/plugin-m2a-client`: hooks, Stop runner, connect flow, CLI, packaging (Claude + Codex placeholder), captured-payload replay and fake-prover integration tests.
 4. `feat/plugin-m2a-e2e` → `feat/plugin-m2a-wiring`: `test/e2e/claude-e2e.sh`, README (what is sent, install), connect/config/packaging tests.
 5. `feat/plugin-m2a-fixes` → `feat/plugin-m2a-e2e`: review fixes 1-10, `UnitRequest.regions`, e2e script fixes.
+6. `feat/plugin-m2b` → `feat/plugin-m2a-fixes`: M2b (`intent check` queue for S5/S6, repo mode, renames/deletes, full skill + commands).
 
 ## Current step
 
-Gate A passed (orchestrator, staging). Review fixes 1-10 + contract `regions` + e2e script fixes are on `feat/plugin-m2a-fixes` (PR 5 into `feat/plugin-m2a-e2e`). origin/main (contract regions, 15b3321) is merged down the whole stack. Tests: `npm test` 115/115 on Node 22 and Node 18.
+M2b done on `feat/plugin-m2b` (PR 6). Tests 121/121 on Node 22 and 18. Live `claude -p "/intent:check pricing.py"` smoke against the fake prover: the skill command queued the file and the detached Stop runner submitted a `request` job.
 
 ## Next step
 
-M2b: `/intent:check` queue (`.intent/.queue`), repo mode, renames/deletes of unit folders, full skill + commands text. Then M5 (Codex: fill `hooks/codex-hooks.json`, sync Stop + detached poller, `apply_patch` parsing, `turn_context` modes).
+M5 (Codex): fill `hooks/codex-hooks.json` (shell form, sync Stop timeout 30), `lib/codex.js` output protocol, host detection by `PLUGIN_ROOT`, `apply_patch` path parsing, `turn_context` modes from the transcript, sync Stop that submits + spawns a detached poller, silent no-concerns, mkdir -p data dir.
 
 ## Design notes for whoever resumes
 
