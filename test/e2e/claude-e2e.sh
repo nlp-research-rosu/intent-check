@@ -4,6 +4,10 @@
 #
 #   INTENT_API_URL=https://web-staging-7e1c.up.railway.app E2E_APPROVE_SECRET=... test/e2e/claude-e2e.sh
 #
+# Staging runs the canned pipeline, which reports a concern only for the apply_discount bug
+# without a clamp (or the marker intent-check:seed-bug), so the seeded edit below triggers it and
+# the agent's fix comes back clean.
+#
 # Steps: start claude with the plugin → first prompt shows the connect line → scripted approve →
 # key saved → seeded-bug edit → .intent/ written with a report URL → the idle session is woken
 # with an "Intent Check:" concern → the agent fixes it (acceptEdits) → the fix is re-checked
@@ -11,7 +15,7 @@
 #
 # Env:
 #   INTENT_API_URL       required. A 127.0.0.1 URL means the fake prover (test/helpers/fake-prover.js).
-#   E2E_APPROVE_SECRET   required unless the fake prover is used.
+#   E2E_APPROVE_SECRET   required unless the fake prover is used (POST /v1/e2e/approve/<user_code>, X-E2E-Secret).
 #   E2E_APPROVE_CMD      optional shell command that approves $USER_CODE (overrides the default below).
 #   INTENT_PIPELINE      optional: canned (default here) or llm, sent as X-Intent-Pipeline.
 #   MODEL                default haiku.  PLUGIN_DIR  default: this repo.  KEEP=1 keeps the work dir.
@@ -62,8 +66,9 @@ approve() {
   if [ "$FAKE" = 1 ]; then
     curl -fsS -X POST "$INTENT_API_URL/_control" -H 'content-type: application/json' -d '{"connectApproved":true}' >/dev/null
   else
-    # Staging-only approve route (prover M1). Adjust E2E_APPROVE_CMD if its shape differs.
-    curl -fsS -X POST "$INTENT_API_URL/e2e/connect/$code/approve" -H "authorization: Bearer $E2E_APPROVE_SECRET" >/dev/null
+    # Staging-only approve route: creates or reuses an e2e account and approves the connect request.
+    curl -fsS -X POST "$INTENT_API_URL/v1/e2e/approve/$code" -H "X-E2E-Secret: $E2E_APPROVE_SECRET" \
+      -H 'content-type: application/json' -d '{"handle":"e2e"}' >/dev/null
   fi
 }
 

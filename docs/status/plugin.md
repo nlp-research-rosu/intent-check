@@ -29,6 +29,6 @@ M2b: `/intent:check` queue (`.intent/.queue`), repo mode, renames/deletes of uni
 
 ## Needs orchestrator
 
-- The staging approve route for scripted connect is not defined yet. `test/e2e/claude-e2e.sh` defaults to `POST $INTENT_API_URL/e2e/connect/<user_code>/approve` with `Authorization: Bearer $E2E_APPROVE_SECRET`; set `E2E_APPROVE_CMD` if the prover's route differs. Against the fake prover (`node test/helpers/fake-prover.js 47222`, `INTENT_API_URL=http://127.0.0.1:47222`) it approves via `/_control`.
+- `test/e2e/claude-e2e.sh` approves via `POST $INTENT_API_URL/v1/e2e/approve/<user_code>` (`X-E2E-Secret`, body `{"handle":"e2e"}`); `E2E_APPROVE_CMD` overrides. Against the fake prover (`node test/helpers/fake-prover.js 47222`, `INTENT_API_URL=http://127.0.0.1:47222`) it approves via `/_control`.
 - `node --test test/` fails on Node 22 (directory argument is treated as a module). CI and `npm test` now use `node --test test/*.test.js`.
 - Privacy URL in plugin.json/.codex-plugin is a placeholder (`<staging>/privacy`) until the web agent ships the page.
