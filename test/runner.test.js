@@ -13,7 +13,7 @@ const PRICING = "# pricing.py\ndef apply_discount(price_cents: int, percent: int
 let fp;
 before(async () => { fp = createFakeProver(); await fp.listen(); });
 after(() => fp.close());
-beforeEach(() => Object.assign(fp.state, { scenario: "concerns", pollsBeforeDone: 0, submitStatus: null, concern: null }));
+beforeEach(() => Object.assign(fp.state, { scenario: "concerns", pollsBeforeDone: 0, submitStatus: null, concern: null, submitDelayMs: 0, idem: new Map() }));
 
 function setup({ key = true, git = true, env = {} } = {}) {
   const data = tmpdir("intent-data-");

@@ -1,0 +1,13 @@
+{
+  "session_id": "01a0e925-b8c6-7ff3-ad68-a52ef7638565",
+  "turn_id": "01a0e925-f4b1-7d32-8fd6-cd18e4f297b2",
+  "transcript_path": "/home/dev/.codex/sessions/2026/09/28/rollout-2026-09-28T17-52-38-01a0e925-b8c6-7ff3-ad68-a52ef7638565.jsonl",
+  "cwd": "/work/proj",
+  "hook_event_name": "PostToolUse",
+  "model": "gpt-5.6-luna",
+  "permission_mode": "default",
+  "tool_name": "apply_patch",
+  "tool_input": { "command": "*** Begin Patch\n*** Update File: calc.py\n@@\n+def sub(a, b):\n+    return a - b\n*** Add File: /work/proj/util.py\n+X = 1\n*** Update File: old_name.py\n*** Move to: new_name.py\n@@\n-A = 1\n+A = 2\n*** Delete File: gone.py\n*** End Patch" },
+  "tool_response": "Exit code: 0\nWall time: 0.5 seconds\nOutput:\nSuccess. Updated the following files:\nM calc.py\nA util.py\nM new_name.py\nD gone.py\n",
+  "tool_use_id": "exec-565590bc-0000-0000-0000-000000000000"
+}
