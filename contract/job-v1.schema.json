@@ -65,6 +65,17 @@
         "diff": { "description": "Unified diff of this turn's change. Null in request and repo mode, or when unavailable.", "type": ["string", "null"] },
         "content": { "description": "Full file up to 1500 lines; beyond that only touched regions ±40 lines, joined with '\\n...\\n'.", "type": "string" },
         "content_truncated": { "type": "boolean" },
+        "regions": {
+          "description": "Optional (additive, v1). When content_truncated is true: the real 1-based inclusive file line ranges of the regions in content, in order, joined by '\\n...\\n'.",
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["start", "end"],
+            "properties": { "start": { "type": "integer", "minimum": 1 }, "end": { "type": "integer", "minimum": 1 } }
+          }
+        },
         "prior": { "oneOf": [{ "$ref": "#/$defs/Prior" }, { "type": "null" }] }
       }
     },
