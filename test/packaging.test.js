@@ -71,10 +71,19 @@ test("NOTICE credits the ported security-guidance logic (Apache-2.0)", () => {
   assert.match(n, /Apache License, Version 2\.0/);
 });
 
-test("Codex never reads the Claude hook file: .codex-plugin points at its own (empty until M5) hooks", () => {
+test("Codex: its own manifest and shell-form hook file, sync Stop, nothing Claude-only", () => {
   const c = read(".codex-plugin/plugin.json");
   assert.equal(c.name, "intent");
   assert.equal(c.version, read(".claude-plugin/plugin.json").version);
   assert.equal(c.hooks, "./hooks/codex-hooks.json");
-  assert.deepEqual(read("hooks/codex-hooks.json"), { hooks: {} });
+  const h = read("hooks/codex-hooks.json").hooks;
+  const events = { SessionStart: "session-start", UserPromptSubmit: "prompt", PostToolUse: "post-tool", Stop: "stop" };
+  assert.deepEqual(Object.keys(h).sort(), Object.keys(events).sort());
+  for (const [ev, arg] of Object.entries(events)) {
+    const [cmd] = h[ev][0].hooks;
+    assert.equal(cmd.command, `node "${"$"}{CLAUDE_PLUGIN_ROOT}/bin/intent.js" ${arg} --host codex`);
+    for (const k of ["args", "async", "asyncRewake", "statusMessage"]) assert.equal(k in cmd, false, `${ev}.${k}`);
+  }
+  assert.equal(h.PostToolUse[0].matcher, "^(apply_patch|Edit|Write)$");
+  assert.equal(h.Stop[0].hooks[0].timeout, 30);
 });

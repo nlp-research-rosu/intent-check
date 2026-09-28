@@ -1,0 +1,2 @@
+{"timestamp":"2026-09-28T17:52:53.965Z","type":"session_meta","payload":{"session_id":"01a0e925-b8c6-7ff3-ad68-a52ef7638565","cwd":"/work/proj","originator":"codex-tui","cli_version":"0.147.0","source":"cli"}}
+{"timestamp":"2026-09-28T17:52:55.021Z","type":"turn_context","payload":{"turn_id":"01a0e925-f4b1-7d32-8fd6-cd18e4f297b2","cwd":"/work/proj","approval_policy":"on-request","sandbox_policy":{"type":"workspace-write","network_access":false},"collaboration_mode":{"mode":"default","settings":{"model":"gpt-5.6-luna"}}}}

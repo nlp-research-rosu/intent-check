@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# Live end-to-end test of the intent plugin on Codex CLI (codex exec), for the orchestrator.
+# Not part of `npm test`.
+#
+#   INTENT_API_URL=https://web-staging-7e1c.up.railway.app E2E_APPROVE_SECRET=... test/e2e/codex-e2e.sh
+#
+# Isolation: a throwaway CODEX_HOME with auth.json SYMLINKED from ~/.codex (so token refresh keeps
+# working and ~/.codex is never written), the plugin installed from this checkout into that home,
+# and the hooks trusted by pre-seeding [hooks.state] hashes in that home's config.toml only.
+#
+# Steps: first prompt shows the connect line (as hook context) → scripted approve → key saved →
+# seeded-bug edit via apply_patch → Stop returns fast, .intent/ written by the detached poller →
+# the concern reaches the agent at the next prompt (resume) → a no-concerns check stays silent →
+# /intent:off equivalent (INTENT_DISABLED=1) sends nothing.
+#
+# Env: INTENT_API_URL (required; 127.0.0.1 = fake prover), E2E_APPROVE_SECRET (staging),
+#      E2E_APPROVE_CMD (override), MODEL (default gpt-5.6-luna), INTENT_PIPELINE (default canned), KEEP=1.
+set -euo pipefail
+
+: "${INTENT_API_URL:?set INTENT_API_URL}"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_DIR="${PLUGIN_DIR:-$(cd "$HERE/../.." && pwd)}"
+MODEL="${MODEL:-gpt-5.6-luna}"
+export INTENT_PIPELINE="${INTENT_PIPELINE:-canned}"
+FAKE=0
+case "$INTENT_API_URL" in http://127.0.0.1:*|http://localhost:*) FAKE=1 ;; esac
+if [ "$FAKE" = 0 ]; then : "${E2E_APPROVE_SECRET:?set E2E_APPROVE_SECRET}"; fi
+[ -f "$HOME/.codex/auth.json" ] || { echo "no ~/.codex/auth.json"; exit 1; }
+
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/intent-codex-e2e-XXXXXX")"
+export CODEX_HOME="$WORK/home"
+REPO="$WORK/repo"
+DATA="$CODEX_HOME/plugins/data/intent-intentcomputing"
+PASS=0; FAIL=0
+log() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*"; }
+ok() { PASS=$((PASS + 1)); log "PASS $*"; }
+bad() { FAIL=$((FAIL + 1)); log "FAIL $*"; }
+wait_for() { local t=$1; shift; local end=$((SECONDS + t)); until "$@"; do [ $SECONDS -ge $end ] && return 1; sleep 2; done; }
+cleanup() { if [ "${KEEP:-0}" = 1 ]; then log "kept $WORK"; else rm -rf "$WORK"; fi; }
+trap cleanup EXIT
+
+cx() { (cd "$REPO" && INTENT_API_URL="$INTENT_API_URL" codex exec --skip-git-repo-check -m "$MODEL" "$@" </dev/null) 2>&1; }
+
+approve() {
+  local code=$1
+  if [ -n "${E2E_APPROVE_CMD:-}" ]; then USER_CODE="$code" bash -c "$E2E_APPROVE_CMD"; return; fi
+  if [ "$FAKE" = 1 ]; then
+    curl -fsS -X POST "$INTENT_API_URL/_control" -H 'content-type: application/json' -d '{"connectApproved":true}' >/dev/null
+  else
+    curl -fsS -X POST "$INTENT_API_URL/v1/e2e/approve/$code" -H "X-E2E-Secret: $E2E_APPROVE_SECRET" \
+      -H 'content-type: application/json' -d '{"handle":"e2e"}' >/dev/null
+  fi
+}
+
+mkdir -p "$CODEX_HOME" "$REPO"
+ln -s "$HOME/.codex/auth.json" "$CODEX_HOME/auth.json"
+git -C "$REPO" init -q
+printf '# e2e\n' > "$REPO/README.md"
+git -C "$REPO" add -A
+git -C "$REPO" -c user.email=e2e@example.com -c user.name=e2e commit -qm init
+
+log "installing the plugin into $CODEX_HOME"
+codex plugin marketplace add "$PLUGIN_DIR" >/dev/null
+codex plugin add intent@intentcomputing >/dev/null
+node "$HERE/codex-trust.mjs" >> "$CODEX_HOME/config.toml"
+ok "plugin installed and hooks trusted (isolated home)"
+
+# 1. Connect.
+OUT="$(cx "Reply with just: hi")"
+if printf '%s' "$OUT" | grep -q 'Intent Check: connect your account'; then ok "connect line shown"; else bad "connect line not shown"; fi
+wait_for 20 test -f "$DATA/connect.json" || true
+USER_CODE="$(node -e 'try{console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).user_code||"")}catch{console.log("")}' "$DATA/connect.json")"
+[ -n "$USER_CODE" ] && ok "connect started ($USER_CODE)" || bad "no connect request"
+approve "$USER_CODE" || bad "approve failed"
+if wait_for 60 grep -q '"api_key"' "$DATA/config.json" 2>/dev/null; then ok "key saved"; else bad "key not saved"; fi
+
+# 2. Seeded bug: Stop must return quickly; the detached poller writes .intent/.
+T0=$SECONDS
+cx "Create pricing.py with exactly four lines: '# pricing.py', 'def apply_discount(price_cents: int, percent: int) -> int:', '    \"\"\"Price in cents after a percentage discount; never below zero.\"\"\"', '    return price_cents - price_cents * percent // 100'. Write it exactly, no clamp. Reply with just: written" > "$WORK/turn1.log"
+log "turn 1 took $((SECONDS - T0)) s"
+if wait_for 180 test -f "$REPO/.intent/pricing.py/meta.json"; then ok ".intent/pricing.py written"; else bad ".intent/pricing.py missing"; fi
+grep -q '"host":"codex"\|"mode":"edit"' "$REPO/.intent/.sent.log" && ok "upload logged" || bad "no upload logged"
+
+# 3. The concern reaches the agent at the next prompt (or already at Stop, if it finished in time).
+if grep -q 'Intent Check: [0-9]* concern' "$WORK/turn1.log"; then
+  ok "concern handed over at Stop (exit 2)"
+else
+  OUT="$(cx resume --last "Quote the first line of any note that starts with 'Intent Check:' in your context, then stop. Do not edit files.")"
+  if printf '%s' "$OUT" | grep -q 'Intent Check: [0-9]* concern'; then ok "concern delivered at the next prompt"; else bad "concern not delivered"; fi
+fi
+
+# 4. No concerns stay silent: a clean file.
+N="$(wc -l < "$REPO/.intent/.sent.log")"
+cx resume --last "Create util.py with a function double(x) that returns x * 2, with a docstring and a type hint. Reply with just: done" > /dev/null
+wait_for 120 bash -c "[ \$(wc -l < '$REPO/.intent/.sent.log') -gt $N ]" && ok "clean file checked" || bad "clean file not checked"
+sleep 20
+OUT="$(cx resume --last "Reply with just: ok")"
+if printf '%s' "$OUT" | grep -q 'Intent Check: no concerns'; then bad "no-concerns note was shown on Codex"; else ok "no concerns stayed silent"; fi
+
+# 5. Off switch: nothing sent.
+N="$(wc -l < "$REPO/.intent/.sent.log")"
+(cd "$REPO" && INTENT_DISABLED=1 INTENT_API_URL="$INTENT_API_URL" codex exec --skip-git-repo-check -m "$MODEL" resume --last "Append a function triple(x) returning x * 3 with a docstring to util.py. Reply with just: done" </dev/null >/dev/null 2>&1) || true
+sleep 20
+[ "$(wc -l < "$REPO/.intent/.sent.log")" = "$N" ] && ok "no upload while disabled" || bad "uploaded while disabled"
+
+log "passed $PASS, failed $FAIL"
+[ "$FAIL" = 0 ]

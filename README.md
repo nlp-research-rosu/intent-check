@@ -1,6 +1,6 @@
 # intent-check
 
-The `intent` plugin for Claude Code (Codex support is coming). It checks code your agent writes against what you asked for, in the background, and reports concerns with a link to a shareable report.
+The `intent` plugin for Claude Code and Codex. It checks code your agent writes against what you asked for, in the background, and reports concerns with a link to a shareable report.
 
 Status: private pre-release, under construction.
 
@@ -29,10 +29,19 @@ claude plugin install intent@intentcomputing
 
 Then restart Claude Code or run `/reload-plugins`. Your first prompt shows a link to connect your account; once you approve it, checks start. The saved key lives in Claude Code's plugin data folder, which is removed when you uninstall the plugin.
 
+## Install (Codex CLI 0.147 or newer)
+
+```bash
+codex plugin marketplace add nlp-research-rosu/intent-check
+codex plugin add intent@intentcomputing
+```
+
+Then start `codex` and choose "Trust all and continue" when it says the plugin's hooks need review (or trust them in `/hooks`). Codex cannot wake an idle session, so concerns reach the agent with your next message; clean checks stay silent.
+
 ## Development
 
 - Zero runtime dependencies. Plain ESM JavaScript, Node 18 syntax.
-- `npm test` (node:test) and `node contract/hash.mjs`. `test/e2e/claude-e2e.sh` drives a real Claude Code session through tmux.
+- `npm test` (node:test) and `node contract/hash.mjs`. `test/e2e/claude-e2e.sh` drives a real Claude Code session through tmux; `test/e2e/codex-e2e.sh` runs `codex exec` in an isolated `CODEX_HOME`.
 - Contract with the backend: `contract/` (identical copy in `nlp-research-rosu/intent-check-prover`).
 - Config: `INTENT_API_URL` overrides the service URL, `INTENT_API_KEY` the saved key.
 - `NOTICE` lists the Apache-2.0 code this plugin ports from Anthropic's security-guidance plugin.
