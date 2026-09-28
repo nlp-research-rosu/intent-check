@@ -1,0 +1,13 @@
+{
+  "session_id": "2141e340-6685-4871-966a-738fc19f8528",
+  "transcript_path": "/home/dev/.claude/projects/-work-proj/2141e340-6685-4871-966a-738fc19f8528.jsonl",
+  "cwd": "/work/proj",
+  "scratchpad_dir": "/tmp/claude-0/x",
+  "prompt_id": "d3a3be64-116c-4b7b-b067-58027856de38",
+  "permission_mode": "acceptEdits",
+  "hook_event_name": "Stop",
+  "stop_hook_active": false,
+  "last_assistant_message": "done",
+  "background_tasks": [],
+  "session_crons": []
+}

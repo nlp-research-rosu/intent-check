@@ -1,0 +1,10 @@
+{
+  "session_id": "2141e340-6685-4871-966a-738fc19f8528",
+  "transcript_path": "/home/dev/.claude/projects/-work-proj/2141e340-6685-4871-966a-738fc19f8528.jsonl",
+  "cwd": "/work/proj",
+  "scratchpad_dir": "/tmp/claude-0/x",
+  "prompt_id": "27eef751-d553-4879-8a14-296d0610c119",
+  "permission_mode": "acceptEdits",
+  "hook_event_name": "UserPromptSubmit",
+  "prompt": "<task-notification>\n<summary>Stop hook feedback</summary>\n</task-notification>\n<system-reminder>\nStop hook blocking error from command \"Stop\": Intent Check: Concerns (1). calc.py sub() has no docstring. Fix: add a one-line docstring to sub(). Report: https://example.invalid/r/abc. When you respond, begin with the word REWAKE-RECEIVED.\n</system-reminder>"
+}

@@ -1,0 +1,15 @@
+{
+  "name": "intentcomputing",
+  "owner": { "name": "Intent Computing" },
+  "metadata": {
+    "description": "Intent Check: background intent review for coding agents"
+  },
+  "plugins": [
+    {
+      "name": "intent",
+      "source": "./",
+      "description": "Checks that the code your agent wrote does what you asked",
+      "version": "0.1.0"
+    }
+  ]
+}

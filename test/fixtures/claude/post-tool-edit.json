@@ -1,0 +1,41 @@
+{
+  "session_id": "2141e340-6685-4871-966a-738fc19f8528",
+  "transcript_path": "/home/dev/.claude/projects/-work-proj/2141e340-6685-4871-966a-738fc19f8528.jsonl",
+  "cwd": "/work/proj",
+  "scratchpad_dir": "/tmp/claude-0/x",
+  "prompt_id": "27eef751-d553-4879-8a14-296d0610c119",
+  "permission_mode": "acceptEdits",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/work/proj/calc.py",
+    "old_string": "def sub(a, b):\n    return a - b",
+    "new_string": "def sub(a, b):\n    \"\"\"Return the difference of a and b.\"\"\"\n    return a - b",
+    "replace_all": false
+  },
+  "tool_response": {
+    "filePath": "/work/proj/calc.py",
+    "oldString": "def sub(a, b):\n    return a - b",
+    "newString": "def sub(a, b):\n    \"\"\"Return the difference of a and b.\"\"\"\n    return a - b",
+    "originalFile": "def plus(a, b):\n    return a + b\n\ndef sub(a, b):\n    return a - b\n",
+    "structuredPatch": [
+      {
+        "oldStart": 2,
+        "oldLines": 4,
+        "newStart": 2,
+        "newLines": 5,
+        "lines": [
+          "     return a + b",
+          " ",
+          " def sub(a, b):",
+          "+    \"\"\"Return the difference of a and b.\"\"\"",
+          "     return a - b"
+        ]
+      }
+    ],
+    "userModified": false,
+    "replaceAll": false
+  },
+  "tool_use_id": "toolu_01EDaQrExTHtRDVu7CkFPn7H",
+  "duration_ms": 41
+}
