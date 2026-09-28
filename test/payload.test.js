@@ -54,8 +54,9 @@ test("caps units at 10 and changed lines at 1,500, dropping later files", () => 
 test("large files send only touched regions ±40 lines", () => {
   const lines = Array.from({ length: 3000 }, (_, i) => `line ${i + 1}`);
   const diff = "@@ -100,1 +100,2 @@\n-line 100\n+line 100\n+line 101\n@@ -2500,0 +2501,1 @@\n+line 2501\n";
-  const { content, truncated } = unitContent(lines.join("\n"), diff);
+  const { content, truncated, regions } = unitContent(lines.join("\n"), diff);
   assert.equal(truncated, true);
+  assert.deepEqual(regions, [{ start: 60, end: 141 }, { start: 2461, end: 2541 }]);
   const parts = content.split("\n...\n");
   assert.equal(parts.length, 2);
   assert.ok(parts[0].startsWith("line 60\n") && parts[0].endsWith("line 141"));
@@ -85,4 +86,18 @@ test("structuredPatch hunks become a unified diff", () => {
   const d = patchesToDiff("calc.py", [{ oldStart: 2, oldLines: 4, newStart: 2, newLines: 5, lines: ["     return a + b", " ", " def sub(a, b):", "+    \"\"\"Doc.\"\"\"", "     return a - b"] }]);
   assert.match(d, /^--- a\/calc\.py\n\+\+\+ b\/calc\.py\n@@ -2,4 \+2,5 @@\n/);
   assert.equal(countChangedLines(d), 1);
+});
+
+test("truncated units carry their real line ranges and stay contract-valid", () => {
+  const content = Array.from({ length: 2000 }, (_, i) => `v${i} = ${i}`).join("\n") + "\n";
+  const diff = "--- a/big.py\n+++ b/big.py\n@@ -1000,1 +1000,1 @@\n-v999 = 0\n+v999 = 999\n@@ -1500,0 +1500,1 @@\n+x = 1\n";
+  const f = { rel: "big.py", abs: "/x/big.py", buf: Buffer.from(content), content, diff, changed: countChangedLines(diff) };
+  const b = buildRequest({ files: [f], root: tmpdir(), snap, stop, sessionHash: "s", turnId: "t", host: "claude-code" });
+  const u = b.request.units[0];
+  assert.equal(u.content_truncated, true);
+  assert.deepEqual(u.regions, [{ start: 960, end: 1040 }, { start: 1460, end: 1540 }]);
+  assert.equal(u.content.split("\n...\n").length, u.regions.length);
+  assert.deepEqual(validateDef(b.request, "JobRequest"), []);
+  const small = buildRequest({ files: [file("s.py", "a\nb\nc\n")], root: tmpdir(), snap, stop, sessionHash: "s", turnId: "t", host: "claude-code" });
+  assert.equal("regions" in small.request.units[0], false);
 });

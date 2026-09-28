@@ -45,7 +45,9 @@ log() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*"; }
 ok() { PASS=$((PASS + 1)); log "PASS $*"; }
 bad() { FAIL=$((FAIL + 1)); log "FAIL $*"; }
 pane() { tmux capture-pane -p -J -S -3000 -t "$S" 2>/dev/null || true; }
-send() { tmux send-keys -t "$S" -l "$1"; sleep 0.3; tmux send-keys -t "$S" Enter; }
+# Type the text, wait, then submit with C-m: a long paste followed at once by Enter sometimes
+# stays in the input box without being submitted.
+send() { tmux send-keys -t "$S" -l "$1"; sleep 1; tmux send-keys -t "$S" C-m; }
 # wait_for <seconds> <command...>: poll until the command succeeds.
 wait_for() { local t=$1; shift; local end=$((SECONDS + t)); until "$@"; do [ $SECONDS -ge $end ] && return 1; sleep 2; done; }
 pane_has() { pane | grep -qE "$1"; }
@@ -86,6 +88,8 @@ tmux new-session -d -s "$S" -x 220 -y 60 \
 
 # Folder-trust dialog, then the input box.
 for _ in $(seq 1 30); do
+  # "Quick safety check: Is this a project you trust?" defaults to "No, exit": move to Yes first.
+  if pane_has 'Quick safety check|project you trust'; then tmux send-keys -t "$S" Down; sleep 0.5; tmux send-keys -t "$S" Enter; sleep 2; fi
   if pane_has 'trust (this|the files in this) folder|Do you trust'; then tmux send-keys -t "$S" Enter; sleep 2; fi
   pane_has '(\? for shortcuts|accept edits on|╭─)' && break
   sleep 1
@@ -107,7 +111,8 @@ if wait_for 60 pane_has 'Intent Check: connected\.'; then ok "connected line sho
 
 # 3. Seeded-bug edit.
 # One line only: a newline typed into the TUI would submit the prompt early.
-send "Create pricing.py with exactly three lines: the comment '# pricing.py', then 'def apply_discount(price_cents: int, percent: int) -> int:', then the body '    return price_cents - price_cents * percent // 100'. The result must never go below zero, but write the code exactly as given. Reply with just: written"
+# Four lines (docstring included), so the change clears the 3-changed-lines trigger.
+send "Create pricing.py with exactly four lines: the comment '# pricing.py', then 'def apply_discount(price_cents: int, percent: int) -> int:', then the docstring '    \"\"\"Price in cents after a percentage discount; never below zero.\"\"\"', then the body '    return price_cents - price_cents * percent // 100'. Write the code exactly as given, do not add a clamp. Reply with just: written"
 if wait_for 120 test -f "$REPO/.intent/pricing.py/meta.json"; then ok ".intent/pricing.py written"; else bad ".intent/pricing.py missing"; fi
 URL="$(node -e 'try{console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).url)}catch{console.log("")}' "$REPO/.intent/pricing.py/meta.json")"
 case "$URL" in http*/r/*) ok "report URL $URL" ;; *) bad "no report URL in meta.json" ;; esac
@@ -115,14 +120,14 @@ case "$URL" in http*/r/*) ok "report URL $URL" ;; *) bad "no report URL in meta.
 
 # 4. The idle session is woken with the concern, and the agent fixes it (acceptEdits).
 BEFORE="$(sha256sum "$REPO/pricing.py" | cut -c1-64)"
-if wait_for 300 pane_has 'Intent Check: [0-9]+ concern'; then ok "idle session woken with a concern"; else bad "no wake-up seen"; fi
+if wait_for 300 pane_has 'Intent Check(: [0-9]+ concern| found concerns)'; then ok "idle session woken with a concern"; else bad "no wake-up seen"; fi
 if wait_for 240 bash -c "[ \"\$(sha256sum '$REPO/pricing.py' | cut -c1-64)\" != '$BEFORE' ]"; then ok "agent edited pricing.py after the wake"; else bad "no fix after the wake"; fi
 
 # 5. The fix is re-checked silently: a second upload, no second wake.
-WAKES="$(pane_count 'Intent Check: [0-9]+ concern')"
+WAKES="$(pane_count 'Intent Check(: [0-9]+ concern| found concerns)')"
 if wait_for 300 bash -c "[ \$(wc -l < '$REPO/.intent/.sent.log') -ge 2 ]"; then ok "fix re-checked"; else bad "fix not re-checked"; fi
 sleep 45
-[ "$(pane_count 'Intent Check: [0-9]+ concern')" -le "$WAKES" ] && ok "no second wake for the fixed file" || bad "woke again for the same file"
+[ "$(pane_count 'Intent Check(: [0-9]+ concern| found concerns)')" -le "$WAKES" ] && ok "no second wake for the fixed file" || bad "woke again for the same file"
 
 # 6. /intent:off stops uploads.
 send "/intent:off"
