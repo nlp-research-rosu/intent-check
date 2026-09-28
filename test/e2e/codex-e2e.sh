@@ -39,7 +39,7 @@ wait_for() { local t=$1; shift; local end=$((SECONDS + t)); until "$@"; do [ $SE
 cleanup() { if [ "${KEEP:-0}" = 1 ]; then log "kept $WORK"; else rm -rf "$WORK"; fi; }
 trap cleanup EXIT
 
-cx() { (cd "$REPO" && INTENT_API_URL="$INTENT_API_URL" codex exec --skip-git-repo-check -m "$MODEL" "$@" </dev/null) 2>&1; }
+cx() { (cd "$REPO" && INTENT_DEBUG=1 INTENT_API_URL="$INTENT_API_URL" codex exec --skip-git-repo-check -s workspace-write -m "$MODEL" "$@" </dev/null) 2>&1; }
 
 approve() {
   local code=$1
@@ -65,9 +65,14 @@ codex plugin add intent@intentcomputing >/dev/null
 node "$HERE/codex-trust.mjs" >> "$CODEX_HOME/config.toml"
 ok "plugin installed and hooks trusted (isolated home)"
 
-# 1. Connect.
-OUT="$(cx "Reply with just: hi")"
-if printf '%s' "$OUT" | grep -q 'Intent Check: connect your account'; then ok "connect line shown"; else bad "connect line not shown"; fi
+# What the plugin handed to Codex, from its own log (codex exec does not print hook context).
+emitted() { grep '"event":"hook.output"' "$DATA/intent.log" 2>/dev/null | grep -c "\"$1\"" || true; }
+
+# 1. Connect. The line goes to Codex as hook context (the TUI shows it; exec prints only
+#    "hook: UserPromptSubmit Completed"), so check the plugin's output log and ask the model.
+OUT="$(cx "Quote verbatim every line in your context that starts with 'Intent Check:', or say NONE. Do not run any commands.")"
+if [ "$(emitted connect)" -ge 1 ]; then ok "connect line handed to Codex"; else bad "connect line not emitted"; fi
+if printf '%s' "$OUT" | grep -q 'Intent Check: connect your account'; then ok "model saw the connect line"; else bad "model did not see the connect line"; fi
 wait_for 20 test -f "$DATA/connect.json" || true
 USER_CODE="$(node -e 'try{console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).user_code||"")}catch{console.log("")}' "$DATA/connect.json")"
 [ -n "$USER_CODE" ] && ok "connect started ($USER_CODE)" || bad "no connect request"
@@ -85,8 +90,12 @@ grep -q '"host":"codex"\|"mode":"edit"' "$REPO/.intent/.sent.log" && ok "upload 
 if grep -q 'Intent Check: [0-9]* concern' "$WORK/turn1.log"; then
   ok "concern handed over at Stop (exit 2)"
 else
-  OUT="$(cx resume --last "Quote the first line of any note that starts with 'Intent Check:' in your context, then stop. Do not edit files.")"
-  if printf '%s' "$OUT" | grep -q 'Intent Check: [0-9]* concern'; then ok "concern delivered at the next prompt"; else bad "concern not delivered"; fi
+  # Wait until the detached poller has settled the job, then open the next turn.
+  wait_for 120 bash -c "grep -q '\"event\":\"job.done\"' '$DATA/intent.log'" || true
+  sleep 2
+  OUT="$(cx resume --last "Quote verbatim every line in your context that starts with 'Intent Check:', or say NONE. Do not edit files.")"
+  if [ "$(emitted concerns)" -ge 1 ]; then ok "concern handed to Codex at the next prompt"; else bad "concern not emitted"; fi
+  if printf '%s' "$OUT" | grep -q 'Intent Check: [0-9]* concern'; then ok "model saw the concern"; else bad "model did not quote the concern"; fi
 fi
 
 # 4. No concerns stay silent: a clean file.
@@ -94,14 +103,15 @@ N="$(wc -l < "$REPO/.intent/.sent.log")"
 cx resume --last "Create util.py with a function double(x) that returns x * 2, with a docstring and a type hint. Reply with just: done" > /dev/null
 wait_for 120 bash -c "[ \$(wc -l < '$REPO/.intent/.sent.log') -gt $N ]" && ok "clean file checked" || bad "clean file not checked"
 sleep 20
-OUT="$(cx resume --last "Reply with just: ok")"
-if printf '%s' "$OUT" | grep -q 'Intent Check: no concerns'; then bad "no-concerns note was shown on Codex"; else ok "no concerns stayed silent"; fi
+cx resume --last "Reply with just: ok" > /dev/null
+if [ "$(emitted no_concerns)" = 0 ]; then ok "no concerns stayed silent"; else bad "a no-concerns note was handed to Codex"; fi
 
 # 5. Off switch: nothing sent.
 N="$(wc -l < "$REPO/.intent/.sent.log")"
-(cd "$REPO" && INTENT_DISABLED=1 INTENT_API_URL="$INTENT_API_URL" codex exec --skip-git-repo-check -m "$MODEL" resume --last "Append a function triple(x) returning x * 3 with a docstring to util.py. Reply with just: done" </dev/null >/dev/null 2>&1) || true
+(cd "$REPO" && INTENT_DISABLED=1 INTENT_API_URL="$INTENT_API_URL" codex exec --skip-git-repo-check -s workspace-write -m "$MODEL" resume --last "Append a function triple(x) returning x * 3 with a docstring to util.py. Reply with just: done" </dev/null >/dev/null 2>&1) || true
 sleep 20
 [ "$(wc -l < "$REPO/.intent/.sent.log")" = "$N" ] && ok "no upload while disabled" || bad "uploaded while disabled"
 
+env -u CODEX_HOME codex login status >/dev/null 2>&1 && ok "real Codex login still valid" || bad "codex login status failed"
 log "passed $PASS, failed $FAIL"
 [ "$FAIL" = 0 ]
