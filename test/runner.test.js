@@ -207,7 +207,7 @@ test("SIGTERM (hook timeout or quit): a detached finisher keeps polling and writ
   const n = fp.state.requests.length;
   let child;
   const done = runHook("stop", fixture("stop", ctx.repo), ctx.env, { onSpawn: (c) => { child = c; } });
-  assert.ok(await waitFor(() => fp.state.requests.slice(n).some((x) => x.method === "GET")));
+  assert.ok(await waitFor(() => fp.state.requests.slice(n).some((x) => x.method === "GET" && x.path.startsWith("/v1/jobs/"))));
   child.kill("SIGTERM");
   const r = await done;
   assert.equal(r.code, 0);
@@ -224,7 +224,7 @@ test("late result: a job whose runner died is delivered at the next prompt (1 s 
   const n = fp.state.requests.length;
   let child;
   const done = runHook("stop", fixture("stop", ctx.repo), ctx.env, { onSpawn: (c) => { child = c; } });
-  assert.ok(await waitFor(() => fp.state.requests.slice(n).some((x) => x.method === "GET")));
+  assert.ok(await waitFor(() => fp.state.requests.slice(n).some((x) => x.method === "GET" && x.path.startsWith("/v1/jobs/"))));
   child.kill("SIGKILL");
   await done;
   fp.state.pollsBeforeDone = 0;
@@ -239,7 +239,7 @@ test("stale result: a file edited after submission gets the 'checked the version
   await turn(ctx, { "pricing.py": PRICING }, { run: false });
   const n = fp.state.requests.length;
   const done = runHook("stop", fixture("stop", ctx.repo), ctx.env);
-  assert.ok(await waitFor(() => fp.state.requests.slice(n).some((x) => x.method === "GET")));
+  assert.ok(await waitFor(() => fp.state.requests.slice(n).some((x) => x.method === "GET" && x.path.startsWith("/v1/jobs/"))));
   fs.appendFileSync(path.join(ctx.repo, "pricing.py"), "# edited meanwhile\n");
   const r = await done;
   assert.equal(r.code, 2);
@@ -252,7 +252,7 @@ test("a newer runner takes over the session's pending jobs; the old one exits qu
   await turn(ctx, { "a.py": "def a(x):\n    y = x\n    return y\n" }, { run: false });
   const n = fp.state.requests.length;
   const first = runHook("stop", fixture("stop", ctx.repo), ctx.env);
-  assert.ok(await waitFor(() => fp.state.requests.slice(n).some((x) => x.method === "GET")));
+  assert.ok(await waitFor(() => fp.state.requests.slice(n).some((x) => x.method === "GET" && x.path.startsWith("/v1/jobs/"))));
   await turn(ctx, { "b.py": "def b(x):\n    y = x\n    return y\n" }, { run: false });
   const second = runHook("stop", fixture("stop", ctx.repo), ctx.env);
   const r1 = await first;
