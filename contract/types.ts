@@ -37,6 +37,8 @@ export interface UnitRequest {
   diff: string | null;
   content: string;
   content_truncated: boolean;
+  /** Optional: real 1-based inclusive line ranges of the regions in a truncated content, in order. */
+  regions?: { start: number; end: number }[];
   prior: Prior | null;
 }
 
