@@ -101,3 +101,32 @@ test("truncated units carry their real line ranges and stay contract-valid", () 
   const small = buildRequest({ files: [file("s.py", "a\nb\nc\n")], root: tmpdir(), snap, stop, sessionHash: "s", turnId: "t", host: "claude-code" });
   assert.equal("regions" in small.request.units[0], false);
 });
+
+test("regions at the end of the file stay inside the file", () => {
+  const body = (n) => Array.from({ length: n }, (_, i) => `line ${i + 1}`).join("\n") + "\n";
+  const check = (content, diff, want) => {
+    const r = unitContent(content, diff);
+    assert.deepEqual(r.regions, want);
+    const n = content.split("\n").length - 1;
+    for (const g of r.regions) assert.ok(g.start >= 1 && g.start <= g.end && g.end <= n, JSON.stringify(g));
+    const parts = r.content.split("\n...\n");
+    r.regions.forEach((g, i) => assert.equal(parts[i].split("\n").length, g.end - g.start + 1));
+    assert.ok(!r.content.endsWith("\n"), "no extra empty line from the trailing newline");
+  };
+  // Edit on the last line.
+  check(body(3000), "@@ -2998,1 +2998,3 @@\n+a\n+b\n", [{ start: 2958, end: 3000 }]);
+  // Two hunks, the second at EOF.
+  check(body(3000), "@@ -100,1 +100,1 @@\n-x\n+y\n@@ -2999,0 +3000,1 @@\n+z\n", [{ start: 60, end: 140 }, { start: 2960, end: 3000 }]);
+  // A deletion at the end of the file (zero-length new range).
+  check(body(3000), "@@ -3001,2 +3000,0 @@\n-gone\n-gone\n", [{ start: 2960, end: 3000 }]);
+  // A stale hunk entirely beyond the end of the file is dropped (falls back to the first 1,500 lines).
+  check(body(2000), "@@ -5000,1 +5000,1 @@\n-a\n+b\n", [{ start: 1, end: 1500 }]);
+});
+
+test("a file of exactly 1,500 lines is sent whole", () => {
+  const content = Array.from({ length: 1500 }, (_, i) => `l${i}`).join("\n") + "\n";
+  const r = unitContent(content, "@@ -1,1 +1,1 @@\n-a\n+b\n");
+  assert.equal(r.truncated, false);
+  assert.equal(r.content, content);
+  assert.equal(unitContent(content + "extra\n", "@@ -1,1 +1,1 @@\n-a\n+b\n").truncated, true);
+});

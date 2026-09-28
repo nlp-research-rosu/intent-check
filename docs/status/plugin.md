@@ -12,7 +12,7 @@ Milestone: M2a (Claude Code plugin core). Stacked PRs (each merges into the one 
 
 ## Current step
 
-M5 (Codex) done on `feat/plugin-m5` (PR 7): `hooks/codex-hooks.json` (shell form, `--host codex`, sync Stop timeout 30), `lib/codex.js`, apply_patch capture, modes from `turn_context`, Stop submits + detached finisher (+ exit 2 hand-over of already-finished concerns), silent no-concerns, `test/e2e/codex-e2e.sh` + `codex-trust.mjs`. Tests 131/131 on Node 22 and 18. Codex e2e not run by me (orchestrator).
+Re-review fixes (B1 EOF regions, B2 sanitiser keeps real concerns + fallback title, auth schemes, removed key lines, linear keyword rule, nlink, paused note/expiry, e2e seed + fix nudge) are on `feat/plugin-m2a-fixes` and merged forward into `feat/plugin-m2b` and `feat/plugin-m5`. Tests: 124 (fixes) / 130 (m2b) / 140 (m5), all passing on Node 22 and 18.
 
 ## Next step
 
