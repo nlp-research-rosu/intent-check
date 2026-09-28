@@ -1,0 +1,36 @@
+{
+  "job_id": "7qJxN2mVb8KcR4tYw1ZsLp",
+  "status": "done",
+  "url": "https://intent-check-staging.up.railway.app/r/7qJxN2mVb8KcR4tYw1ZsLp",
+  "result": {
+    "verdict": "no_concerns",
+    "partial": false,
+    "checked_at": "2026-09-28T14:06:40Z",
+    "agent_concerns": [],
+    "units": [
+      {
+        "path": "pricing.py",
+        "checked_sha256": "4e5c47b49e611e5883b631f32a20abddfeb0dc8dabe29519c280a1e602c1e3c8",
+        "verdict": "no_concerns",
+        "artifacts": {
+          "INTENT.md": "# apply_discount\n\nReturn the price in cents after a percentage discount. The result must never be negative.\n\n## Assumptions made explicit\n\n- `price_cents >= 0`\n- The percent range was not stated; 0 to 100 is the natural reading.\n- The discount amount is rounded down (floor division); the user did not say.\n",
+          "SPEC.k": "module PRICING-SPEC\n  imports PRICING-SEMANTICS\n\n  // apply_discount: result is never negative (stated intent)\n  claim [apply_discount-nonneg]:\n    <k> return price_cents - floordiv(price_cents * percent, 100) => . ...</k>\n    <env> price_cents |-> P percent |-> D </env>\n    <ret> _ => ?R </ret>\n    requires P >=Int 0\n    ensures ?R >=Int 0\n\n  // apply_discount: exact result for a percent in 0..100\n  claim [apply_discount-exact]:\n    <k> return price_cents - floordiv(price_cents * percent, 100) => . ...</k>\n    <env> price_cents |-> P percent |-> D </env>\n    <ret> _ => P -Int ((P *Int D) divInt 100) </ret>\n    requires P >=Int 0 andBool 0 <=Int D andBool D <=Int 100\nendmodule\n",
+          "SEMANTICS.k": "module PRICING-SEMANTICS\n  imports INT\n  imports ID\n  syntax Exp ::= Int | Id\n               | floordiv(Exp, Exp) [strict]\n               > Exp \"*\" Exp [left, strict]\n               > Exp \"-\" Exp [left, strict]\n  syntax Stmt ::= \"return\" Exp [strict]\n  syntax KResult ::= Int\n\n  configuration <k> $PGM:Stmt </k> <env> .Map </env> <ret> .K </ret>\n\n  rule [lookup]:   <k> X:Id => V ...</k> <env>... X |-> V ...</env>\n  rule [mul]:      I1:Int * I2:Int => I1 *Int I2\n  rule [floordiv]: floordiv(I1:Int, I2:Int) => I1 divInt I2 requires I2 >Int 0\n  rule [sub]:      I1:Int - I2:Int => I1 -Int I2\n  rule [return]:   <k> return V:Int => . ...</k> <ret> _ => V </ret>\nendmodule\n",
+          "VERDICT.md": "No concerns\n"
+        },
+        "claims": [
+          {
+            "id": "apply_discount-nonneg",
+            "function": "apply_discount",
+            "status": "no_conflict_found"
+          },
+          {
+            "id": "apply_discount-exact",
+            "function": "apply_discount",
+            "status": "no_conflict_found"
+          }
+        ]
+      }
+    ]
+  }
+}

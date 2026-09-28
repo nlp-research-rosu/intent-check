@@ -1,0 +1,10 @@
+{
+  "job_id": "7qJxN2mVb8KcR4tYw1ZsLp",
+  "status": "failed",
+  "url": "https://intent-check-staging.up.railway.app/r/7qJxN2mVb8KcR4tYw1ZsLp",
+  "error": {
+    "code": "pipeline_error",
+    "message": "The model returned invalid output twice.",
+    "reason": "schema_validation"
+  }
+}

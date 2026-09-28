@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "spend_cap",
+    "message": "Intent Check has hit today's free usage limit. Checks resume at 00:00 UTC.",
+    "reason": "global_daily_spend"
+  }
+}

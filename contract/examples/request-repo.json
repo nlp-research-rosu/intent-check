@@ -1,0 +1,56 @@
+{
+  "contract_version": "1",
+  "host": "codex",
+  "host_version": "0.147.0",
+  "plugin_version": "0.1.0",
+  "os": "linux",
+  "session_id": "e43a48a0bbd65fcbe24d5a8b665b86a3",
+  "turn_id": "turn-3",
+  "permission_mode": null,
+  "codex_modes": {
+    "approval_policy": "on-request",
+    "sandbox": "workspace-write",
+    "collaboration_mode": "default"
+  },
+  "intent": {
+    "prompts": [
+      "review my repo"
+    ],
+    "first_prompt": null,
+    "plan": null,
+    "todos": [],
+    "agent_message": null
+  },
+  "mode": "repo",
+  "units": [
+    {
+      "path": "src/auth/login.py",
+      "language": "python",
+      "sha256": "591a8e72a50a5c843ab1f250b60a6f0ae005028e49ce2e66e4a1670d9fb8195f",
+      "diff": null,
+      "content": "def login(user, password):\n    return check(user, password)\n",
+      "content_truncated": false,
+      "prior": null
+    },
+    {
+      "path": "src/billing/invoice.go",
+      "language": "go",
+      "sha256": "ed163f62ac15c49dcdeb0690e2c503dde3069f51f5a7a1f1afaae71ba6a2134e",
+      "diff": null,
+      "content": "package billing\n\nfunc Total(items []int) int {\n\tt := 0\n\tfor _, i := range items {\n\t\tt += i\n\t}\n\treturn t\n}\n",
+      "content_truncated": false,
+      "prior": null
+    },
+    {
+      "path": "pricing.py",
+      "language": "python",
+      "sha256": "a949e6048d964c91f2a1587532adda76e4348d987f3c78cdf6c47f5b7b94a510",
+      "diff": null,
+      "content": "# pricing.py\ndef apply_discount(price_cents: int, percent: int) -> int:\n    return price_cents - price_cents * percent // 100\n",
+      "content_truncated": false,
+      "prior": null
+    }
+  ],
+  "changed_lines": 0,
+  "truncated": false
+}

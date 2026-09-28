@@ -1,0 +1,247 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intentcomputing.org/contract/job-v1.schema.json",
+  "title": "Intent Check job API, contract v1",
+  "description": "Shared by the intent plugin and the prover. Changes are additive only. See contract/README.md.",
+  "$defs": {
+    "ApiKey": { "type": "string", "pattern": "^ic_[A-Za-z0-9]{38}$" },
+    "Host": { "enum": ["claude-code", "codex"] },
+    "Mode": { "enum": ["edit", "request", "repo"] },
+    "JobStatusValue": { "enum": ["queued", "running", "done", "failed", "superseded"] },
+    "Verdict": { "enum": ["no_concerns", "concerns"] },
+    "ConcernType": { "enum": ["intent_mismatch", "hidden_assumption", "implementation_bug"] },
+    "Severity": { "enum": ["high", "medium"] },
+    "ClaimStatus": { "enum": ["no_conflict_found", "concern", "not_checked"] },
+    "Sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+
+    "CodexModes": {
+      "type": "object",
+      "description": "Raw values from the Codex transcript's latest turn_context. Null fields when unknown.",
+      "additionalProperties": false,
+      "required": ["approval_policy", "sandbox", "collaboration_mode"],
+      "properties": {
+        "approval_policy": { "type": ["string", "null"] },
+        "sandbox": { "type": ["string", "null"] },
+        "collaboration_mode": { "type": ["string", "null"] }
+      }
+    },
+
+    "Intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prompts", "first_prompt", "plan", "todos", "agent_message"],
+      "properties": {
+        "prompts": {
+          "description": "Most recent last. The current prompt plus up to 3 earlier ones, each truncated to 4000 chars. Plugin wake-ups (<task-notification>) are excluded.",
+          "type": "array", "maxItems": 4, "items": { "type": "string", "maxLength": 4000 }
+        },
+        "first_prompt": { "description": "The session's first substantive prompt, if it is not already in prompts.", "type": ["string", "null"], "maxLength": 4000 },
+        "plan": { "description": "The last approved plan text (Claude Code ExitPlanMode), if any.", "type": ["string", "null"], "maxLength": 8000 },
+        "todos": { "type": "array", "maxItems": 30, "items": { "type": "string", "maxLength": 200 } },
+        "agent_message": { "description": "The agent's final message for the turn. Prover uses it only as claims to check (stage A1).", "type": ["string", "null"], "maxLength": 4000 }
+      }
+    },
+
+    "Prior": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["intent_md", "spec_k", "semantics_k", "source_sha256"],
+      "properties": {
+        "intent_md": { "type": ["string", "null"] },
+        "spec_k": { "type": ["string", "null"] },
+        "semantics_k": { "type": ["string", "null"] },
+        "source_sha256": { "oneOf": [{ "$ref": "#/$defs/Sha256" }, { "type": "null" }] }
+      }
+    },
+
+    "UnitRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "language", "sha256", "diff", "content", "content_truncated", "prior"],
+      "properties": {
+        "path": { "description": "Repo-relative, forward slashes.", "type": "string", "minLength": 1, "maxLength": 1024 },
+        "language": { "type": "string", "maxLength": 40 },
+        "sha256": { "$ref": "#/$defs/Sha256", "description": "Hash of the full current file content as sent for checking." },
+        "diff": { "description": "Unified diff of this turn's change. Null in request and repo mode, or when unavailable.", "type": ["string", "null"] },
+        "content": { "description": "Full file up to 1500 lines; beyond that only touched regions ±40 lines, joined with '\\n...\\n'.", "type": "string" },
+        "content_truncated": { "type": "boolean" },
+        "prior": { "oneOf": [{ "$ref": "#/$defs/Prior" }, { "type": "null" }] }
+      }
+    },
+
+    "JobRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_version", "mode", "host", "host_version", "plugin_version", "os", "session_id", "turn_id", "permission_mode", "codex_modes", "intent", "units", "changed_lines", "truncated"],
+      "properties": {
+        "contract_version": { "const": "1" },
+        "mode": { "$ref": "#/$defs/Mode" },
+        "host": { "$ref": "#/$defs/Host" },
+        "host_version": { "type": "string", "maxLength": 40 },
+        "plugin_version": { "type": "string", "maxLength": 40 },
+        "os": { "type": "string", "maxLength": 20 },
+        "session_id": { "description": "Opaque host session id (plugin hashes it).", "type": "string", "maxLength": 128 },
+        "turn_id": { "type": "string", "maxLength": 128 },
+        "permission_mode": { "description": "Claude Code permission_mode from the hook payload; null on Codex.", "type": ["string", "null"], "maxLength": 40 },
+        "codex_modes": { "oneOf": [{ "$ref": "#/$defs/CodexModes" }, { "type": "null" }] },
+        "intent": { "$ref": "#/$defs/Intent" },
+        "units": { "type": "array", "minItems": 1, "maxItems": 10, "items": { "$ref": "#/$defs/UnitRequest" } },
+        "changed_lines": { "type": "integer", "minimum": 0 },
+        "truncated": { "description": "True when units were dropped because of the size cap (page says 'partial review').", "type": "boolean" }
+      }
+    },
+
+    "JobCreated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["job_id", "url", "status"],
+      "properties": {
+        "job_id": { "type": "string", "pattern": "^[A-Za-z0-9]{22}$" },
+        "url": { "type": "string", "format": "uri" },
+        "status": { "const": "queued" }
+      }
+    },
+
+    "AgentConcern": {
+      "description": "One concern for the user's agent. The plugin renders agent text from these fields only, after its own sanitising.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "severity", "path", "line", "claim_id", "title", "explanation", "fix_direction"],
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "type": { "$ref": "#/$defs/ConcernType" },
+        "severity": { "$ref": "#/$defs/Severity" },
+        "path": { "type": "string", "maxLength": 1024 },
+        "line": { "type": ["integer", "null"], "minimum": 1 },
+        "claim_id": { "type": ["string", "null"], "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 120 },
+        "explanation": { "type": "string", "maxLength": 400 },
+        "fix_direction": { "type": "string", "maxLength": 400 }
+      }
+    },
+
+    "Claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "function", "status"],
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "function": { "type": "string", "maxLength": 256 },
+        "status": { "$ref": "#/$defs/ClaimStatus" }
+      }
+    },
+
+    "UnitResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "checked_sha256", "verdict", "artifacts", "claims"],
+      "properties": {
+        "path": { "type": "string" },
+        "checked_sha256": { "$ref": "#/$defs/Sha256" },
+        "verdict": { "$ref": "#/$defs/Verdict" },
+        "artifacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["INTENT.md", "SPEC.k", "SEMANTICS.k", "VERDICT.md"],
+          "properties": {
+            "INTENT.md": { "type": "string" },
+            "SPEC.k": { "type": "string" },
+            "SEMANTICS.k": { "type": "string" },
+            "VERDICT.md": { "type": "string" }
+          }
+        },
+        "claims": { "type": "array", "items": { "$ref": "#/$defs/Claim" } }
+      }
+    },
+
+    "JobResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verdict", "partial", "checked_at", "agent_concerns", "units"],
+      "properties": {
+        "verdict": { "$ref": "#/$defs/Verdict" },
+        "partial": { "type": "boolean" },
+        "checked_at": { "description": "When the prover received the job (ISO 8601). The plugin uses it for the 'checked the version from HH:MM' label.", "type": "string", "format": "date-time" },
+        "agent_concerns": { "type": "array", "items": { "$ref": "#/$defs/AgentConcern" } },
+        "units": { "type": "array", "items": { "$ref": "#/$defs/UnitResult" } }
+      }
+    },
+
+    "JobStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["job_id", "status", "url"],
+      "properties": {
+        "job_id": { "type": "string" },
+        "status": { "$ref": "#/$defs/JobStatusValue" },
+        "url": { "type": "string", "format": "uri" },
+        "result": { "$ref": "#/$defs/JobResult", "description": "Present only when status is done." },
+        "error": { "$ref": "#/$defs/ErrorBody", "description": "Present only when status is failed." }
+      }
+    },
+
+    "ConnectStart": {
+      "description": "POST /v1/connect request body (no auth, per-IP limited).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "host_version", "plugin_version", "os"],
+      "properties": {
+        "host": { "$ref": "#/$defs/Host" },
+        "host_version": { "type": "string", "maxLength": 40 },
+        "plugin_version": { "type": "string", "maxLength": 40 },
+        "os": { "type": "string", "maxLength": 20 },
+        "machine_name": { "type": ["string", "null"], "maxLength": 80 }
+      }
+    },
+
+    "ConnectCreated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["device_code", "user_code", "verification_url", "expires_in", "interval"],
+      "properties": {
+        "device_code": { "description": "Secret; only the plugin knows it. Used to poll.", "type": "string", "pattern": "^[A-Za-z0-9]{32}$" },
+        "user_code": { "description": "Short code shown in the URL and on the approve page, e.g. KDRT-MWQX.", "type": "string", "pattern": "^[A-Z]{4}-[A-Z]{4}$" },
+        "verification_url": { "type": "string", "format": "uri" },
+        "expires_in": { "type": "integer", "description": "Seconds." },
+        "interval": { "type": "integer", "description": "Minimum poll interval in seconds." }
+      }
+    },
+
+    "ConnectPoll": {
+      "description": "GET /v1/connect/{device_code}. api_key is returned exactly once, on the first poll after approval; later polls return consumed.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": { "enum": ["pending", "approved", "denied", "expired", "consumed"] },
+        "api_key": { "$ref": "#/$defs/ApiKey" },
+        "account": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["handle"],
+          "properties": { "handle": { "type": "string", "maxLength": 120 } }
+        }
+      }
+    },
+
+    "ErrorBody": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "enum": ["invalid_request", "unauthorized", "payload_too_large", "upgrade_required", "rate_limited", "spend_cap", "blocked", "not_found", "budget_exceeded", "pipeline_error", "internal"]
+        },
+        "message": { "type": "string", "maxLength": 300 },
+        "reason": { "type": ["string", "null"], "maxLength": 80 }
+      }
+    },
+
+    "ErrorResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": { "error": { "$ref": "#/$defs/ErrorBody" } }
+    }
+  }
+}

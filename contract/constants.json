@@ -1,0 +1,42 @@
+{
+  "contract_version": "1",
+  "api_key": {
+    "prefix": "ic_",
+    "regex": "^ic_[A-Za-z0-9]{38}$",
+    "redaction_regex": "\\bic_[A-Za-z0-9]{38}\\b",
+    "format": "ic_ + 32 random base62 chars + 6 base62 chars of CRC32(prefix + random)"
+  },
+  "headers": {
+    "auth": "Authorization",
+    "plugin_version": "X-Intent-Version",
+    "idempotency_key": "Idempotency-Key",
+    "pipeline_override": "X-Intent-Pipeline"
+  },
+  "limits": {
+    "max_payload_bytes": 1048576,
+    "max_units_edit": 10,
+    "max_units_repo": 10,
+    "max_prompts": 4,
+    "prompt_chars": 4000,
+    "agent_message_chars": 4000,
+    "plan_chars": 8000,
+    "max_todos": 30,
+    "todo_chars": 200,
+    "content_full_lines": 1500,
+    "touched_context_lines": 40,
+    "changed_lines_cap": 1500,
+    "min_changed_lines": 3,
+    "max_agent_concerns_shown": 3,
+    "concern_title_chars": 120,
+    "concern_text_chars": 400
+  },
+  "polling": {
+    "initial_ms": 2000,
+    "max_ms": 15000,
+    "runner_budget_ms": 840000,
+    "pending_check_timeout_ms": 1000,
+    "connect_interval_ms": 3000,
+    "connect_expires_s": 900
+  },
+  "job_budget_s": 180
+}
