@@ -42,6 +42,10 @@ Then start `codex` and choose "Trust all and continue" when it says the plugin's
 - Codex does not load plugin slash commands, so there is no `/intent:off`. To turn checks off, set `INTENT_DISABLED=1` when starting Codex, or ask the agent to turn Intent Check off (it runs the plugin's `intent.js off`, which may need your approval to write outside the sandbox).
 - To ask for a review, ask the agent to check specific files ("check auth.py with Intent Check") or the whole repo.
 
+## Asking for a review
+
+Ask the agent to check specific files, or the whole repo ("check auth.py with Intent Check"); the `intent-check` skill runs `intent check <paths>` for it, and the review runs after the turn. In a project without git, run `intent check` from the project root (the folder the session started in).
+
 ## Sample reports
 
 Reports from the staging service (the prover's reasoning is best-effort and written by a model; nothing on these pages is machine-checked):

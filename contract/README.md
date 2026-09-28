@@ -20,7 +20,7 @@ The job API between the `intent` plugin (`nlp-research-rosu/intent-check`) and t
 | GET | `/og/{job_id}.png` | none | OG card |
 | GET | `/connect/{user_code}` | Clerk session | approve page |
 
-Request headers on `/v1/jobs`: `X-Intent-Version` (plugin version, 426 below the server minimum), `Idempotency-Key` (hash of session, turn, paths and file hashes; a repeat returns the original `JobCreated`), optional `X-Intent-Pipeline: llm|canned` (honoured only where the server allows overrides).
+Request headers on `/v1/jobs`: `X-Intent-Version` (plugin version, 426 below the server minimum), `Idempotency-Key` (stable per logical request: for edit checks a hash of session, turn, paths and file hashes; for queued review requests a hash of the queue item id and file hashes; a repeat returns the original `JobCreated`), optional `X-Intent-Pipeline: llm|canned` (honoured only where the server allows overrides).
 
 Errors are `ErrorResponse` with HTTP 400 `invalid_request`, 401 `unauthorized`, 404 `not_found`, 413 `payload_too_large`, 426 `upgrade_required`, 429 `rate_limited` / `spend_cap` / `blocked` (with `reason`), 500 `internal`.
 
