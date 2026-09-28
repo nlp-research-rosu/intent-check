@@ -1,0 +1,144 @@
+// M2b: `intent check` queue (S5/S6) and renames/deletes of unit folders.
+import { test, before, after, beforeEach } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { spawn } from "node:child_process";
+import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
+import { fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT } from "./helpers/env.js";
+import { validateDef } from "./helpers/schema.js";
+import { writeUnit } from "../lib/intentdir.js";
+
+let fp;
+before(async () => { fp = createFakeProver(); await fp.listen(); });
+after(() => fp.close());
+beforeEach(() => Object.assign(fp.state, { scenario: "concerns", pollsBeforeDone: 0, submitStatus: null, concern: null }));
+
+const example = JSON.parse(fs.readFileSync(path.join(ROOT, "contract", "examples", "status-done-concerns.json"), "utf8"));
+
+function setup() {
+  const data = tmpdir("intent-data-");
+  saveKey(data, TEST_KEY);
+  fs.writeFileSync(path.join(data, "global.json"), JSON.stringify({ consent_shown_at: "x" }));
+  const { dir, git } = makeRepo();
+  return { data, repo: dir, git, env: baseEnv(data, fp.url) };
+}
+
+// Run the CLI the way an agent's shell would: no plugin env vars, cwd in the repo.
+// data: the plugin data dir, passed as --data like the /intent:check command does.
+function cli(args, cwd, data) {
+  return new Promise((resolve) => {
+    const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("CLAUDE_") && !k.startsWith("INTENT_")));
+    // HOME points at a throwaway dir so a failing run cannot log into the real plugin data dir.
+    const c = spawn(process.execPath, [BIN, "check", ...args, ...(data ? ["--data", data] : [])], { cwd, env: { ...env, HOME: tmpdir("intent-home-"), INTENT_API_URL: "http://127.0.0.1:9" } });
+    let out = "";
+    c.stdout.on("data", (d) => { out += d; });
+    c.on("close", (code) => resolve({ code, out: out.trim() }));
+  });
+}
+
+const queueFiles = (repo) => {
+  try { return fs.readdirSync(path.join(repo, ".intent", ".queue")); } catch { return []; }
+};
+
+test("intent check queues validated repo-relative paths, offline, and says so in one line", async () => {
+  const { repo, data } = setup();
+  fs.mkdirSync(path.join(repo, "src", "auth"), { recursive: true });
+  fs.writeFileSync(path.join(repo, "src", "auth", "login.py"), "def login(u, p):\n    return check(u, p)\n");
+  fs.writeFileSync(path.join(repo, ".env"), "KEY=1\n");
+  const n = fp.state.requests.length;
+  const r = await cli(["login.py", "../../.env", "missing.py", "/etc/passwd"], path.join(repo, "src", "auth"), data);
+  assert.equal(r.code, 0);
+  assert.match(r.out, /^Intent Check: queued a review of 1 file; it runs in the background/);
+  assert.match(r.out, /secrets file/);
+  assert.match(r.out, /not found/);
+  assert.match(r.out, /outside the repo/);
+  const [q] = queueFiles(repo);
+  const item = JSON.parse(fs.readFileSync(path.join(repo, ".intent", ".queue", q), "utf8"));
+  assert.deepEqual([item.mode, item.paths], ["request", ["src/auth/login.py"]]);
+  assert.equal(fp.state.requests.length, n, "the CLI never calls the service");
+  // .queue is ignored by git.
+  assert.equal(fs.readFileSync(path.join(repo, ".intent", ".gitignore"), "utf8"), ".sent.log\n.queue\n");
+  const none = await cli([], repo, data);
+  assert.match(none.out, /give the files to review/);
+});
+
+test("S5: a queued request is submitted at the next Stop as a request job without a diff", async () => {
+  const ctx = setup();
+  fs.writeFileSync(path.join(ctx.repo, "pricing.py"), "def apply_discount(p, d):\n    return p - p * d // 100\n");
+  ctx.git("add", "-A"); ctx.git("commit", "-qm", "pricing");
+  await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "is apply_discount right?" }), ctx.env);
+  await cli(["pricing.py"], ctx.repo, ctx.data);
+  const n = fp.jobRequests().length;
+  const r = await runHook("stop", fixture("stop", ctx.repo), ctx.env);
+  assert.equal(r.code, 2, r.stderr);
+  const [req] = fp.jobRequests().slice(n);
+  assert.deepEqual(validateDef(req, "JobRequest"), []);
+  assert.equal(req.mode, "request");
+  assert.equal(req.units[0].diff, null);
+  assert.equal(req.changed_lines, 0);
+  assert.deepEqual(queueFiles(ctx.repo), []);
+  const log = fs.readFileSync(path.join(ctx.repo, ".intent", ".sent.log"), "utf8").trim().split("\n").map(JSON.parse);
+  assert.equal(log.at(-1).mode, "request");
+});
+
+test("S6: repo mode sends up to 10 files as one repo job", async () => {
+  fp.state.scenario = "no_concerns";
+  const ctx = setup();
+  const names = Array.from({ length: 12 }, (_, i) => `m${i}.py`);
+  for (const f of names) fs.writeFileSync(path.join(ctx.repo, f), `X = ${f.length}\n`);
+  await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "review my repo" }), ctx.env);
+  const q = await cli(["--repo", ...names], ctx.repo, ctx.data);
+  assert.match(q.out, /queued a review of 10 files/);
+  assert.match(q.out, /only the first 10/);
+  const n = fp.jobRequests().length;
+  const r = await runHook("stop", fixture("stop", ctx.repo), ctx.env);
+  assert.equal(r.code, 0);
+  const reqs = fp.jobRequests().slice(n);
+  assert.equal(reqs.length, 1);
+  assert.equal(reqs[0].mode, "repo");
+  assert.equal(reqs[0].units.length, 10);
+  assert.deepEqual(validateDef(reqs[0], "JobRequest"), []);
+});
+
+test("a file both edited and queued goes only into the request job", async () => {
+  const ctx = setup();
+  await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
+  const abs = path.join(ctx.repo, "calc.py");
+  fs.writeFileSync(abs, "def add(a, b):\n    c = a + b\n    return c\n");
+  await runHook("post-tool", fixture("post-tool-write", ctx.repo, { tool_input: { file_path: abs, content: "" } }), ctx.env);
+  await cli(["calc.py"], ctx.repo, ctx.data);
+  const n = fp.jobRequests().length;
+  await runHook("stop", fixture("stop", ctx.repo), ctx.env);
+  assert.deepEqual(fp.jobRequests().slice(n).map((r) => r.mode), ["request"]);
+});
+
+test("a symlinked queue folder or queue file is refused", async () => {
+  const { repo, data } = setup();
+  fs.writeFileSync(path.join(repo, "a.py"), "A = 1\n");
+  const outside = tmpdir("intent-outside-");
+  fs.mkdirSync(path.join(repo, ".intent"));
+  fs.symlinkSync(outside, path.join(repo, ".intent", ".queue"));
+  const r = await cli(["a.py"], repo, data);
+  assert.match(r.out, /could not queue/);
+  assert.deepEqual(fs.readdirSync(outside), []);
+});
+
+test("renames move unit folders and deletions remove them; foreign files are left alone", async () => {
+  const ctx = setup();
+  for (const f of ["old.py", "gone.py", "keep.py"]) fs.writeFileSync(path.join(ctx.repo, f), `V = "${f}"\n`);
+  ctx.git("add", "-A"); ctx.git("commit", "-qm", "files");
+  for (const f of ["old.py", "gone.py", "keep.py"]) writeUnit(ctx.repo, { ...example.result.units[0], path: f }, { job_id: "j", url: "u" }, example.result);
+  fs.writeFileSync(path.join(ctx.repo, ".intent", "keep.py", "NOTES.txt"), "mine\n");
+  ctx.git("add", "-A"); ctx.git("commit", "-qm", "intent");
+  await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
+  ctx.git("mv", "old.py", "new.py");
+  fs.unlinkSync(path.join(ctx.repo, "gone.py"));
+  fs.unlinkSync(path.join(ctx.repo, "keep.py"));
+  await runHook("stop", fixture("stop", ctx.repo), ctx.env);
+  const d = path.join(ctx.repo, ".intent");
+  assert.ok(fs.existsSync(path.join(d, "new.py", "SPEC.k")));
+  assert.equal(fs.existsSync(path.join(d, "old.py")), false);
+  assert.equal(fs.existsSync(path.join(d, "gone.py")), false);
+  assert.ok(fs.existsSync(path.join(d, "keep.py", "NOTES.txt")), "a folder with foreign files is not touched");
+});
