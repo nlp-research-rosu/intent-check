@@ -219,3 +219,76 @@ test("10. auth code named credentials is checked; credential files are not", () 
   assert.equal(includeFile("lib/credentials_store.go", ""), true);
   for (const p of ["credentials", "credentials.json", "config/credentials.yml", ".aws/credentials", "home/aws/credentials"]) assert.equal(neverUpload(p), true, p);
 });
+
+test("re-review: authorization schemes in any case; prose about tokens is left alone", () => {
+  for (const line of ["authorization: bearer abcDEF123ghiJKL456mnoPQR", "Authorization: Basic dXNlcjpwYXNzd29yZDEyMzQ=", "Authorization: Token 9f8e7d6c5b4a39281706f5e4"]) {
+    const { text, count } = redact(line);
+    assert.equal(count, 1, line);
+    assert.match(text, /‹redacted:bearer-token›/);
+  }
+  const prose = "Token authentication handles expiry. Basic authentication is disabled.";
+  assert.equal(redact(prose).text, prose);
+});
+
+test("re-review: removed key lines in a hunk that touches a key block are masked", () => {
+  const content = ["-----BEGIN RSA PRIVATE KEY-----", "abcdefghij0123456789", "NEWLINEabc0123456789", "-----END RSA PRIVATE KEY-----", ""].join("\n");
+  const diff = "--- a/k.pem.txt\n+++ b/k.pem.txt\n@@ -2,2 +2,2 @@\n abcdefghij0123456789\n-OLDLINExyz9876543210\n+NEWLINEabc0123456789\n";
+  const { text } = redactDiff(diff, content);
+  assert.ok(!text.includes("OLDLINE") && !text.includes("NEWLINE") && !text.includes("abcdefghij"), text);
+});
+
+test("re-review: redaction stays linear on long single lines", () => {
+  for (const unit of ["a", "password", "x.y-", "secret_", "ey"]) {
+    const line = unit.repeat(Math.ceil(65536 / unit.length));
+    const t0 = Date.now();
+    redact(line);
+    assert.ok(Date.now() - t0 < 1000, `${unit}: ${Date.now() - t0} ms for 64 KB`);
+  }
+  const big = "token_".repeat(170000); // ~1 MB
+  const t0 = Date.now();
+  redact(big);
+  assert.ok(Date.now() - t0 < 5000, `1 MB took ${Date.now() - t0} ms`);
+});
+
+test("re-review: a hard-linked .sent.log is not appended to", () => {
+  const root = tmpdir();
+  const target = path.join(tmpdir("intent-home-"), ".profile");
+  fs.writeFileSync(target, "# profile\n");
+  fs.mkdirSync(path.join(root, ".intent"));
+  fs.linkSync(target, path.join(root, ".intent", ".sent.log"));
+  appendSentLog(root, { time: "t", paths: ["x"] });
+  assert.equal(fs.readFileSync(target, "utf8"), "# profile\n");
+});
+
+test("re-review: while paused, one note per session; an env-key pause expires after 24 h", async () => {
+  const data = tmpdir("intent-data-");
+  fs.writeFileSync(path.join(data, "global.json"), JSON.stringify({ consent_shown_at: "x" }));
+  const env = baseEnv(data, fp.url, { INTENT_API_KEY: "ic_" + "P".repeat(38) });
+  const repo = makeRepo().dir;
+  const posts = () => fp.state.requests.filter((r) => r.method === "POST" && r.path === "/v1/jobs").length;
+  const edit = async (name, session) => {
+    const outp = await runHook("prompt", fixture("prompt", repo, { session_id: session }), env);
+    const abs = path.join(repo, `${name}.py`);
+    fs.writeFileSync(abs, `def ${name}(x):\n    y = x\n    return y\n`);
+    await runHook("post-tool", fixture("post-tool-write", repo, { session_id: session, tool_input: { file_path: abs, content: "" } }), env);
+    await runHook("stop", fixture("stop", repo, { session_id: session }), env);
+    return outp.stdout;
+  };
+  const n = posts();
+  await edit("a", "s1");
+  await edit("b", "s1");
+  const s1 = await runHook("prompt", fixture("prompt", repo, { session_id: "s1" }), env);
+  assert.equal(posts() - n, 1);
+  assert.equal((s1.stdout.match(/paused/g) || []).length, 0, "already told this session");
+  // A new session is told once.
+  await edit("c", "s2");
+  const s2 = await runHook("prompt", fixture("prompt", repo, { session_id: "s2" }), env);
+  assert.match(s2.json.systemMessage, /checks are paused because the API key was not accepted/);
+  assert.equal(posts() - n, 1);
+  // After 24 h the env-key pause lapses and the next turn tries again.
+  const g = JSON.parse(fs.readFileSync(path.join(data, "global.json"), "utf8"));
+  g.paused.at = new Date(Date.now() - 25 * 3600 * 1000).toISOString();
+  fs.writeFileSync(path.join(data, "global.json"), JSON.stringify(g));
+  await edit("d", "s2");
+  assert.equal(posts() - n, 2);
+});

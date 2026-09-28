@@ -111,17 +111,27 @@ if wait_for 60 pane_has 'Intent Check: connected\.'; then ok "connected line sho
 
 # 3. Seeded-bug edit.
 # One line only: a newline typed into the TUI would submit the prompt early.
-# Four lines (docstring included), so the change clears the 3-changed-lines trigger.
-send "Create pricing.py with exactly four lines: the comment '# pricing.py', then 'def apply_discount(price_cents: int, percent: int) -> int:', then the docstring '    \"\"\"Price in cents after a percentage discount; never below zero.\"\"\"', then the body '    return price_cents - price_cents * percent // 100'. Write the code exactly as given, do not add a clamp. Reply with just: written"
+# Four lines (docstring included) clear the 3-changed-lines trigger. The prompt states the intent
+# (never below zero) but not how to meet it, so after the wake the agent is free to fix the code.
+send "Add pricing.py with a function apply_discount(price_cents: int, percent: int) -> int that applies a percentage discount to a price in cents. It should never go below zero. Use exactly four lines: the comment '# pricing.py', the def line, a one-line docstring, and the body 'return price_cents - price_cents * percent // 100'. Reply with just: written"
+# The file as written by the seed turn: captured at upload time, before any wake-up can change it.
+wait_for 120 test -s "$REPO/.intent/.sent.log" || true
+BEFORE="$(sha256sum "$REPO/pricing.py" 2>/dev/null | cut -c1-64)"
 if wait_for 120 test -f "$REPO/.intent/pricing.py/meta.json"; then ok ".intent/pricing.py written"; else bad ".intent/pricing.py missing"; fi
 URL="$(node -e 'try{console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).url)}catch{console.log("")}' "$REPO/.intent/pricing.py/meta.json")"
 case "$URL" in http*/r/*) ok "report URL $URL" ;; *) bad "no report URL in meta.json" ;; esac
 [ -f "$REPO/.intent/.ignore" ] && [ "$(cat "$REPO/.intent/.ignore")" = "*" ] && ok ".intent/.ignore holds *" || bad ".intent/.ignore"
 
 # 4. The idle session is woken with the concern, and the agent fixes it (acceptEdits).
-BEFORE="$(sha256sum "$REPO/pricing.py" | cut -c1-64)"
 if wait_for 300 pane_has 'Intent Check(: [0-9]+ concern| found concerns)'; then ok "idle session woken with a concern"; else bad "no wake-up seen"; fi
-if wait_for 240 bash -c "[ \"\$(sha256sum '$REPO/pricing.py' | cut -c1-64)\" != '$BEFORE' ]"; then ok "agent edited pricing.py after the wake"; else bad "no fix after the wake"; fi
+changed() { [ "$(sha256sum "$REPO/pricing.py" | cut -c1-64)" != "$BEFORE" ]; }
+if wait_for 60 changed; then
+  ok "agent fixed pricing.py after the wake"
+else
+  # In a mode that asks first (or if the agent just reported the concern), ask for the fix.
+  send "Please fix what Intent Check found."
+  if wait_for 180 changed; then ok "agent fixed pricing.py when asked"; else bad "no fix after the wake"; fi
+fi
 
 # 5. The fix is re-checked silently: a second upload, no second wake.
 WAKES="$(pane_count 'Intent Check(: [0-9]+ concern| found concerns)')"
