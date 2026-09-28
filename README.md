@@ -29,6 +29,10 @@ claude plugin install intent@intentcomputing
 
 Then restart Claude Code or run `/reload-plugins`. Your first prompt shows a link to connect your account; once you approve it, checks start. The saved key lives in Claude Code's plugin data folder, which is removed when you uninstall the plugin.
 
+## Asking for a review
+
+Ask the agent to check specific files, or the whole repo ("check auth.py with Intent Check"); the `intent-check` skill runs `intent check <paths>` for it, and the review runs after the turn. In a project without git, run `intent check` from the project root (the folder the session started in).
+
 ## Development
 
 - Zero runtime dependencies. Plain ESM JavaScript, Node 18 syntax.

@@ -15,7 +15,7 @@ When the user asks you to review or check specific code, queue it and carry on:
 
 In Codex, run the same script by its path relative to this file: `node <folder of this SKILL.md>/../../bin/intent.js check <paths>`.
 
-- Pass the files involved (at most 10). The command only queues the request and returns at once; the review runs when your turn ends, and the result arrives as a note.
+- Run it from the project root: the git top level, or in a project without git, the folder the session started in. Pass the files involved (at most 10). The command only queues the request and returns at once; the review runs when your turn ends, and the result arrives as a note.
 - "Review my repo" or the whole codebase: pick up to 10 of the most relevant source files (entry points, auth, payments, data handling, core logic; not tests, UI, config or generated code) and run `check --repo <paths>`.
 - Tell the user in one line that the review is queued. Do not wait or poll for it.
 
