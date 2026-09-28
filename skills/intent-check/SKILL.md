@@ -11,7 +11,7 @@ Intent Check compares code with what the user asked for. It runs in the backgrou
 
 When the user asks you to review or check specific code, queue it and carry on:
 
-    node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" check <path> [<path> ...]
+    node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" check --data "${CLAUDE_PLUGIN_DATA}" <path> [<path> ...]
 
 In Codex, run the same script by its path relative to this file: `node <folder of this SKILL.md>/../../bin/intent.js check <paths>`.
 
