@@ -24,6 +24,10 @@ Request headers on `/v1/jobs`: `X-Intent-Version` (plugin version, 426 below the
 
 Errors are `ErrorResponse` with HTTP 400 `invalid_request`, 401 `unauthorized`, 404 `not_found`, 413 `payload_too_large`, 426 `upgrade_required`, 429 `rate_limited` / `spend_cap` / `blocked` (with `reason`), 500 `internal`.
 
+## Changelog
+
+- 2026-09-28: `UnitRequest.regions` (optional) added: real line ranges for truncated content.
+
 ## Semantics
 
 - **Supersede:** a new job from the same account for a path supersedes any unfinished job covering that path. The old job's status becomes `superseded` and it never gets a result.
