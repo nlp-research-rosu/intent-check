@@ -19,4 +19,4 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: node contract/hash.mjs
-      - run: node --test test/
+      - run: node --test test/*.test.js
