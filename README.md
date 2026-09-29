@@ -50,10 +50,9 @@ Ask the agent to check specific files, or the whole repo ("check auth.py with In
 
 Reports from the staging service:
 
-- [orders.ts: pagination](https://web-staging-7e1c.up.railway.app/r/hiZgexLlGTOQXVzAWhk34K)
-- [dedupe.go: order of results](https://web-staging-7e1c.up.railway.app/r/bi3H6Unhcno5VSnrBXLkiF)
-- [Proration rounding](https://web-staging-7e1c.up.railway.app/r/uiYAh9zW5Amlzptx6N63I1)
-- [pricing.py: a discount that can go below zero](https://web-staging-7e1c.up.railway.app/r/E8EThM8yhwZzvJNsXhzuSG)
+- [orders.ts: pagination](https://web-staging-7e1c.up.railway.app/r/XCIS3Vb88lln4Zj6Fa4pSX)
+- [dedupe.go: order of results](https://web-staging-7e1c.up.railway.app/r/R5gTYyfhQRfH6vnJKLKt7j)
+- [Proration rounding](https://web-staging-7e1c.up.railway.app/r/wQTp6MDv1EZ3PGelmcK2Kt)
 
 ## Development
 
