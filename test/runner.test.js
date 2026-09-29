@@ -75,7 +75,7 @@ test("no concerns: silent at Stop, one line at the next prompt", async () => {
   assert.equal(r.code, 0);
   assert.equal(r.stdout + r.stderr, "");
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "thanks" }), ctx.env);
-  assert.match(next.json.hookSpecificOutput.additionalContext, /^Intent Check: no concerns · http:\/\/127\.0\.0\.1:\d+\/r\/\w{22}$/);
+  assert.match(next.json.hookSpecificOutput.additionalContext, /^Intent Check: no concerns in pricing\.py · http:\/\/127\.0\.0\.1:\d+\/r\/\w{22}$/);
   assert.equal(next.json.systemMessage, undefined);
   const again = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "and again" }), ctx.env);
   assert.equal(again.stdout, "");
@@ -328,3 +328,25 @@ test("old-Node shim: exits 0 silently when Node is older than 18", async () => {
 });
 
 void sleep;
+
+test("a worktree-isolated subagent's edit is reviewed under its repo path, not .claude/worktrees/", async () => {
+  const ctx = setup();
+  fs.writeFileSync(path.join(ctx.repo, "pricing.py"), "# todo\n");
+  ctx.gitc("add", "-A");
+  ctx.gitc("commit", "-qm", "pricing stub");
+  ctx.gitc("worktree", "add", "-q", "-b", "agent-x", ".claude/worktrees/agent-x");
+  const wt = path.join(ctx.repo, ".claude", "worktrees", "agent-x");
+  const n = fp.jobRequests().length;
+  await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "Add a helper that applies a percentage discount. It must never go below zero." }), ctx.env);
+  const abs = path.join(wt, "pricing.py");
+  fs.writeFileSync(abs, PRICING);
+  await runHook("post-tool", fixture("post-tool-write", wt, { tool_input: { file_path: abs, content: PRICING }, agent_id: "a1", agent_type: "general-purpose" }), ctx.env);
+  const r = await runHook("stop", fixture("stop", ctx.repo), ctx.env);
+  assert.equal(r.code, 2, r.stderr);
+  const [req] = jobsSince(n);
+  assert.deepEqual(req.units.map((u) => u.path), ["pricing.py"]);
+  assert.match(req.units[0].diff, /\n--- a\/pricing\.py\n\+\+\+ b\/pricing\.py\n/);
+  assert.ok(fs.existsSync(path.join(ctx.repo, ".intent", "pricing.py", "VERDICT.md")));
+  assert.ok(!fs.existsSync(path.join(ctx.repo, ".intent", ".claude")));
+  assert.doesNotMatch(r.stderr, /has changed since/); // stale check reads the worktree copy
+});

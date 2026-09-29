@@ -95,6 +95,8 @@ test("concern text: at most 3 concerns, stale label, never claims verification",
 
 test("no-concerns note", () => {
   assert.equal(noConcernsText("https://x.test/r/1"), "Intent Check: no concerns · https://x.test/r/1");
+  assert.equal(noConcernsText("https://x.test/r/1", false, ["a.py"]), "Intent Check: no concerns in a.py · https://x.test/r/1");
+  assert.equal(noConcernsText("https://x.test/r/1", true, ["a", "b", "c", "d", "e"]), "Intent Check: no concerns in a, b, c and 2 more (partial review) · https://x.test/r/1");
 });
 
 // Real concern titles and fix directions the prover writes: none of these may be dropped.
