@@ -261,8 +261,12 @@ test("a newer runner takes over the session's pending jobs; the old one exits qu
   fp.state.pollsBeforeDone = 0;
   const r2 = await second;
   assert.equal(r2.code, 2);
-  const s = readSessionFiles(ctx.data)[0];
-  assert.equal(s.owner, null);
+  // If the wake came from one job while the other was still pending, a finisher settles the
+  // other one; either way every job ends up settled and nobody keeps ownership.
+  assert.ok(await waitFor(() => {
+    const s = readSessionFiles(ctx.data)[0];
+    return s.owner === null && s.pending.length === 0;
+  }, { timeoutMs: 20000 }));
 });
 
 test("no git: diffs come from Claude Code's structuredPatch and the touched paths", async () => {

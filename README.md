@@ -48,7 +48,7 @@ Ask the agent to check specific files, or the whole repo ("check auth.py with In
 
 ## Sample reports
 
-Reports from the staging service (the prover's reasoning is best-effort and written by a model; nothing on these pages is machine-checked):
+Reports from the staging service:
 
 - [orders.ts: pagination](https://web-staging-7e1c.up.railway.app/r/hiZgexLlGTOQXVzAWhk34K)
 - [dedupe.go: order of results](https://web-staging-7e1c.up.railway.app/r/bi3H6Unhcno5VSnrBXLkiF)
