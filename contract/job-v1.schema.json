@@ -38,7 +38,11 @@
         "first_prompt": { "description": "The session's first substantive prompt, if it is not already in prompts.", "type": ["string", "null"], "maxLength": 4000 },
         "plan": { "description": "The last approved plan text (Claude Code ExitPlanMode), if any.", "type": ["string", "null"], "maxLength": 8000 },
         "todos": { "type": "array", "maxItems": 30, "items": { "type": "string", "maxLength": 200 } },
-        "agent_message": { "description": "The agent's final message for the turn. Prover uses it only as claims to check (stage A1).", "type": ["string", "null"], "maxLength": 4000 }
+        "agent_message": { "description": "The agent's final message for the turn. Prover uses it only as claims to check (stage A1).", "type": ["string", "null"], "maxLength": 4000 },
+        "notes": {
+          "description": "Contents of the repo's .intent/NOTES.md: bullets of behaviour the user has confirmed is intended. Treated as user intent; redacted and clipped by the plugin.",
+          "type": ["string", "null"], "maxLength": 4000
+        }
       }
     },
 

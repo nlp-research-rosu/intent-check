@@ -68,6 +68,17 @@ test("concerns: submits a contract-valid job, writes .intent/ and wakes the agen
   assert.deepEqual(readSessionFiles(ctx.data)[0].pending, []);
 });
 
+test("a job carries intent.notes from the repo's .intent/NOTES.md", async () => {
+  const ctx = setup();
+  fs.mkdirSync(path.join(ctx.repo, ".intent"), { recursive: true });
+  fs.writeFileSync(path.join(ctx.repo, ".intent", "NOTES.md"), "- Coupons intentionally never expire; the docstring is stale.\n");
+  const n = fp.jobRequests().length;
+  await turn(ctx, { "pricing.py": PRICING });
+  const [req] = jobsSince(n);
+  assert.deepEqual(validateDef(req, "JobRequest"), []);
+  assert.match(req.intent.notes, /Coupons intentionally never expire/);
+});
+
 test("no concerns: silent at Stop, one line at the next prompt", async () => {
   fp.state.scenario = "no_concerns";
   const ctx = setup();
@@ -125,7 +136,7 @@ test("default permission mode asks Fix or Skip", async () => {
   const ctx = setup();
   const r = await turn(ctx, { "pricing.py": PRICING }, { stopPatch: { permission_mode: "default" } });
   assert.equal(r.code, 2);
-  assert.match(r.stderr, /Fix or Skip \(use AskUserQuestion\)/);
+  assert.match(r.stderr, /Fix, Skip or Intended \(use AskUserQuestion\)/);
 });
 
 test("headless (claude -p): detaches at once, never wakes, result becomes a note", async () => {

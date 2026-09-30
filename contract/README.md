@@ -27,6 +27,7 @@ Errors are `ErrorResponse` with HTTP 400 `invalid_request`, 401 `unauthorized`, 
 ## Changelog
 
 - 2026-09-28: `UnitRequest.regions` (optional) added: real line ranges for truncated content.
+- 2026-09-30: `Intent.notes` (optional) added: contents of `.intent/NOTES.md`, sent with every job.
 
 ## Semantics
 

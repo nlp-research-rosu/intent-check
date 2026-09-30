@@ -71,12 +71,34 @@ test("concern text: fix directly in auto-style modes, only in the flagged file",
   }
 });
 
-test("concern text: ask Fix or Skip in default and plan modes", () => {
+test("concern text: ask Fix, Skip or Intended in default and plan modes", () => {
   const cs = validConcerns(example.result, ["pricing.py"]);
   for (const mode of ["default", "plan", null]) {
     const t = concernText({ concerns: cs, url: example.url, permissionMode: mode });
-    assert.match(t, /Fix or Skip \(use AskUserQuestion\)/);
+    assert.match(t, /Fix, Skip or Intended \(use AskUserQuestion\)/);
+    assert.match(t, /Change nothing until they answer\./);
+    assert.match(t, /add one bullet describing that behaviour to \.intent\/NOTES\.md \(that file only\) so Intent Check does not raise it again\./);
     assert.doesNotMatch(t, /fix it directly/);
+  }
+});
+
+test("concern text: ask branch, Codex wording says 'as a plain question'", () => {
+  const cs = validConcerns(example.result, ["pricing.py"]);
+  for (const mode of ["default", "plan", null]) {
+    const t = concernText({ concerns: cs, url: example.url, permissionMode: mode, host: "codex" });
+    assert.match(t, /Fix, Skip or Intended as a plain question/);
+    assert.doesNotMatch(t, /AskUserQuestion/);
+  }
+});
+
+test("concern text: fix-directly branch mentions recording intended behaviour in NOTES.md", () => {
+  const cs = validConcerns(example.result, ["pricing.py"]);
+  for (const mode of ["acceptEdits", "auto", "dontAsk", "bypassPermissions"]) {
+    const t = concernText({ concerns: cs, url: example.url, permissionMode: mode, host: "claude-code" });
+    assert.match(t, /fix it directly, editing only pricing\.py/);
+    assert.match(t, /If the user says the behaviour was intended, record it as one bullet in \.intent\/NOTES\.md so it is not raised again\./);
+    const tc = concernText({ concerns: cs, url: example.url, permissionMode: mode, host: "codex" });
+    assert.match(tc, /If the user says the behaviour was intended, record it as one bullet in \.intent\/NOTES\.md so it is not raised again\./);
   }
 });
 

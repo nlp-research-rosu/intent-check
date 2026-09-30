@@ -22,6 +22,7 @@
     "plan_chars": 8000,
     "max_todos": 30,
     "todo_chars": 200,
+    "notes_chars": 4000,
     "content_full_lines": 1500,
     "touched_context_lines": 40,
     "changed_lines_cap": 1500,

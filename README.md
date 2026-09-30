@@ -11,6 +11,7 @@ After a turn that changes source files, the plugin sends to the Intent Check ser
 - your last few prompts in the session (and the first one), the approved plan and todo items, and the agent's final message for the turn
 - the diff of each changed source file and the file itself (large files: only the changed regions)
 - the plugin version, host, OS and permission mode
+- `.intent/NOTES.md`, if present
 
 Obvious secrets (private keys, cloud and API tokens, `KEY=value` lines with random-looking values) are masked on your machine before anything is sent. Files such as `.env*`, `*.pem` and `id_rsa*` are never sent. Tests, UI components, generated and vendored code, config and docs are not sent either.
 
