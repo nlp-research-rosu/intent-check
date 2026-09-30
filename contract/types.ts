@@ -21,6 +21,7 @@ export interface Intent {
   plan: string | null;
   todos: string[];
   agent_message: string | null;
+  notes?: string | null;
 }
 
 export interface Prior {
