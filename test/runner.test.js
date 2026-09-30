@@ -162,13 +162,18 @@ test("a rejected saved key (401) is dropped, so the next prompt offers the conne
   assert.match(next.json.systemMessage, /^Intent Check: connect your account → http/);
 });
 
-test("prover unreachable: nothing shown, the turn's paths are kept for the next Stop", async () => {
+test("prover unreachable: the turn is not held up, paths are kept, the next prompt says so once", async () => {
   const ctx = setup({ env: { INTENT_API_URL: "http://127.0.0.1:9" } });
   const r = await turn(ctx, { "pricing.py": PRICING });
   assert.equal(r.code, 0);
   assert.equal(r.stdout + r.stderr, "");
   const [s] = readSessionFiles(ctx.data);
   assert.deepEqual(s.touched, [path.join(ctx.repo, "pricing.py")]);
+  const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "go on" }), ctx.env);
+  assert.match(JSON.stringify(next.json), /couldn't reach the service, so recent changes haven't been checked yet/);
+  await runHook("stop", fixture("stop", ctx.repo), ctx.env);
+  const again = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "and again" }), ctx.env);
+  assert.doesNotMatch(JSON.stringify(again.json || {}), /couldn't reach/);
 });
 
 for (const [name, env, off] of [["INTENT_DISABLED=1", { INTENT_DISABLED: "1" }, false], ["DO_NOT_TRACK=1", { DO_NOT_TRACK: "1" }, false], ["/intent:off", {}, true]]) {
