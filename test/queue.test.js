@@ -142,3 +142,36 @@ test("renames move unit folders and deletions remove them; foreign files are lef
   assert.equal(fs.existsSync(path.join(d, "gone.py")), false);
   assert.ok(fs.existsSync(path.join(d, "keep.py", "NOTES.txt")), "a folder with foreign files is not touched");
 });
+
+test("intent check inside a worktree-isolated subagent is queued in the main repo and reviewed under the repo path", async () => {
+  const ctx = setup();
+  fs.writeFileSync(path.join(ctx.repo, "pricing.py"), "# todo\n");
+  ctx.git("add", "-A"); ctx.git("commit", "-qm", "pricing");
+  ctx.git("worktree", "add", "-q", "-b", "agent-q", ".claude/worktrees/agent-q");
+  const wt = path.join(ctx.repo, ".claude", "worktrees", "agent-q");
+  fs.writeFileSync(path.join(wt, "pricing.py"), "def apply_discount(p, d):\n    return p - p * d // 100\n");
+  await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "is apply_discount right?" }), ctx.env);
+  const out = await cli(["pricing.py"], wt, ctx.data);
+  assert.match(out.out, /queued a review of 1 file/);
+  assert.deepEqual(queueFiles(wt), []);
+  const [q] = queueFiles(ctx.repo);
+  const item = JSON.parse(fs.readFileSync(path.join(ctx.repo, ".intent", ".queue", q), "utf8"));
+  assert.deepEqual([item.paths, item.worktree], [["pricing.py"], fs.realpathSync(wt)]);
+  const n = fp.jobRequests().length;
+  const r = await runHook("stop", fixture("stop", ctx.repo), ctx.env);
+  assert.equal(r.code, 2, r.stderr);
+  const [req] = fp.jobRequests().slice(n);
+  assert.equal(req.mode, "request");
+  assert.equal(req.units[0].path, "pricing.py");
+  assert.match(req.units[0].content, /apply_discount/); // the worktree's copy, not the main tree's
+  assert.ok(fs.existsSync(path.join(ctx.repo, ".intent", "pricing.py", "meta.json")));
+  assert.ok(!fs.existsSync(path.join(ctx.repo, ".intent", ".claude")));
+});
+
+test("a queued item naming a folder outside the repo's worktrees is dropped", async () => {
+  const ctx = setup();
+  fs.mkdirSync(path.join(ctx.repo, ".intent", ".queue"), { recursive: true });
+  fs.writeFileSync(path.join(ctx.repo, ".intent", ".queue", "1-deadbeef.json"), JSON.stringify({ mode: "request", paths: ["passwd"], worktree: "/etc" }));
+  const { takeQueue } = await import("../lib/queue.js");
+  assert.deepEqual(takeQueue(ctx.repo), []);
+});
