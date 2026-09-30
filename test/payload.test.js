@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { buildRequest, unitContent, idempotencyKey, readPrior } from "../lib/payload.js";
+import { buildRequest, unitContent, idempotencyKey, readPrior, readNotes } from "../lib/payload.js";
 import { countChangedLines, hunkRanges, newFileDiff, patchesToDiff } from "../lib/changes.js";
 import { writeUnit } from "../lib/intentdir.js";
 import { validateDef } from "./helpers/schema.js";
@@ -72,6 +72,56 @@ test("prior artifacts come from .intent/", () => {
   assert.equal(p.source_sha256, ex.result.units[0].checked_sha256);
   assert.match(p.spec_k, /PRICING-SPEC/);
   assert.equal(readPrior(root, "other.py"), null);
+});
+
+test("intent.notes: read from .intent/NOTES.md, redacted, clipped and schema-valid", () => {
+  const root = tmpdir();
+  fs.mkdirSync(path.join(root, ".intent"), { recursive: true });
+  fs.writeFileSync(path.join(root, ".intent", "NOTES.md"), "- Coupons intentionally never expire; the docstring is stale. Key sk-proj-" + "Zq8".repeat(14) + "\n");
+  const f = file("pricing.py", "# pricing.py\ndef apply_discount(price_cents: int, percent: int) -> int:\n    return price_cents - price_cents * percent // 100\n");
+  const b = buildRequest({ files: [f], root, snap, stop, sessionHash: "s", turnId: "t", host: "claude-code" });
+  assert.deepEqual(validateDef(b.request, "JobRequest"), []);
+  assert.match(b.request.intent.notes, /Coupons intentionally never expire/);
+  assert.ok(!b.request.intent.notes.includes("Zq8Zq8Zq8"), "secret redacted");
+
+  const long = tmpdir();
+  fs.mkdirSync(path.join(long, ".intent"), { recursive: true });
+  fs.writeFileSync(path.join(long, ".intent", "NOTES.md"), "x".repeat(5000));
+  const b2 = buildRequest({ files: [f], root: long, snap, stop, sessionHash: "s", turnId: "t", host: "claude-code" });
+  assert.equal(b2.request.intent.notes.length, 4000);
+  assert.deepEqual(validateDef(b2.request, "JobRequest"), []);
+});
+
+test("intent.notes: absent when .intent/NOTES.md is missing or empty", () => {
+  const f = file("pricing.py", "a\nb\nc\n");
+  const b = buildRequest({ files: [f], root: tmpdir(), snap, stop, sessionHash: "s", turnId: "t", host: "claude-code" });
+  assert.equal("notes" in b.request.intent, false);
+  assert.equal(readNotes(tmpdir()), null);
+
+  const empty = tmpdir();
+  fs.mkdirSync(path.join(empty, ".intent"), { recursive: true });
+  fs.writeFileSync(path.join(empty, ".intent", "NOTES.md"), "");
+  const b2 = buildRequest({ files: [f], root: empty, snap, stop, sessionHash: "s", turnId: "t", host: "claude-code" });
+  assert.equal("notes" in b2.request.intent, false);
+});
+
+test("intent.notes: a symlinked NOTES.md is refused", () => {
+  const root = tmpdir();
+  const outside = tmpdir("intent-outside-");
+  fs.writeFileSync(path.join(outside, "secret.md"), "- leaked\n");
+  fs.mkdirSync(path.join(root, ".intent"), { recursive: true });
+  fs.symlinkSync(path.join(outside, "secret.md"), path.join(root, ".intent", "NOTES.md"));
+  assert.equal(readNotes(root), null);
+  const f = file("pricing.py", "a\nb\nc\n");
+  const b = buildRequest({ files: [f], root, snap, stop, sessionHash: "s", turnId: "t", host: "claude-code" });
+  assert.equal("notes" in b.request.intent, false);
+});
+
+test("intent.notes: an oversized NOTES.md (> 64 KB) is refused", () => {
+  const root = tmpdir();
+  fs.mkdirSync(path.join(root, ".intent"), { recursive: true });
+  fs.writeFileSync(path.join(root, ".intent", "NOTES.md"), "x".repeat(64 * 1024 + 1));
+  assert.equal(readNotes(root), null);
 });
 
 test("idempotency key depends on session, turn, paths and file hashes", () => {

@@ -110,7 +110,7 @@ test("Stop is sync and quick: submits a codex job, hands polling to a detached p
   assert.equal(next.json.hookSpecificOutput.hookEventName, "UserPromptSubmit");
   const text = next.json.hookSpecificOutput.additionalContext;
   assert.match(text, /^Intent Check: 1 concern/);
-  assert.match(text, /Fix or Skip as a plain question/);
+  assert.match(text, /Fix, Skip or Intended as a plain question/);
   assert.doesNotMatch(text, /AskUserQuestion/);
 });
 
