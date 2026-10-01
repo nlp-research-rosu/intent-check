@@ -7,6 +7,8 @@ import { writeUnit, unitDir, ensureScaffold, appendSentLog, removeUnit, moveUnit
 import { tmpdir, makeRepo, ROOT } from "./helpers/env.js";
 
 const example = JSON.parse(fs.readFileSync(path.join(ROOT, "contract", "examples", "status-done-concerns.json"), "utf8"));
+// REASONING.md + VERIFICATION.k, SEMANTICS.k as the stub (contract 2026-10-01).
+const stubExample = JSON.parse(fs.readFileSync(path.join(ROOT, "contract", "examples", "status-done-no-concerns.json"), "utf8"));
 
 test("writes one unit folder with the four artifacts and meta.json", () => {
   const root = tmpdir();
@@ -25,6 +27,33 @@ test("writes one unit folder with the four artifacts and meta.json", () => {
   assert.ok(meta.versions.plugin);
   // No temp files left behind.
   assert.deepEqual(fs.readdirSync(dir).filter((f) => f.endsWith(".tmp")), []);
+});
+
+test("writes VERIFICATION.k and REASONING.md, and skips the SEMANTICS.k stub", () => {
+  const root = tmpdir();
+  const unit = { ...stubExample.result.units[0], path: "pricing.py" };
+  assert.equal(writeUnit(root, unit, { job_id: stubExample.job_id, url: stubExample.url }, stubExample.result), true);
+  const dir = path.join(root, ".intent", "pricing.py");
+  assert.equal(fs.readFileSync(path.join(dir, "VERIFICATION.k"), "utf8"), unit.artifacts["VERIFICATION.k"]);
+  assert.equal(fs.readFileSync(path.join(dir, "REASONING.md"), "utf8"), unit.artifacts["REASONING.md"]);
+  // The stub ("// Not generated; see REASONING.md") carries no behaviour, so it is not written.
+  assert.ok(unit.artifacts["SEMANTICS.k"].startsWith("// Not generated"));
+  assert.equal(fs.existsSync(path.join(dir, "SEMANTICS.k")), false);
+});
+
+test("a stale real SEMANTICS.k from an older check is removed once a later check is the stub", () => {
+  const root = tmpdir();
+  const rel = "pricing.py";
+  // First check: the old shape, a real SEMANTICS.k gets written.
+  writeUnit(root, { ...example.result.units[0], path: rel }, { job_id: example.job_id, url: example.url }, example.result);
+  const dir = path.join(root, ".intent", rel);
+  assert.equal(fs.existsSync(path.join(dir, "SEMANTICS.k")), true);
+  // A later check on the same path comes back with the stub: the stale file is removed, the
+  // folder gains VERIFICATION.k and REASONING.md.
+  writeUnit(root, { ...stubExample.result.units[0], path: rel }, { job_id: stubExample.job_id, url: stubExample.url }, stubExample.result);
+  assert.equal(fs.existsSync(path.join(dir, "SEMANTICS.k")), false);
+  assert.equal(fs.existsSync(path.join(dir, "VERIFICATION.k")), true);
+  assert.equal(fs.existsSync(path.join(dir, "REASONING.md")), true);
 });
 
 test("scaffold: README, .ignore with *, .gitignore for the local log and queue", () => {
@@ -96,6 +125,51 @@ test("a late result for a deleted repo does not recreate it", () => {
 test("README mentions the NOTES.md exception", () => {
   assert.match(README, /NOTES\.md.*yours/);
   assert.match(README, /sent with every check/);
+});
+
+test("README describes VERIFICATION.k, REASONING.md and meta.json, not SEMANTICS.k", () => {
+  assert.match(README, /`VERIFICATION\.k`/);
+  assert.match(README, /`REASONING\.md`/);
+  assert.match(README, /`meta\.json`/);
+  assert.doesNotMatch(README, /SEMANTICS\.k/);
+  assert.doesNotMatch(README, /\b(verified|proved|proven|compiles)\b/i);
+});
+
+// The README this file shipped once NOTES.md existed but before VERIFICATION.k/REASONING.md
+// (see git history: lib/intentdir.js before this change). Refresh recognises it too.
+const PAST_README_WITH_NOTES = `# .intent
+
+This folder is written by Intent Check (the \`intent\` plugin for Claude Code and Codex).
+Each source file that was checked has a folder here, named by its path from the repo root:
+
+- \`INTENT.md\`: the intent of the code, with its assumptions made explicit
+- \`SPEC.k\`: K claims about the code
+- \`SEMANTICS.k\`: the code's behaviour as K rewrite rules
+- \`VERDICT.md\`: the verdict and any concerns
+- \`meta.json\`: the file hash that was checked, when, and the report link
+
+Do not edit these files by hand; the next check of a file updates its folder.
+
+\`NOTES.md\` is yours: one bullet per behaviour you have confirmed is intended. It is sent with every check and those behaviours are not raised again. Everything else here is written by Intent Check.
+
+\`.sent.log\` lists every upload from this repo (paths, sizes, time, where to). It never holds file contents and is not committed.
+
+## Not committing this folder
+
+The folder is meant to be committed. To keep it out of git, add this line to your repo's \`.gitignore\`:
+
+    .intent/
+
+To stop checks altogether, run \`/intent:off\` (or set \`INTENT_DISABLED=1\` or \`DO_NOT_TRACK=1\`).
+`;
+
+test("README refresh: also recognises the NOTES.md-era version as an exact past version", () => {
+  const root = tmpdir();
+  ensureScaffold(root);
+  const f = path.join(root, ".intent", "README.md");
+  fs.writeFileSync(f, PAST_README_WITH_NOTES);
+  ensureScaffold(root);
+  assert.equal(fs.readFileSync(f, "utf8"), README);
 });
 
 test("scaffold never creates NOTES.md", () => {

@@ -71,7 +71,23 @@ test("prior artifacts come from .intent/", () => {
   const p = readPrior(root, "pricing.py");
   assert.equal(p.source_sha256, ex.result.units[0].checked_sha256);
   assert.match(p.spec_k, /PRICING-SPEC/);
+  // This fixture predates VERIFICATION.k (old-style unit folder): absent, not an error.
+  assert.equal(p.verification_k, null);
   assert.equal(readPrior(root, "other.py"), null);
+});
+
+test("prior artifacts: VERIFICATION.k comes back too, redacted and schema-valid, once a unit has one", () => {
+  const root = tmpdir();
+  const ex = JSON.parse(fs.readFileSync(path.join(ROOT, "contract", "examples", "status-done-no-concerns.json"), "utf8"));
+  writeUnit(root, ex.result.units[0], { job_id: ex.job_id, url: ex.url }, ex.result);
+  const p = readPrior(root, "pricing.py");
+  assert.match(p.verification_k, /PRICING-VERIFICATION/);
+  assert.match(p.verification_k, /floordiv/);
+
+  const f = file("pricing.py", "# pricing.py\ndef apply_discount(price_cents: int, percent: int) -> int:\n    return price_cents - price_cents * percent // 100\n");
+  const b = buildRequest({ files: [f], root, snap, stop, sessionHash: "e43a48a0bbd65fcbe24d5a8b665b86a3", turnId: "turn-3", host: "claude-code", hostVersion: "2.1.283" });
+  assert.deepEqual(validateDef(b.request, "JobRequest"), []);
+  assert.match(b.request.units[0].prior.verification_k, /PRICING-VERIFICATION/);
 });
 
 test("intent.notes: read from .intent/NOTES.md, redacted, clipped and schema-valid", () => {
