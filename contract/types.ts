@@ -29,6 +29,7 @@ export interface Prior {
   spec_k: string | null;
   semantics_k: string | null;
   source_sha256: string | null;
+  verification_k?: string | null;
 }
 
 export interface UnitRequest {
@@ -87,8 +88,13 @@ export interface Claim {
 export interface UnitArtifacts {
   "INTENT.md": string;
   "SPEC.k": string;
+  /** May be a one-line stub ("Not generated; see REASONING.md") when REASONING.md carries the reasoning instead. */
   "SEMANTICS.k": string;
   "VERDICT.md": string;
+  /** Optional (additive, v1). Summary functions, predicates and lemmas the SPEC.k claims use. */
+  "VERIFICATION.k"?: string;
+  /** Optional (additive, v1). The natural-language symbolic trace; see contract/README.md for the layout. */
+  "REASONING.md"?: string;
 }
 
 export interface UnitResult {

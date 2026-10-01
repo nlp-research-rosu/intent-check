@@ -54,7 +54,8 @@
         "intent_md": { "type": ["string", "null"] },
         "spec_k": { "type": ["string", "null"] },
         "semantics_k": { "type": ["string", "null"] },
-        "source_sha256": { "oneOf": [{ "$ref": "#/$defs/Sha256" }, { "type": "null" }] }
+        "source_sha256": { "oneOf": [{ "$ref": "#/$defs/Sha256" }, { "type": "null" }] },
+        "verification_k": { "type": ["string", "null"] }
       }
     },
 
@@ -161,8 +162,10 @@
           "properties": {
             "INTENT.md": { "type": "string" },
             "SPEC.k": { "type": "string" },
-            "SEMANTICS.k": { "type": "string" },
-            "VERDICT.md": { "type": "string" }
+            "SEMANTICS.k": { "description": "The code's behaviour as K rewrite rules. May be a one-line stub (\"Not generated; see REASONING.md\") when reasoning is done on paper against REASONING.md instead.", "type": "string" },
+            "VERDICT.md": { "type": "string" },
+            "VERIFICATION.k": { "description": "Optional (additive, v1). Summary functions, predicates and lemmas the SPEC.k claims use, guarded and total.", "type": "string" },
+            "REASONING.md": { "description": "Optional (additive, v1). The natural-language symbolic trace that is the primary evidence for each claim's status; see contract/README.md for the layout.", "type": "string" }
           }
         },
         "claims": { "type": "array", "items": { "$ref": "#/$defs/Claim" } }
