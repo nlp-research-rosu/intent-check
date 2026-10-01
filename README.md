@@ -23,18 +23,26 @@ Turn it off with `/intent:off` in Claude Code (back on with `/intent:on`), or se
 
 Requires Node 18 or newer on your `PATH`.
 
+In a Claude Code session, type:
+
+```
+/plugin install intent --marketplace nlp-research-rosu/intent-check
+```
+
+It asks you to confirm the source, then installs. Or, in a terminal:
+
 ```bash
-claude plugin marketplace add nlp-research-rosu/intent-check
-claude plugin install intent@intentcomputing
+claude plugin marketplace add nlp-research-rosu/intent-check && claude plugin install intent@intentcomputing
 ```
 
 Then restart Claude Code or run `/reload-plugins`. Your first prompt shows a link to connect your account; once you approve it, checks start. The saved key lives in Claude Code's plugin data folder, which is removed when you uninstall the plugin.
 
 ## Install (Codex CLI 0.147 or newer)
 
+In a terminal:
+
 ```bash
-codex plugin marketplace add nlp-research-rosu/intent-check
-codex plugin add intent@intentcomputing
+codex plugin marketplace add nlp-research-rosu/intent-check && codex plugin add intent@intentcomputing
 ```
 
 Then start `codex` and choose "Trust all and continue" when it says the plugin's hooks need review (or trust them in `/hooks`). Your first prompt shows the link to connect your account.
