@@ -28,6 +28,7 @@ Errors are `ErrorResponse` with HTTP 400 `invalid_request`, 401 `unauthorized`, 
 
 - 2026-09-28: `UnitRequest.regions` (optional) added: real line ranges for truncated content.
 - 2026-09-30: `Intent.notes` (optional) added: contents of `.intent/NOTES.md`, sent with every job.
+- 2026-10-01: `UnitResult.artifacts` gains optional `VERIFICATION.k` and `REASONING.md`; `Prior` gains optional `verification_k`. `SEMANTICS.k` stays required but may be a one-line stub ("Not generated; see REASONING.md") when reasoning is done on paper against `REASONING.md` instead. See "REASONING.md layout" below.
 
 ## Semantics
 
@@ -37,6 +38,38 @@ Errors are `ErrorResponse` with HTTP 400 `invalid_request`, 401 `unauthorized`, 
 - **Staleness:** the plugin compares `units[].checked_sha256` with the file's current hash; the prover does not know about later edits.
 - **Connect:** the plugin starts a connect request, shows `verification_url`, and polls `GET /v1/connect/{device_code}` every `interval` seconds until `approved` (the key is returned once), `denied`, `expired` or `consumed`.
 
+## REASONING.md layout
+
+`REASONING.md` is the primary evidence for each claim's status: a natural-language
+symbolic trace, not a tool's output. It never says or implies that anything was run,
+compiled or checked by a tool.
+
+Headings, in order:
+
+- `# Reasoning: <path>` — the checked file's path.
+- `## Property` — precondition, postcondition and termination, in plain language.
+- `## Execution assumptions` — state representation and source-level transition
+  assumptions (what the reasoning takes as given about how the code executes).
+- `## Invariant and summary` (omitted when no claim is loop-bearing) — the loop
+  invariant, the summary function it relies on, and why they imply the postcondition.
+- `## Trace` — one `### Claim [claim-id]` subsection per claim in `SPEC.k`, each with
+  a table:
+
+  `| Obligation | Start | Steps | Residual | Status |`
+
+  - `Obligation` is `base`, `inductive` or `whole`: `base` and `inductive` only for a
+    loop-invariant claim (one row each); `whole` for an entry claim, or for any
+    straight-line claim with no loop (one row).
+  - `Start` is the symbolic starting state (cell values and any invariant precondition).
+  - `Steps` names the source transitions applied, in order.
+  - `Residual` is the condition left after reduction, with substitutions shown.
+  - `Status` is `met`, `unmet` or `unknown` — never upgraded to a claim of proof.
+- `## Open obligations` — every assumption, missing case or unknown left undischarged.
+
+See `examples/reasoning.md` (with its `VERIFICATION.k` in `examples/verification.k`)
+for a worked loop example, and `examples/status-done-no-concerns.json` for how the
+artifact sits inside a `UnitResult`.
+
 ## Examples
 
-`examples/` holds one file per shape: an edit-mode request, a repo-mode request with 3 units, created, queued, running, done with concerns, done without concerns, done partial, superseded, failed, connect created/pending/approved, and an error.
+`examples/` holds one file per shape: an edit-mode request, a repo-mode request with 3 units, created, queued, running, done with concerns, done without concerns (its `SEMANTICS.k` is the stub, alongside `VERIFICATION.k` and `REASONING.md`), done partial, superseded, failed, connect created/pending/approved, and an error. `reasoning.md` and `verification.k` are a standalone worked loop example (not a full job shape) for the `REASONING.md` layout above.
