@@ -1,0 +1,100 @@
+#!/bin/sh
+# POSIX launcher (issue #22): every hook and command routes through this script instead of
+# calling `node .../bin/intent.js` directly, so a machine without Node degrades gracefully
+# instead of every hook failing silently. No bash, no dependencies.
+#
+# - Node >=18 on PATH: exec bin/intent.js, replacing this process so stdin, stdout, stderr and
+#   the exit code (including the asyncRewake exit 2 + stderr) pass through unchanged.
+# - Otherwise: print a short, host-aware message for the subcommands a person can see
+#   (session-start, prompt, check) and exit 0 silently for everything else.
+set -eu
+
+dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+sub="${1:-}"
+
+node_major() {
+  # Old syntax only (matches bin/intent.js line 1): must not throw on odd/ancient builds.
+  "$1" -e 'var v=process.versions&&process.versions.node; console.log(v?v.split(".")[0]:"0")' 2>/dev/null
+}
+
+node_bin=$(command -v node 2>/dev/null || true)
+if [ -n "$node_bin" ]; then
+  major=$(node_major "$node_bin" 2>/dev/null || echo 0)
+  case "$major" in
+    '' | *[!0-9]*) major=0 ;;
+  esac
+  if [ "$major" -ge 18 ] 2>/dev/null; then
+    exec "$node_bin" "$dir/intent.js" "$@"
+  fi
+fi
+
+# --- No usable Node: degrade per-subcommand instead of failing silently. ---
+
+host="claude-code"
+prev=""
+for a in "$@"; do
+  if [ "$prev" = "--host" ] && [ "$a" = "codex" ]; then
+    host="codex"
+  fi
+  prev="$a"
+done
+
+if [ "$host" = "codex" ]; then
+  msg="Intent Check needs Node.js 18 or newer to run. Install it from nodejs.org, then restart Codex."
+else
+  msg="Intent Check needs Node.js 18 or newer to run. Install it from nodejs.org, then run /reload-plugins."
+fi
+
+json_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+# Only session-start and prompt need the session id (to key the once-per-session marker); read
+# stdin for those only, and only when something is actually piped in.
+stdin_data=""
+if [ "$sub" = "session-start" ] || [ "$sub" = "prompt" ]; then
+  if [ ! -t 0 ]; then
+    stdin_data=$(cat 2>/dev/null || true)
+  fi
+fi
+
+session_id=$(printf '%s' "$stdin_data" | grep -o '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"' 2>/dev/null | head -n 1 | sed 's/.*"session_id"[[:space:]]*:[[:space:]]*"\(.*\)"/\1/')
+# Only safe path characters: an id with "/" or ".." (or anything else odd) collapses to the
+# shared "nosession" key instead of escaping the intended marker directory.
+case "$session_id" in
+  '' | *[!A-Za-z0-9_-]*) session_id="nosession" ;;
+esac
+marker="${TMPDIR:-/tmp}/intent-check-nonode-$session_id"
+
+print_hook_json() {
+  event="$1"
+  m=$(json_escape "$msg")
+  if [ "$host" = "codex" ]; then
+    printf '{"hookSpecificOutput":{"hookEventName":"%s","additionalContext":"%s"}}\n' "$event" "$m"
+  else
+    printf '{"systemMessage":"%s"}\n' "$m"
+  fi
+}
+
+case "$sub" in
+  session-start)
+    print_hook_json "SessionStart"
+    # mkdir is the once-check: it succeeds only the first time and, unlike `: >file`, never
+    # follows a pre-planted symlink at $marker (it just fails with EEXIST instead).
+    mkdir "$marker" 2>/dev/null || true
+    exit 0
+    ;;
+  prompt)
+    if mkdir "$marker" 2>/dev/null; then
+      print_hook_json "UserPromptSubmit"
+    fi
+    exit 0
+    ;;
+  check)
+    printf '%s\n' "$msg"
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac

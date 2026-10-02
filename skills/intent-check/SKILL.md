@@ -11,9 +11,9 @@ Intent Check compares code with what the user asked for. It runs in the backgrou
 
 When the user asks you to review or check specific code, queue it and carry on:
 
-    node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" check --data "${CLAUDE_PLUGIN_DATA}" <path> [<path> ...]
+    sh "${CLAUDE_PLUGIN_ROOT}/bin/intent" check --data "${CLAUDE_PLUGIN_DATA}" <path> [<path> ...]
 
-In Codex, run the same script by its path relative to this file: `node <folder of this SKILL.md>/../../bin/intent.js check <paths>`.
+In Codex, run the same script by its path relative to this file: `sh <folder of this SKILL.md>/../../bin/intent check <paths>`.
 
 - Run it from the project root: the git top level, or in a project without git, the folder the session started in. Pass the files involved (at most 10). The command only queues the request and returns at once; the review runs when your turn ends, and the result arrives as a note.
 - "Review my repo" or the whole codebase: pick up to 10 of the most relevant source files (entry points, auth, payments, data handling, core logic; not tests, styling or markup-only files, config or generated code) and run `check --repo <paths>`.
@@ -38,5 +38,5 @@ When the user answers a concern with "Intended" (or otherwise confirms the behav
 ## Turning it off
 
 - Claude Code: `/intent:off` stops all uploads until `/intent:on`.
-- Codex has no plugin slash commands: when the user asks to turn Intent Check off (or on), run `node <folder of this SKILL.md>/../../bin/intent.js off` (or `on`). It writes Codex's plugin data folder, so it may need approval to run outside the sandbox.
+- Codex has no plugin slash commands: when the user asks to turn Intent Check off (or on), run `sh <folder of this SKILL.md>/../../bin/intent off` (or `on`). It writes Codex's plugin data folder, so it may need approval to run outside the sandbox.
 - Anywhere: `INTENT_DISABLED=1` or `DO_NOT_TRACK=1` in the environment stops all uploads.
