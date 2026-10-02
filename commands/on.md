@@ -1,8 +1,8 @@
 ---
 description: Turn Intent Check back on
-allowed-tools: Bash(node:*)
+allowed-tools: Bash(sh:*)
 ---
 
-!`node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" on --data "${CLAUDE_PLUGIN_DATA}"`
+!`sh "${CLAUDE_PLUGIN_ROOT}/bin/intent" on --data "${CLAUDE_PLUGIN_DATA}"`
 
 Tell the user the line above, word for word, and nothing else.
