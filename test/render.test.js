@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { sanitize, validConcerns, concernText, summaryLine, noConcernsText } from "../lib/render.js";
+import { sanitize, validConcerns, concernText, summaryLine, noConcernsText, noConcernsUserText, skippedFilesText } from "../lib/render.js";
 import { ROOT } from "./helpers/env.js";
 
 const example = JSON.parse(fs.readFileSync(path.join(ROOT, "contract", "examples", "status-done-concerns.json"), "utf8"));
@@ -119,6 +119,34 @@ test("no-concerns note", () => {
   assert.equal(noConcernsText("https://x.test/r/1"), "Intent Check: no concerns · https://x.test/r/1");
   assert.equal(noConcernsText("https://x.test/r/1", false, ["a.py"]), "Intent Check: no concerns in a.py · https://x.test/r/1");
   assert.equal(noConcernsText("https://x.test/r/1", true, ["a", "b", "c", "d", "e"]), "Intent Check: no concerns in a, b, c and 2 more (partial review) · https://x.test/r/1");
+});
+
+test("no-concerns user-visible line: names the checked files, backticked, up to 3 then a count", () => {
+  assert.equal(noConcernsUserText("https://x.test/r/1", []), "Intent Check: no concerns · https://x.test/r/1");
+  assert.equal(noConcernsUserText("https://x.test/r/1", ["a.py"]), "Intent Check: checked `a.py` · no concerns · https://x.test/r/1");
+  assert.equal(
+    noConcernsUserText("https://x.test/r/1", ["a.py", "b.js"]),
+    "Intent Check: checked `a.py`, `b.js` · no concerns · https://x.test/r/1",
+  );
+  assert.equal(
+    noConcernsUserText("https://x.test/r/1", ["a", "b", "c", "d", "e"]),
+    "Intent Check: checked `a`, `b`, `c` and 2 more · no concerns · https://x.test/r/1",
+  );
+});
+
+test("skipped-files note: names the first file, backticked, plus a count of the rest", () => {
+  assert.equal(
+    skippedFilesText(["styles.css"]),
+    "Intent Check: skipped `styles.css` (styling, markup, tests, config or vendored code); it checks code with logic.",
+  );
+  assert.equal(
+    skippedFilesText(["styles.css", "a.spec.js", "jest.config.js"]),
+    "Intent Check: skipped `styles.css` and 2 other files (styling, markup, tests, config or vendored code); it checks code with logic.",
+  );
+  assert.equal(
+    skippedFilesText(["a.css", "b.css"]),
+    "Intent Check: skipped `a.css` and 1 other file (styling, markup, tests, config or vendored code); it checks code with logic.",
+  );
 });
 
 // Real concern titles and fix directions the prover writes: none of these may be dropped.

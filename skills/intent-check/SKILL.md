@@ -1,6 +1,6 @@
 ---
 name: intent-check
-description: Use when the user asks to review, check or audit code ("review auth.py", "is this function right?", "check my repo"), and when relaying an Intent Check result (a note or wake-up that starts with "Intent Check:").
+description: Intent Check already runs automatically after every turn that changes code with logic (functions, state, calculations) — no need to ask whether it's on. Use this skill when the user asks to review, check or audit code ("review auth.py", "is this function right?", "check my repo"), and when relaying an Intent Check result (a note or wake-up that starts with "Intent Check:").
 ---
 
 # Intent Check
@@ -16,7 +16,7 @@ When the user asks you to review or check specific code, queue it and carry on:
 In Codex, run the same script by its path relative to this file: `node <folder of this SKILL.md>/../../bin/intent.js check <paths>`.
 
 - Run it from the project root: the git top level, or in a project without git, the folder the session started in. Pass the files involved (at most 10). The command only queues the request and returns at once; the review runs when your turn ends, and the result arrives as a note.
-- "Review my repo" or the whole codebase: pick up to 10 of the most relevant source files (entry points, auth, payments, data handling, core logic; not tests, UI, config or generated code) and run `check --repo <paths>`.
+- "Review my repo" or the whole codebase: pick up to 10 of the most relevant source files (entry points, auth, payments, data handling, core logic; not tests, styling or markup-only files, config or generated code) and run `check --repo <paths>`.
 - Tell the user in one line that the review is queued. Do not wait or poll for it.
 
 ## Relaying a result

@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { tmpdir, ROOT } from "./helpers/env.js";
+import { isInteractiveEntrypoint } from "../lib/config.js";
 
 // Evaluate config in a child process so env changes do not leak between cases.
 function probe(env, files = {}) {
@@ -32,4 +33,13 @@ test("off switches and plugin version", () => {
   assert.equal(probe({ DO_NOT_TRACK: "1" }).off, "DO_NOT_TRACK");
   assert.equal(probe({}, { "config.json": { disabled: true } }).off, "off");
   assert.equal(probe({}).v, "0.1.0");
+});
+
+test("isInteractiveEntrypoint: only the SDKs, local-agent and mcp are non-interactive", () => {
+  for (const e of ["sdk-cli", "sdk-ts", "sdk-py", "local-agent", "mcp"]) {
+    assert.equal(isInteractiveEntrypoint(e), false, e);
+  }
+  for (const e of ["cli", "claude-vscode", "claude-desktop", "claude-jetbrains", "", undefined, "anything-else"]) {
+    assert.equal(isInteractiveEntrypoint(e), true, String(e));
+  }
 });

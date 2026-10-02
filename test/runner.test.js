@@ -79,7 +79,7 @@ test("a job carries intent.notes from the repo's .intent/NOTES.md", async () => 
   assert.match(req.intent.notes, /Coupons intentionally never expire/);
 });
 
-test("no concerns: silent at Stop, one line at the next prompt", async () => {
+test("no concerns: silent at Stop; the model and the user each get a line at the next prompt", async () => {
   fp.state.scenario = "no_concerns";
   const ctx = setup();
   const r = await turn(ctx, { "pricing.py": PRICING });
@@ -87,7 +87,7 @@ test("no concerns: silent at Stop, one line at the next prompt", async () => {
   assert.equal(r.stdout + r.stderr, "");
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "thanks" }), ctx.env);
   assert.match(next.json.hookSpecificOutput.additionalContext, /^Intent Check: no concerns in pricing\.py · http:\/\/127\.0\.0\.1:\d+\/r\/\w{22}$/);
-  assert.equal(next.json.systemMessage, undefined);
+  assert.match(next.json.systemMessage, /^Intent Check: checked `pricing\.py` · no concerns · http:\/\/127\.0\.0\.1:\d+\/r\/\w{22}$/);
   const again = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "and again" }), ctx.env);
   assert.equal(again.stdout, "");
 });
@@ -148,6 +148,21 @@ test("headless (claude -p): detaches at once, never wakes, result becomes a note
   const note = await waitFor(() => (readSessionFiles(ctx.data)[0] || { notes: [] }).notes.length > 0);
   assert.ok(note);
   assert.ok(fs.existsSync(path.join(ctx.repo, ".intent", "pricing.py", "VERDICT.md")));
+});
+
+test("entrypoint matrix: only the SDKs/local-agent/mcp detach; everything else (including unset) wakes", async () => {
+  for (const entrypoint of ["cli", "claude-vscode", "claude-desktop", ""]) {
+    const ctx = setup({ env: { CLAUDE_CODE_ENTRYPOINT: entrypoint } });
+    const r = await turn(ctx, { "pricing.py": PRICING });
+    assert.equal(r.code, 2, `entrypoint ${JSON.stringify(entrypoint)} should wake`);
+  }
+  for (const entrypoint of ["sdk-cli", "sdk-ts", "sdk-py", "local-agent", "mcp"]) {
+    const ctx = setup({ env: { CLAUDE_CODE_ENTRYPOINT: entrypoint } });
+    const r = await turn(ctx, { "pricing.py": PRICING });
+    assert.equal(r.code, 0, `entrypoint ${entrypoint} should detach`);
+    assert.equal(r.stdout + r.stderr, "", `entrypoint ${entrypoint} should produce nothing at Stop`);
+    assert.ok(await waitFor(() => (readSessionFiles(ctx.data)[0] || { notes: [] }).notes.length > 0), `entrypoint ${entrypoint} should still deliver a note`);
+  }
 });
 
 test("spend cap (429): nothing during the turn, one user-visible line at the next prompt, once", async () => {
@@ -325,6 +340,23 @@ test("a Stop with fewer than 3 changed lines sends nothing", async () => {
   const r = await turn(ctx, { "tiny.py": "X = 1\n" });
   assert.equal(r.code, 0);
   assert.equal(fp.jobRequests().length, n);
+});
+
+test("a turn that only touches filtered-out files gets a skipped-files note, once per session", async () => {
+  const ctx = setup();
+  const n = fp.jobRequests().length;
+  const css = "body {\n  color: red;\n}\n.a {\n  color: blue;\n}\n";
+  const r = await turn(ctx, { "styles.css": css });
+  assert.equal(r.code, 0);
+  assert.equal(r.stdout + r.stderr, "");
+  assert.equal(fp.jobRequests().length, n); // nothing was sent to the prover
+  const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "ok" }), ctx.env);
+  assert.equal(next.json.systemMessage, "Intent Check: skipped `styles.css` (styling, markup, tests, config or vendored code); it checks code with logic.");
+
+  // A second filtered-out turn in the same session does not repeat the note.
+  await turn(ctx, { "other.css": css });
+  const again = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "ok again" }), ctx.env);
+  assert.equal(again.stdout, "");
 });
 
 test("old-Node shim: exits 0 silently when Node is older than 18", async () => {
