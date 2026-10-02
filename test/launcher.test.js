@@ -20,7 +20,7 @@ const NO_NODE_MSG_CODEX = "Intent Check needs Node.js 18 or newer to run. Instal
 // `command -v grep` returning a non-path string.
 function fakeBinDir({ nodeStub } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "intent-launcher-bin-"));
-  for (const c of ["dirname", "sed", "grep", "head", "cat", "sh", "dash", "printf", "mktemp"]) {
+  for (const c of ["dirname", "sed", "grep", "head", "cat", "sh", "dash", "printf", "mktemp", "mkdir"]) {
     const resolved = spawnSync("/bin/sh", ["-c", `command -v ${c}`], { encoding: "utf8" }).stdout.trim();
     if (resolved) fs.symlinkSync(resolved, path.join(dir, c));
   }
@@ -102,6 +102,35 @@ test("no Node on PATH: check prints the plain line to stdout and exits 0", () =>
   const r = run(["check", "src/foo.py"], { env, input: "" });
   assert.equal(r.code, 0);
   assert.equal(r.stdout, NO_NODE_MSG + "\n");
+});
+
+test("marker safety: a session id with path separators or .. collapses to the shared safe key", () => {
+  const fakeBin = fakeBinDir();
+  const { env, tmp } = isolatedEnv(fakeBin);
+  const evil = "../../../../tmp/evil-escape";
+  const r = run(["prompt"], { env, input: JSON.stringify({ session_id: evil }) });
+  assert.equal(r.code, 0);
+  assert.notEqual(r.stdout, ""); // first time for the sanitized "nosession" key: still prints
+  // Exactly one marker, directly under TMPDIR, named for the safe fallback key: nothing escaped.
+  assert.deepEqual(fs.readdirSync(tmp), ["intent-check-nonode-nosession"]);
+  assert.equal(fs.existsSync("/tmp/evil-escape"), false);
+});
+
+test("marker safety: a pre-existing symlink at the marker path is not followed, and its target is untouched", () => {
+  const fakeBin = fakeBinDir();
+  const { env, tmp } = isolatedEnv(fakeBin);
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), "intent-launcher-evil-target-"));
+  fs.writeFileSync(path.join(target, "sentinel"), "untouched");
+  const markerPath = path.join(tmp, "intent-check-nonode-sess1");
+  fs.symlinkSync(target, markerPath);
+  const r = run(["prompt"], { env, input: JSON.stringify({ session_id: "sess1" }) });
+  assert.equal(r.code, 0);
+  // mkdir on an existing path (even a symlink) fails with EEXIST instead of following it, so this
+  // behaves like "already shown this session" rather than writing inside the symlink's target.
+  assert.equal(r.stdout, "");
+  assert.deepEqual(fs.readdirSync(target), ["sentinel"]);
+  assert.equal(fs.readFileSync(path.join(target, "sentinel"), "utf8"), "untouched");
+  assert.ok(fs.lstatSync(markerPath).isSymbolicLink(), "the marker symlink itself must be left alone");
 });
 
 test("Node present but older than 18: treated the same as no Node", () => {

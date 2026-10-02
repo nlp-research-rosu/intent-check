@@ -59,7 +59,11 @@ if [ "$sub" = "session-start" ] || [ "$sub" = "prompt" ]; then
 fi
 
 session_id=$(printf '%s' "$stdin_data" | grep -o '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"' 2>/dev/null | head -n 1 | sed 's/.*"session_id"[[:space:]]*:[[:space:]]*"\(.*\)"/\1/')
-[ -n "$session_id" ] || session_id="nosession"
+# Only safe path characters: an id with "/" or ".." (or anything else odd) collapses to the
+# shared "nosession" key instead of escaping the intended marker directory.
+case "$session_id" in
+  '' | *[!A-Za-z0-9_-]*) session_id="nosession" ;;
+esac
 marker="${TMPDIR:-/tmp}/intent-check-nonode-$session_id"
 
 print_hook_json() {
@@ -75,15 +79,15 @@ print_hook_json() {
 case "$sub" in
   session-start)
     print_hook_json "SessionStart"
-    { : >"$marker"; } 2>/dev/null || true
+    # mkdir is the once-check: it succeeds only the first time and, unlike `: >file`, never
+    # follows a pre-planted symlink at $marker (it just fails with EEXIST instead).
+    mkdir "$marker" 2>/dev/null || true
     exit 0
     ;;
   prompt)
-    if [ -f "$marker" ]; then
-      exit 0
+    if mkdir "$marker" 2>/dev/null; then
+      print_hook_json "UserPromptSubmit"
     fi
-    print_hook_json "UserPromptSubmit"
-    { : >"$marker"; } 2>/dev/null || true
     exit 0
     ;;
   check)

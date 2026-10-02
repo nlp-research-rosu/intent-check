@@ -54,7 +54,7 @@ test("skill and commands exist and reference the plugin root, routed through the
   for (const c of ["off", "on", "check"]) {
     const md = fs.readFileSync(path.join(ROOT, "commands", `${c}.md`), "utf8");
     assert.match(md, /sh "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent"/);
-    assert.match(md, /allowed-tools: Bash\(sh:\*\)/);
+    assert.match(md, /allowed-tools: Bash\(sh \$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent:\*\)/);
   }
 });
 
