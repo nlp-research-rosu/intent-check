@@ -193,3 +193,111 @@ test("hasLogic ignores keywords inside strings and comments", () => {
   `;
   assert.equal(hasLogic(noisy, ".tsx"), false);
 });
+
+// --- Review follow-ups on the hasLogic tokenizer ---------------------------------------------
+
+// 1. A "//" immediately after a backslash (an escaped "/" inside a regex literal) is not a
+// comment start, and the rest of the line keeps counting. On its own this line only has one
+// "if (", so without the fix (the embedded \/\/ swallows the rest of the line as a comment) the
+// two "else if"s and the braces after them would be dropped, leaving control-flow count at 1.
+test("a regex literal with escaped slashes does not swallow the rest of the line", () => {
+  const code = String.raw`
+export function classify(url, a, b, c) {
+  if (/^https?:\/\//.test(url)) { a = 1; } else if (b) { a = 2; } else if (c) { a = 3; }
+  return a;
+}
+`;
+  assert.equal(hasLogic(code, ".js"), true);
+});
+
+// 2. ${...} inside a template literal is scanned as real code, so a ternary inside one counts.
+test("ternaries inside template-literal ${...} interpolations are counted", () => {
+  const code = `
+export function describe(score) {
+  const label = \`Score: \${score > 90 ? "great" : "ok"} today, trend \${score > 50 ? "up" : "down"}, mood \${score > 10 ? "fine" : "bad"}\`;
+  return label;
+}
+`;
+  assert.equal(hasLogic(code, ".js"), true);
+});
+
+// 3. Shorthand/class methods (no "function" keyword, no "=>") count toward the long-function
+// rule. A Vue Options API SFC with a 10-line method and no ifs is checked.
+const VUE_OPTIONS_SFC = `<template>
+  <div>{{ total }}</div>
+</template>
+<script>
+export default {
+  data() {
+    return { total: 0, items: [] };
+  },
+  methods: {
+    recalcTotal() {
+      let sum = 0;
+      sum = this.items.reduce((acc, item) => acc + item.price * item.qty, 0);
+      sum = sum * 1.08;
+      sum = Math.round(sum * 100) / 100;
+      sum = sum + this.shipping;
+      sum = sum - this.discount;
+      this.total = sum;
+      return sum;
+    },
+  },
+};
+</script>
+`;
+test("Vue Options API SFC with a 10-line shorthand method and no ifs is checked", () => {
+  assert.equal(hasLogic(VUE_OPTIONS_SFC, ".vue"), true);
+  assert.equal(includeFile("components/Cart.vue", VUE_OPTIONS_SFC), true);
+});
+
+// 4. "try"/"case" only count in statement position; JSX prose like "Try again" or "in case"
+// must not count, and the component stays well under the 6-line long-function threshold.
+test('a presentational component with "Try again" or "in case" text is skipped', () => {
+  const code = `
+export function ErrorBanner({ onRetry }) {
+  return <p>Try again, just in case it was a fluke. <button onClick={onRetry}>Retry</button></p>;
+}
+`;
+  assert.equal(hasLogic(code, ".tsx"), false);
+  assert.equal(includeFile("components/ErrorBanner.tsx", code), false);
+});
+
+// 5. A <script> commented out inside an HTML <!-- --> comment never runs, so it is ignored.
+test("a <script> inside an HTML comment is ignored", () => {
+  const html = `<!doctype html>
+<html><body>
+<!--
+<script>
+  function step(dt) {
+    let x = 0;
+    if (dt > 1) { x = 1; } else if (dt > 2) { x = 2; } else if (dt > 3) { x = 3; }
+    return x;
+  }
+</script>
+-->
+<h1>hello</h1>
+</body></html>`;
+  assert.equal(hasLogic(html, ".html"), false);
+  assert.equal(includeFile("index.html", html), false);
+});
+
+// 6. Performance: a 1 MB file with many functions, including unmatched trailing braces, must
+// classify fast. Brace matching is a single linear pass with a stack (matchAllBraces), not a
+// per-candidate rescan to the end of the file.
+test("performance: a 1 MB file with many functions and unmatched braces classifies in well under 200ms", () => {
+  const unit = "function helper(x) {\n  const y = x + 1;\n  return y;\n}\n";
+  const repeats = Math.ceil((1024 * 1024) / unit.length);
+  let content = unit.repeat(repeats);
+  content += "function broken(x) { if (x) { for (;;) {\n"; // unmatched braces at the end
+  assert.ok(content.length >= 1024 * 1024);
+  // Best of a few runs: this suite shares the machine with heavier spawning tests, so take the
+  // minimum to filter out one-off scheduler/GC jitter rather than the algorithm being slow.
+  let best = Infinity;
+  for (let i = 0; i < 5; i++) {
+    const t0 = process.hrtime.bigint();
+    hasLogic(content, ".js");
+    best = Math.min(best, Number(process.hrtime.bigint() - t0) / 1e6);
+  }
+  assert.ok(best < 200, `hasLogic took ${best}ms (best of 5)`);
+});
