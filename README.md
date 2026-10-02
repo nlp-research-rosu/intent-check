@@ -4,6 +4,10 @@ The `intent` plugin for Claude Code and Codex. It checks code your agent writes 
 
 Status: private pre-release, under construction.
 
+## When it checks
+
+Automatically, after each turn that changes code with logic (functions, state, calculations) by at least 3 lines. It skips styling, markup-only files, tests, config and vendored code. To review on demand, ask the agent ("review pricing.py") or run `intent check <files>`.
+
 ## What is sent, and what stays local
 
 After a turn that changes source files, the plugin sends to the Intent Check service:
@@ -13,7 +17,7 @@ After a turn that changes source files, the plugin sends to the Intent Check ser
 - the plugin version, host, OS and permission mode
 - `.intent/NOTES.md`, if present
 
-Obvious secrets (private keys, cloud and API tokens, `KEY=value` lines with random-looking values) are masked on your machine before anything is sent. Files such as `.env*`, `*.pem` and `id_rsa*` are never sent. Tests, UI components, generated and vendored code, config and docs are not sent either.
+Obvious secrets (private keys, cloud and API tokens, `KEY=value` lines with random-looking values) are masked on your machine before anything is sent. Files such as `.env*`, `*.pem` and `id_rsa*` are never sent. Tests, styling and markup-only files, generated and vendored code, config and docs are not sent either.
 
 Every upload is listed in `.intent/.sent.log` in your repo (paths, sizes, time, URL; never contents). Results are written to `.intent/`, which is meant to be committed; its README explains how to keep it out of git.
 
@@ -47,7 +51,7 @@ codex plugin marketplace add nlp-research-rosu/intent-check && codex plugin add 
 
 Then start `codex` and choose "Trust all and continue" when it says the plugin's hooks need review (or trust them in `/hooks`). Your first prompt shows the link to connect your account.
 
-- Codex cannot wake an idle session, so concerns reach the agent with your next message (or at the end of the same turn, if the check already finished). Clean checks stay silent.
+- Codex cannot wake an idle session, so concerns reach the agent with your next message (or at the end of the same turn, if the check already finished). Clean checks show one short "no concerns" line the next time you prompt.
 - Codex does not load plugin slash commands, so there is no `/intent:off`. To turn checks off, set `INTENT_DISABLED=1` when starting Codex, or ask the agent to turn Intent Check off (it runs the plugin's `intent.js off`, which may need your approval to write outside the sandbox).
 - To ask for a review, ask the agent to check specific files ("check auth.py with Intent Check") or the whole repo.
 
