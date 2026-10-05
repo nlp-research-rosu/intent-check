@@ -15,15 +15,15 @@ test("marketplace: intentcomputing, plugin intent at the repo root", () => {
   assert.equal(m.plugins[0].version, read(".claude-plugin/plugin.json").version);
 });
 
-test("plugin.json: name intent, version 0.1.0, homepage set", () => {
+test("plugin.json: name intent, version 0.1.1-peredit, homepage set", () => {
   const p = read(".claude-plugin/plugin.json");
   assert.equal(p.name, "intent");
-  assert.equal(p.version, "0.1.0");
+  assert.equal(p.version, "0.1.1-peredit");
   assert.match(p.homepage, /^https:\/\//);
   assert.equal(fs.existsSync(path.join(ROOT, "plugin.json")), false, "no root plugin.json (Codex reads .codex-plugin/)");
 });
 
-test("hooks.json: exec form, four events, asyncRewake Stop with a 900 s timeout, no statusMessage", () => {
+test("hooks.json: shell form, four events, asyncRewake Stop with a 900 s timeout, no statusMessage", () => {
   const h = read("hooks/hooks.json").hooks;
   assert.deepEqual(Object.keys(h).sort(), ["PostToolUse", "SessionStart", "Stop", "UserPromptSubmit"]);
   const events = { SessionStart: "session-start", UserPromptSubmit: "prompt", PostToolUse: "post-tool", Stop: "stop" };
@@ -31,11 +31,11 @@ test("hooks.json: exec form, four events, asyncRewake Stop with a 900 s timeout,
     assert.equal(h[ev].length, 1);
     const [cmd] = h[ev][0].hooks;
     assert.equal(cmd.type, "command");
-    assert.equal(cmd.command, "sh");
-    assert.deepEqual(cmd.args, ["${CLAUDE_PLUGIN_ROOT}/bin/intent", arg]);
+    assert.equal(cmd.command, `sh "${"$"}{CLAUDE_PLUGIN_ROOT}/bin/intent" ${arg}`);
+    assert.equal("args" in cmd, false);
     assert.equal("statusMessage" in cmd, false);
   }
-  assert.equal(h.PostToolUse[0].matcher, "Edit|Write|NotebookEdit|ExitPlanMode|TodoWrite");
+  assert.equal(h.PostToolUse[0].matcher, "Edit|Write|MultiEdit|NotebookEdit|ExitPlanMode|TodoWrite");
   const stop = h.Stop[0].hooks[0];
   assert.equal(stop.asyncRewake, true);
   assert.equal(stop.timeout, 900);
@@ -51,7 +51,7 @@ test("skill and commands exist and reference the plugin root, routed through the
   assert.match(skill, /^---\nname: intent-check\ndescription: /);
   assert.match(skill, /sh "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent"/);
   assert.doesNotMatch(skill, /\bnode\b.*bin\/intent\.js/);
-  for (const c of ["off", "on", "check"]) {
+  for (const c of ["off", "on", "check", "per-edit"]) {
     const md = fs.readFileSync(path.join(ROOT, "commands", `${c}.md`), "utf8");
     assert.match(md, /sh "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent"/);
     assert.match(md, /allowed-tools: Bash\(sh \$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent:\*\)/);

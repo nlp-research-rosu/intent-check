@@ -172,3 +172,13 @@ test("Node >=18 present: the real bin/intent.js still answers through the launch
   const out = execFileSync("/bin/sh", [LAUNCHER, "check"], { encoding: "utf8" });
   assert.match(out, /Intent Check: give the files to review/);
 });
+
+test("shell-form hook commands from hooks.json launch through sh -c (as Git Bash runs them)", () => {
+  const h = JSON.parse(fs.readFileSync(path.join(ROOT, "hooks", "hooks.json"), "utf8")).hooks;
+  for (const ev of Object.keys(h)) {
+    const { command } = h[ev][0].hooks[0];
+    const data = fs.mkdtempSync(path.join(os.tmpdir(), "intent-launcher-data-"));
+    const r = spawnSync("sh", ["-c", command], { env: { ...process.env, CLAUDE_PLUGIN_ROOT: ROOT, CLAUDE_PLUGIN_DATA: data, INTENT_DISABLED: "1" }, input: "{}", encoding: "utf8" });
+    assert.equal(r.status, 0, `${ev}: ${r.stderr}`);
+  }
+});

@@ -41,6 +41,20 @@ claude plugin marketplace add nlp-research-rosu/intent-check && claude plugin in
 
 Then restart Claude Code or run `/reload-plugins`. Your first prompt shows a link to connect your account; once you approve it, checks start. The saved key lives in Claude Code's plugin data folder, which is removed when you uninstall the plugin.
 
+## Per-edit preview (branch)
+
+This branch checks every edit as it happens. Each Edit, Write or MultiEdit your agent makes is sent for review on its own and runs to completion; findings reach the agent on its next edit, and anything still running at the end of the turn is waited for and can wake the agent as before. Hooks run through your shell (Git Bash on native Windows).
+
+Install it:
+
+```
+claude plugin marketplace remove intentcomputing
+claude plugin marketplace add nlp-research-rosu/intent-check#per-edit
+claude plugin install intent@intentcomputing
+```
+
+Then run `/reload-plugins` (or restart Claude Code). Turn per-edit checks off with `/intent:per-edit off` (back on with `/intent:per-edit on`; `INTENT_PER_EDIT=0` or `1` overrides it). To go back to the normal version, run the same three commands without `#per-edit`.
+
 ## Install (Codex CLI 0.147 or newer)
 
 In a terminal:
