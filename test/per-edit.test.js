@@ -144,3 +144,51 @@ test("per-edit command and status", async () => {
   assert.match((await run("status")).stdout, /Per-edit checks: off/);
   assert.match((await run("per-edit", "on")).stdout, /Per-edit checks are on/);
 });
+
+const sessionFile = (ctx) => { const d = path.join(ctx.data, "sessions"); return path.join(d, fs.readdirSync(d).find((f) => f.endsWith(".json"))); };
+function seedEdits(ctx, n, extra) {
+  const f = sessionFile(ctx);
+  const s = JSON.parse(fs.readFileSync(f, "utf8"));
+  for (let i = 0; i < n; i++) s.edit_jobs[`J${i}`] = { job_id: `J${i}`, rel: `x${i}.py`, sha256: "0".repeat(64), submitted_at: Date.now(), ...extra };
+  fs.writeFileSync(f, JSON.stringify(s));
+}
+
+test("past 12 in-flight checks no more are spawned, and Stop still covers the content", async () => {
+  fp.state.scenario = "no_concerns";
+  const ctx = setup();
+  await prompt(ctx);
+  seedEdits(ctx, 12);
+  const n = fp.jobRequests().length;
+  await edit(ctx, "pricing.py", V1, "toolu_1");
+  await sleep(800);
+  assert.equal(fp.jobRequests().length, n);
+  await runHook("stop", fixture("stop", ctx.repo), { ...ctx.env, INTENT_API_URL: fp.url }); // pending fake entries 404 and are dropped
+  assert.equal(fp.jobRequests().length, n + 1);
+});
+
+test("an expired unsettled per-edit entry neither covers a file nor survives Stop", async () => {
+  fp.state.scenario = "no_concerns";
+  const ctx = setup();
+  await prompt(ctx);
+  await edit(ctx, "pricing.py", V1, "toolu_1");
+  assert.ok(await waitFor(() => editJobs(ctx).some((e) => e.settled)));
+  const f = sessionFile(ctx);
+  const s = JSON.parse(fs.readFileSync(f, "utf8"));
+  for (const e of Object.values(s.edit_jobs)) { e.settled = false; e.submitted_at = Date.now() - 25 * 3600 * 1000; }
+  fs.writeFileSync(f, JSON.stringify(s));
+  const n = fp.jobRequests().length;
+  await runHook("stop", fixture("stop", ctx.repo), ctx.env);
+  assert.equal(fp.jobRequests().length, n + 1);
+  assert.equal(editJobs(ctx).filter((e) => e.job_id === Object.keys(s.edit_jobs)[0]).length, 0);
+});
+
+test("writeUnit: an older job finishing late does not overwrite a unit from newer content", async () => {
+  const { writeUnit } = await import("../lib/intentdir.js");
+  const root = tmpdir("intent-unit-");
+  const unit = (v) => ({ path: "a.py", checked_sha256: "a".repeat(64), verdict: "no_concerns", artifacts: { "INTENT.md": v } });
+  const res = { checked_at: "2026-01-01T00:00:00Z" };
+  assert.equal(writeUnit(root, unit("new"), { job_id: "N", url: "http://x/n", submitted_at: 2000 }, res), true);
+  assert.equal(writeUnit(root, unit("old"), { job_id: "O", url: "http://x/o", submitted_at: 1000 }, res), false);
+  assert.equal(fs.readFileSync(path.join(root, ".intent", "a.py", "INTENT.md"), "utf8"), "new");
+  assert.equal(writeUnit(root, unit("legacy"), { job_id: "L", url: "http://x/l" }, res), true);
+});
