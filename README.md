@@ -53,7 +53,7 @@ claude plugin marketplace add nlp-research-rosu/intent-check#per-edit
 claude plugin install intent@intentcomputing
 ```
 
-Then run `/reload-plugins` (or restart Claude Code). Turn per-edit checks off with `/intent:per-edit off` (back on with `/intent:per-edit on`; `INTENT_PER_EDIT=0` or `1` overrides it). To go back to the normal version, run the same three commands without `#per-edit`.
+Then run `/reload-plugins` (or restart Claude Code). This branch talks to its own preview service (https://web-per-edit.up.railway.app), so your first prompt shows a link to connect your account there; sign up and approve it once. Switching back to the normal version asks you to connect again. Turn per-edit checks off with `/intent:per-edit off` (back on with `/intent:per-edit on`; `INTENT_PER_EDIT=0` or `1` overrides it). To go back to the normal version, run the same three commands without `#per-edit`.
 
 ## Install (Codex CLI 0.147 or newer)
 
