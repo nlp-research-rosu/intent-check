@@ -54,6 +54,7 @@ claude plugin install intent@intentcomputing
 ```
 
 Then run `/reload-plugins` (or restart Claude Code). This branch talks to its own preview service (https://web-per-edit.up.railway.app), so your first prompt shows a link to connect your account there; sign up and approve it once. Switching back to the normal version asks you to connect again. Turn per-edit checks off with `/intent:per-edit off` (back on with `/intent:per-edit on`; `INTENT_PER_EDIT=0` or `1` overrides it). To go back to the normal version, run the same three commands without `#per-edit`.
+
 ## Updating
 
 Claude Code only updates a plugin when its version changes, and it does not auto-update third-party marketplaces unless you turn that on. To turn it on, open `/plugin`, go to Marketplaces, select `intentcomputing` and choose Enable auto-update. With auto-update on, a new version can take up to about 10 minutes to arrive after your first message. To update right now, open `/plugin`, go to Marketplaces, select `intentcomputing` and choose Update marketplace, then go to Installed, select `intent` and choose Update now. In a terminal, run `claude plugin marketplace update intentcomputing` and then `claude plugin update intent@intentcomputing`. A running session keeps the old version until you run `/reload-plugins` or restart Claude Code. `claude plugin list` shows the installed version in its Version column.
