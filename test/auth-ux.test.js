@@ -453,7 +453,12 @@ test("bin/intent.js on Node < 18: the stderr line appears once per data dir, exi
   assert.equal(quiet.stdout, "");
   assert.ok(!fs.existsSync(path.join(data, "q", ".node-too-old-16.1.0")));
   const cx = spawnSync(process.execPath, [shim, "session-start", "--host", "codex"], { input: "{}", encoding: "utf8", env: { ...process.env, CLAUDE_PLUGIN_DATA: path.join(data, "q") } });
-  assert.match(JSON.parse(cx.stdout).systemMessage, /then restart Codex\.$/);
+  const cxo = JSON.parse(cx.stdout);
+  assert.equal(cxo.systemMessage, undefined);
+  assert.equal(cxo.hookSpecificOutput.hookEventName, "SessionStart");
+  assert.match(cxo.hookSpecificOutput.additionalContext, /^Intent Check needs Node\.js 18 or newer to run \(found 16\.1\.0\)\. Install it from nodejs\.org, then restart Codex\.$/);
+  const cp = spawnSync(process.execPath, [shim, "prompt", "--host", "codex"], { input: "{}", encoding: "utf8", env: { ...process.env, CLAUDE_PLUGIN_DATA: path.join(data, "q2") } });
+  assert.equal(JSON.parse(cp.stdout).hookSpecificOutput.hookEventName, "UserPromptSubmit");
   // With no data dir there is nowhere to remember it: say it every time rather than never.
   const c = run({ CLAUDE_PLUGIN_DATA: "", PLUGIN_DATA: "" });
   assert.equal(c.status, 0);

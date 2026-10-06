@@ -2,6 +2,8 @@
 // clean throwaway environment, and kill its whole process tree on timeout.
 import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
+import fs from "node:fs";
+import { tmpdir } from "../helpers/env.js";
 
 const WIN = process.platform === "win32";
 
@@ -67,3 +69,19 @@ export function runCli(bin, args, { env, cwd, timeoutMs = 55000, input = "" } = 
 }
 
 export const basename = (p) => path.basename(p);
+
+// A PATH that has what Claude Code and the hooks' git calls need, and no node. `oldNode` adds a
+// `node` that reports itself as 16.1.0 (the real binary behind it, with process.versions patched).
+export function toolsDir({ oldNode = false } = {}) {
+  const dir = tmpdir("intent-it-path-");
+  for (const t of ["git", "sh", "bash", "env", "uname", "dirname", "mkdir", "rm", "cat", "ls", "sed", "grep", "head", "tr", "date", "id", "sleep", "readlink", "basename", "chmod", "cp", "mv", "touch", "ps", "pwd", "sort", "wc"]) {
+    const r = spawnSync("which", [t], { encoding: "utf8" });
+    const p = r.status === 0 ? r.stdout.trim() : "";
+    if (p) { try { fs.symlinkSync(p, path.join(dir, t)); } catch { /* duplicate */ } }
+  }
+  if (oldNode) {
+    fs.writeFileSync(path.join(dir, "shim.cjs"), 'Object.defineProperty(process.versions, "node", { value: "16.1.0" });\n');
+    fs.writeFileSync(path.join(dir, "node"), `#!/bin/sh\nexec "${process.execPath}" --require "${path.join(dir, "shim.cjs")}" "$@"\n`, { mode: 0o755 });
+  }
+  return dir;
+}

@@ -6,11 +6,10 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { createMockAnthropic } from "../helpers/mock-anthropic.js";
 import { createFakeProver } from "../helpers/fake-prover.js";
 import { ROOT, tmpdir, makeRepo } from "../helpers/env.js";
-import { findCli, runCli, cleanEnv } from "./helpers.js";
+import { findCli, runCli, cleanEnv, toolsDir } from "./helpers.js";
 
 const CLAUDE = findCli("claude");
 const skip = process.platform === "win32" ? "POSIX-only (PATH of symlinks)" : CLAUDE ? false : "the `claude` CLI is not installed";
@@ -25,22 +24,6 @@ before(async () => {
 after(async () => {
   if (fp) await fp.close();
 });
-
-// A PATH that has what Claude Code and the hooks' git calls need, and no node. `oldNode` adds a
-// `node` that reports itself as 16.1.0 (the real binary behind it, with process.versions patched).
-function toolsDir({ oldNode = false } = {}) {
-  const dir = tmpdir("intent-it-path-");
-  for (const t of ["git", "sh", "bash", "env", "uname", "dirname", "mkdir", "rm", "cat", "ls", "sed", "grep", "head", "tr", "date", "id", "sleep", "readlink", "basename", "chmod", "cp", "mv", "touch", "ps", "pwd", "sort", "wc"]) {
-    const r = spawnSync("which", [t], { encoding: "utf8" });
-    const p = r.status === 0 ? r.stdout.trim() : "";
-    if (p) { try { fs.symlinkSync(p, path.join(dir, t)); } catch { /* duplicate */ } }
-  }
-  if (oldNode) {
-    fs.writeFileSync(path.join(dir, "shim.cjs"), 'Object.defineProperty(process.versions, "node", { value: "16.1.0" });\n');
-    fs.writeFileSync(path.join(dir, "node"), `#!/bin/sh\nexec "${process.execPath}" --require "${path.join(dir, "shim.cjs")}" "$@"\n`, { mode: 0o755 });
-  }
-  return dir;
-}
 
 // Two headless turns against one config dir (so the once-per-data-dir message can be told from a repeat).
 async function turns({ oldNode }) {
