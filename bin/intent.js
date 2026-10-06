@@ -1,8 +1,10 @@
-var major = parseInt(String(process.versions && process.versions.node).split(".")[0], 10); if (!(major >= 18)) { process.stderr.write("Intent Check needs Node 18 or newer (found " + process.versions.node + "), so it is not running. Update Node to use it.\n"); process.exit(0); }
+var major = parseInt(String(process.versions && process.versions.node).split(".")[0], 10); function oldNode() { var v = process.versions.node; var msg = "Intent Check needs Node 18 or newer (found " + v + "), so it is not running. Update Node to use it.\n"; var a = process.argv.slice(2); var codex = a.indexOf("--host") !== -1 && a[a.indexOf("--host") + 1] === "codex"; var line = "Intent Check needs Node.js 18 or newer to run (found " + v + "). Install it from nodejs.org, then " + (codex ? "restart Codex." : "run /reload-plugins."); var shown = a[0] === "session-start" || a[0] === "prompt" ? JSON.stringify(codex ? { hookSpecificOutput: { hookEventName: a[0] === "prompt" ? "UserPromptSubmit" : "SessionStart", additionalContext: line } } : { systemMessage: line }) + "\n" : ""; var d = process.env.CLAUDE_PLUGIN_DATA || process.env.PLUGIN_DATA; var done = function () { process.exit(0); }; var say = function () { process.stderr.write(msg); if (shown) process.stdout.write(shown, done); else done(); }; if (!shown) return done(); if (!d) return say(); import("fs").then(function (m) { var fs = m.default || m; try { fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(d + "/.node-too-old-" + v, "",{ flag: "wx" }); } catch (e) { if (e && e.code === "EEXIST") return done(); } say(); }, say); }
 // Line 1 must stay old syntax (no ?. or ??): on Node < 18 the hook exits 0 instead of failing,
 // so a broken hook can never loop the agent (Claude Code bug #96148). It says why on stderr, once
-// per run, instead of failing silently.
-import("../lib/main.js").then(function (m) { return m.main(process.argv.slice(2)); }).catch(function (e) {
+// per Node version and data dir (marker file .node-too-old-<version>), instead of on every hook.
+// session-start and prompt also print {"systemMessage"} on stdout, the only form the TUI shows for
+// an exit-0 hook; other hooks stay silent and never use up the marker.
+if (!(major >= 18)) oldNode(); else import("../lib/main.js").then(function (m) { return m.main(process.argv.slice(2)); }).catch(function (e) {
   process.stderr.write("Intent Check could not start (" + String((e && (e.code || e.name)) || "error") + "), so it is not running. Reinstall the plugin if this keeps happening.\n");
   process.exit(0);
 });

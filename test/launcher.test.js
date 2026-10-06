@@ -173,12 +173,22 @@ test("Node >=18 present: the real bin/intent.js still answers through the launch
   assert.match(out, /Intent Check: give the files to review/);
 });
 
-test("shell-form hook commands from hooks.json launch through sh -c (as Git Bash runs them)", () => {
+test("exec-form hooks from hooks.json spawn node directly and exit 0", () => {
   const h = JSON.parse(fs.readFileSync(path.join(ROOT, "hooks", "hooks.json"), "utf8")).hooks;
+  let n = 0;
   for (const ev of Object.keys(h)) {
-    const { command } = h[ev][0].hooks[0];
-    const data = fs.mkdtempSync(path.join(os.tmpdir(), "intent-launcher-data-"));
-    const r = spawnSync("sh", ["-c", command], { env: { ...process.env, CLAUDE_PLUGIN_ROOT: ROOT, CLAUDE_PLUGIN_DATA: data, INTENT_DISABLED: "1" }, input: "{}", encoding: "utf8" });
-    assert.equal(r.status, 0, `${ev}: ${r.stderr}`);
+    for (const entry of h[ev]) {
+      for (const hook of entry.hooks) {
+        const data = fs.mkdtempSync(path.join(os.tmpdir(), "intent-launcher-data-"));
+        try {
+          const r = spawnSync(hook.command, hook.args.map((a) => a.replaceAll("${CLAUDE_PLUGIN_ROOT}", ROOT)), { env: { ...process.env, CLAUDE_PLUGIN_ROOT: ROOT, CLAUDE_PLUGIN_DATA: data, INTENT_DISABLED: "1" }, input: "{}", encoding: "utf8" });
+          assert.equal(r.status, 0, `${ev} ${hook.args.join(" ")}: ${r.stderr}`);
+          n++;
+        } finally {
+          fs.rmSync(data, { recursive: true, force: true });
+        }
+      }
+    }
   }
+  assert.ok(n >= 5, `expected every hook entry to run, ran ${n}`);
 });

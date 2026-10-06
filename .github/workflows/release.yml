@@ -29,8 +29,11 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: node contract/hash.mjs
       - run: node --test test/*.test.js
+  # The real claude/codex CLIs on Linux, macOS and Windows (LLM-free), before anything is released.
+  integration:
+    uses: ./.github/workflows/integration.yml
   release:
-    needs: test
+    needs: [test, integration]
     if: github.ref_type == 'branch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
