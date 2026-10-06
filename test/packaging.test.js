@@ -35,7 +35,7 @@ test("hooks.json: exec form, four events, asyncRewake Stop with a 900 s timeout,
   assert.deepEqual(Object.keys(h).sort(), ["PostToolUse", "SessionStart", "Stop", "UserPromptSubmit"]);
   const events = { SessionStart: "session-start", UserPromptSubmit: "prompt", PostToolUse: "post-tool", Stop: "stop" };
   for (const [ev, arg] of Object.entries(events)) {
-    assert.equal(h[ev].length, 1);
+    assert.equal(h[ev].length, ev === "Stop" ? 2 : 1);
     const [cmd] = h[ev][0].hooks;
     assert.equal(cmd.type, "command");
     assert.equal(cmd.command, "sh");
@@ -53,12 +53,27 @@ test("hooks.json: exec form, four events, asyncRewake Stop with a 900 s timeout,
   assert.ok(c.polling.runner_budget_ms < stop.timeout * 1000);
 });
 
+test("Stop has a second asyncRewake entry, connect-wait, with its own message and summary", () => {
+  const [review, wait] = read("hooks/hooks.json").hooks.Stop;
+  const cmd = wait.hooks[0];
+  assert.equal(cmd.command, "sh");
+  assert.deepEqual(cmd.args, ["${CLAUDE_PLUGIN_ROOT}/bin/intent", "connect-wait"]);
+  assert.equal(cmd.asyncRewake, true);
+  assert.equal(cmd.timeout, 900);
+  assert.equal(cmd.rewakeSummary, "Intent Check connected");
+  assert.match(cmd.rewakeMessage, /^Intent Check connection update\./);
+  assert.notEqual(cmd.rewakeMessage, review.hooks[0].rewakeMessage);
+  // Codex has no asyncRewake: no connect-wait there, confirmation comes with the next prompt.
+  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, "hooks/codex-hooks.json"), "utf8"), /connect-wait/);
+});
+
 test("skill and commands exist and reference the plugin root, routed through the sh launcher", () => {
   const skill = fs.readFileSync(path.join(ROOT, "skills/intent-check/SKILL.md"), "utf8");
   assert.match(skill, /^---\nname: intent-check\ndescription: /);
   assert.match(skill, /sh "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent"/);
   assert.doesNotMatch(skill, /\bnode\b.*bin\/intent\.js/);
-  for (const c of ["off", "on", "check"]) {
+  for (const w of ["status", "connect", "disconnect"]) assert.match(skill, new RegExp(`/intent:${w}|bin/intent status|\`${w}\``), `skill maps ${w}`);
+  for (const c of ["off", "on", "check", "status", "connect", "disconnect"]) {
     const md = fs.readFileSync(path.join(ROOT, "commands", `${c}.md`), "utf8");
     assert.match(md, /sh "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent"/);
     assert.match(md, /allowed-tools: Bash\(sh \$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent:\*\)/);

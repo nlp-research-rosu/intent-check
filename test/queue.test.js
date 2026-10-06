@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT } from "./helpers/env.js";
+import { QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT } from "./helpers/env.js";
 import { validateDef } from "./helpers/schema.js";
 import { writeUnit } from "../lib/intentdir.js";
 
@@ -19,7 +19,7 @@ const example = JSON.parse(fs.readFileSync(path.join(ROOT, "contract", "examples
 function setup() {
   const data = tmpdir("intent-data-");
   saveKey(data, TEST_KEY);
-  fs.writeFileSync(path.join(data, "global.json"), JSON.stringify({ consent_shown_at: "x" }));
+  fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   const { dir, git } = makeRepo();
   return { data, repo: dir, git, env: baseEnv(data, fp.url) };
 }

@@ -39,4 +39,10 @@ When the user answers a concern with "Intended" (or otherwise confirms the behav
 
 - Claude Code: `/intent:off` stops all uploads until `/intent:on`.
 - Codex has no plugin slash commands: when the user asks to turn Intent Check off (or on), run `sh <folder of this SKILL.md>/../../bin/intent off` (or `on`). It writes Codex's plugin data folder, so it may need approval to run outside the sandbox.
+## Account commands
+
+Claude Code has `/intent:status`, `/intent:connect` and `/intent:disconnect`. Codex has no plugin slash commands: when the user asks for the status, to connect, or to disconnect, run `sh <folder of this SKILL.md>/../../bin/intent status` (or `connect`, `disconnect`) and tell the user its output word for word. `connect` gives a fresh link to open and approve; `disconnect` revokes this machine's key. They write Codex's plugin data folder, so they may need approval to run outside the sandbox.
+
+When a hook message tells you Intent Check is not connected, show the user the link, ask them to approve it, and wait for "done" or "skip" before doing their task.
+
 - Anywhere: `INTENT_DISABLED=1` or `DO_NOT_TRACK=1` in the environment stops all uploads.

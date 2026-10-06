@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { fixture, tmpdir, makeRepo, baseEnv, runHook, readSessionFiles, saveKey, waitFor, sleep, BIN, ROOT } from "./helpers/env.js";
+import { QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, readSessionFiles, saveKey, waitFor, sleep, BIN, ROOT } from "./helpers/env.js";
 import { validateDef } from "./helpers/schema.js";
 
 const PRICING = "# pricing.py\ndef apply_discount(price_cents: int, percent: int) -> int:\n    return price_cents - price_cents * percent // 100\n";
@@ -20,7 +20,7 @@ function setup({ key = true, git = true, env = {} } = {}) {
   if (key) saveKey(data, TEST_KEY);
   const repo = makeRepo({ git });
   // Consent was shown in an earlier session, so outputs below are only what each test is about.
-  fs.writeFileSync(path.join(data, "global.json"), JSON.stringify({ consent_shown_at: "2026-09-28T00:00:00Z" }));
+  fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   return { data, repo: repo.dir, gitc: repo.git, env: baseEnv(data, fp.url, env) };
 }
 
@@ -183,9 +183,13 @@ test("a rejected saved key (401) is dropped, so the next prompt offers the conne
   fs.writeFileSync(path.join(ctx.data, "config.json"), JSON.stringify({ api_key: "ic_" + "Z".repeat(38) }));
   const r = await turn(ctx, { "pricing.py": PRICING });
   assert.equal(r.code, 0);
-  assert.equal(JSON.parse(fs.readFileSync(path.join(ctx.data, "config.json"), "utf8")).api_key, undefined);
+  const cfg = JSON.parse(fs.readFileSync(path.join(ctx.data, "config.json"), "utf8"));
+  assert.ok(!cfg.keys || !cfg.keys[fp.url], "no per-service key");
+  assert.ok((cfg.legacy_rejected || []).includes(fp.url) || cfg.api_key === undefined, "the legacy key is no longer offered for this service");
+  const cfile = path.join(ctx.data, "connect.json");
+  assert.ok(await waitFor(() => fs.existsSync(cfile) && JSON.parse(fs.readFileSync(cfile, "utf8")).status === "pending", { timeoutMs: 10000 }));
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "ok" }), ctx.env);
-  assert.match(next.json.systemMessage, /^Intent Check: connect your account → http/);
+  assert.match(next.json.systemMessage, /connect your account → http/);
 });
 
 test("prover unreachable: the turn is not held up, paths are kept, the next prompt says so once", async () => {
@@ -359,7 +363,7 @@ test("a turn that only touches filtered-out files gets a skipped-files note, onc
   assert.equal(again.stdout, "");
 });
 
-test("old-Node shim: exits 0 silently when Node is older than 18", async () => {
+test("old-Node shim: exits 0 with one stderr line when Node is older than 18", async () => {
   const pre = path.join(tmpdir(), "old-node.cjs");
   fs.writeFileSync(pre, "Object.defineProperty(process, 'versions', { value: { ...process.versions, node: '16.20.0' } });\n");
   const r = await new Promise((resolve) => {
@@ -370,7 +374,8 @@ test("old-Node shim: exits 0 silently when Node is older than 18", async () => {
     c.on("close", (code) => resolve({ code, out }));
     c.stdin.end("{}");
   });
-  assert.deepEqual(r, { code: 0, out: "" });
+  assert.equal(r.code, 0);
+  assert.match(r.out, /^Intent Check needs Node 18 or newer \(found 16\.20\.0\)[^\n]*\n$/);
   const first = fs.readFileSync(BIN, "utf8").split("\n")[0];
   assert.doesNotMatch(first, /\?\.|\?\?|=>|\bconst\b|\blet\b|`/);
 });

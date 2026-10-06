@@ -62,7 +62,7 @@ export function createFakeProver(opts = {}) {
       try { body = raw ? JSON.parse(raw) : null; } catch { body = null; }
       const url = new URL(req.url, base);
       st.requests.push({ method: req.method, path: url.pathname, headers: req.headers, body });
-      const authed = req.headers.authorization === `Bearer ${st.key}`;
+      const authed = req.headers.authorization === `Bearer ${st.key}` && !st.keyRevoked;
 
       if (req.method === "POST" && url.pathname === "/_control") {
         Object.assign(st, body || {});
@@ -71,17 +71,33 @@ export function createFakeProver(opts = {}) {
       if (req.method === "GET" && url.pathname === "/_state") {
         return json(res, 200, { requests: st.requests.map((r) => ({ method: r.method, path: r.path })), jobs: [...st.jobs.keys()] });
       }
+      if (req.method === "GET" && url.pathname === "/v1/me") {
+        if (!authed) return json(res, 401, { error: { code: "unauthorized", message: "bad key" } });
+        return json(res, 200, { handle: st.handle || "tester", machine_name: "test-box", key_last4: st.key.slice(-4), environment: "test" });
+      }
+      if (req.method === "DELETE" && url.pathname === "/v1/me/key") {
+        if (!authed) return json(res, 401, { error: { code: "unauthorized", message: "bad key" } });
+        st.keyRevoked = true;
+        res.writeHead(204);
+        return res.end();
+      }
       if (req.method === "POST" && url.pathname === "/v1/connect") {
+        if (st.connectStartStatus) return json(res, st.connectStartStatus, { error: { code: "unavailable", message: "x", reason: null } });
+        st.connectCreated = (st.connectCreated || 0) + 1;
+        st.connectKeyTaken = false;
         st.deviceCode = crypto.randomBytes(24).toString("hex").slice(0, 32);
         return json(res, 201, { device_code: st.deviceCode, user_code: "KDRT-MWQX", verification_url: `${base}/connect/KDRT-MWQX`, expires_in: 900, interval: 1 });
       }
       const cm = url.pathname.match(/^\/v1\/connect\/([A-Za-z0-9]+)$/);
       if (req.method === "GET" && cm) {
         if (cm[1] !== st.deviceCode) return json(res, 404, { error: { code: "not_found", message: "unknown" } });
+        if (st.connectStatus) return json(res, 200, { status: st.connectStatus }); // "denied" | "expired" | "consumed"
         if (!st.connectApproved) return json(res, 200, { status: "pending" });
         if (st.connectKeyTaken) return json(res, 200, { status: "consumed" });
         st.connectKeyTaken = true;
-        return json(res, 200, { status: "approved", api_key: st.key, account: { handle: "tester" } });
+        st.keyRevoked = false;
+        const handle = st.handle || "tester";
+        return json(res, 200, { status: "approved", api_key: st.key, handle, account: { handle } });
       }
       if (req.method === "POST" && url.pathname === "/v1/jobs") {
         if (!authed) return json(res, 401, { error: { code: "unauthorized", message: "bad key" } });

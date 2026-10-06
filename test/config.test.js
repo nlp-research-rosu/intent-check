@@ -27,6 +27,19 @@ test("API key: INTENT_API_KEY, then config.json api_key", () => {
   assert.deepEqual(probe({ INTENT_API_KEY: "ic_env" }, { "config.json": { api_key: "ic_cfg" } }).key, { key: "ic_env", source: "env" });
 });
 
+test("API key is per service: keys[api_url], env still wins, the legacy field counts until rejected for that URL", () => {
+  const u = "http://127.0.0.1:1";
+  const files = { "config.json": { keys: { [u]: "ic_one", "http://other": "ic_two" } } };
+  assert.deepEqual(probe({ INTENT_API_URL: u }, files).key, { key: "ic_one", source: "config" });
+  assert.deepEqual(probe({ INTENT_API_URL: "http://other" }, files).key, { key: "ic_two", source: "config" });
+  assert.deepEqual(probe({ INTENT_API_URL: "http://third" }, files).key, { key: null, source: null });
+  assert.deepEqual(probe({ INTENT_API_URL: u, INTENT_API_KEY: "ic_env" }, files).key, { key: "ic_env", source: "env" });
+  // keys[url] beats the legacy field; a rejected legacy key is not offered for that URL.
+  assert.equal(probe({ INTENT_API_URL: u }, { "config.json": { api_key: "ic_old", keys: { [u]: "ic_new" } } }).key.key, "ic_new");
+  assert.deepEqual(probe({ INTENT_API_URL: u }, { "config.json": { api_key: "ic_old", legacy_rejected: [u] } }).key, { key: null, source: null });
+  assert.equal(probe({ INTENT_API_URL: "http://other" }, { "config.json": { api_key: "ic_old", legacy_rejected: [u] } }).key.key, "ic_old");
+});
+
 test("off switches and plugin version", () => {
   assert.equal(probe({}).off, null);
   assert.equal(probe({ INTENT_DISABLED: "1" }).off, "INTENT_DISABLED");

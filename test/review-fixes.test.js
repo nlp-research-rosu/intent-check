@@ -14,7 +14,7 @@ import { appendSentLog } from "../lib/intentdir.js";
 import { sanitize } from "../lib/render.js";
 import { clip, wellFormed } from "../lib/text.js";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN } from "./helpers/env.js";
+import { QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN } from "./helpers/env.js";
 
 let fp;
 before(async () => { fp = createFakeProver({ pollsBeforeDone: 0 }); await fp.listen(); });
@@ -109,7 +109,7 @@ test("3. merge conflict: the user's conflicted file is not uploaded as the agent
   try { git("merge", "other"); } catch { /* conflict expected */ }
   const data = tmpdir("intent-data-");
   saveKey(data, TEST_KEY);
-  fs.writeFileSync(path.join(data, "global.json"), JSON.stringify({ consent_shown_at: "x" }));
+  fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   const env = baseEnv(data, fp.url);
   await runHook("prompt", fixture("prompt", dir), env);
   const abs = path.join(dir, "agent.py");
@@ -145,18 +145,18 @@ test("5. a symlinked .sent.log is never followed", () => {
   assert.equal(fs.readFileSync(target, "utf8"), "# rc\n");
 });
 
-test("6. an unreachable service costs one slow prompt, then prompts skip the network", async () => {
+test("6. an unreachable service never slows a prompt: the request is created off the prompt path", async () => {
   const sockets = [];
   const hang = http.createServer(() => { /* never answers */ });
   hang.on("connection", (s) => sockets.push(s));
   await new Promise((r) => hang.listen(0, "127.0.0.1", r));
   const url = `http://127.0.0.1:${hang.address().port}`;
   const data = tmpdir("intent-data-");
-  fs.writeFileSync(path.join(data, "global.json"), JSON.stringify({ consent_shown_at: "x" }));
+  fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   const env = baseEnv(data, url);
   const repo = makeRepo().dir;
   const first = await runHook("prompt", fixture("prompt", repo), env);
-  assert.ok(first.ms >= 900, `first took ${first.ms}`);
+  assert.ok(first.ms < 600, `first took ${first.ms}`);
   const second = await runHook("prompt", fixture("prompt", repo), env);
   const third = await runHook("prompt", fixture("prompt", repo, { session_id: "new-session" }), env);
   assert.ok(second.ms < 600 && third.ms < 600, `${second.ms} ${third.ms}`);
@@ -197,7 +197,7 @@ test("8. a finisher exits when checks are turned off", async () => {
 
 test("9. after a 401 on an env key, later turns upload nothing", async () => {
   const data = tmpdir("intent-data-");
-  fs.writeFileSync(path.join(data, "global.json"), JSON.stringify({ consent_shown_at: "x" }));
+  fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   const env = baseEnv(data, fp.url, { INTENT_API_KEY: "ic_" + "R".repeat(38) });
   const repo = makeRepo().dir;
   const posts = () => fp.state.requests.filter((r) => r.method === "POST" && r.path === "/v1/jobs").length;
@@ -262,7 +262,7 @@ test("re-review: a hard-linked .sent.log is not appended to", () => {
 
 test("re-review: while paused, one note per session; an env-key pause expires after 24 h", async () => {
   const data = tmpdir("intent-data-");
-  fs.writeFileSync(path.join(data, "global.json"), JSON.stringify({ consent_shown_at: "x" }));
+  fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   const env = baseEnv(data, fp.url, { INTENT_API_KEY: "ic_" + "P".repeat(38) });
   const repo = makeRepo().dir;
   const posts = () => fp.state.requests.filter((r) => r.method === "POST" && r.path === "/v1/jobs").length;
