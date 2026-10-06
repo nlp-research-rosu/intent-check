@@ -431,6 +431,40 @@ test("bin/intent.js says so on stderr when the plugin cannot start, and still ex
   assert.match(r.stderr, /^Intent Check could not start \(\w+\), so it is not running\./);
 });
 
+test("bin/intent.js on Node < 18: the stderr line appears once per data dir, exit 0 every time", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const { pathToFileURL } = await import("node:url");
+  const data = path.join(tmpdir("intent-oldnode-"), "data");
+  const shim = path.join(tmpdir("intent-oldnode-shim-"), "shim.mjs");
+  fs.writeFileSync(shim, `Object.defineProperty(process.versions, "node", { value: "16.1.0" });\nawait import(${JSON.stringify(pathToFileURL(path.join(ROOT, "bin", "intent.js")).href)});\n`);
+  const run = (env) => spawnSync(process.execPath, [shim, "prompt"], { input: "{}", encoding: "utf8", env: { ...process.env, ...env } });
+  const a = run({ CLAUDE_PLUGIN_DATA: data });
+  assert.equal(a.status, 0);
+  assert.equal(a.stderr, "Intent Check needs Node 18 or newer (found 16.1.0), so it is not running. Update Node to use it.\n");
+  assert.deepEqual(JSON.parse(a.stdout), { systemMessage: "Intent Check needs Node.js 18 or newer to run (found 16.1.0). Install it from nodejs.org, then run /reload-plugins." });
+  assert.ok(fs.existsSync(path.join(data, ".node-too-old-16.1.0")));
+  const b = run({ CLAUDE_PLUGIN_DATA: data });
+  assert.equal(b.status, 0);
+  assert.equal(b.stderr, "");
+  assert.equal(b.stdout, "");
+  // Other hooks stay silent and do not use up the one message; Codex gets its own restart wording.
+  const quiet = spawnSync(process.execPath, [shim, "post-tool"], { input: "{}", encoding: "utf8", env: { ...process.env, CLAUDE_PLUGIN_DATA: path.join(data, "q") } });
+  assert.equal(quiet.status, 0);
+  assert.equal(quiet.stdout, "");
+  assert.ok(!fs.existsSync(path.join(data, "q", ".node-too-old-16.1.0")));
+  const cx = spawnSync(process.execPath, [shim, "session-start", "--host", "codex"], { input: "{}", encoding: "utf8", env: { ...process.env, CLAUDE_PLUGIN_DATA: path.join(data, "q") } });
+  const cxo = JSON.parse(cx.stdout);
+  assert.equal(cxo.systemMessage, undefined);
+  assert.equal(cxo.hookSpecificOutput.hookEventName, "SessionStart");
+  assert.match(cxo.hookSpecificOutput.additionalContext, /^Intent Check needs Node\.js 18 or newer to run \(found 16\.1\.0\)\. Install it from nodejs\.org, then restart Codex\.$/);
+  const cp = spawnSync(process.execPath, [shim, "prompt", "--host", "codex"], { input: "{}", encoding: "utf8", env: { ...process.env, CLAUDE_PLUGIN_DATA: path.join(data, "q2") } });
+  assert.equal(JSON.parse(cp.stdout).hookSpecificOutput.hookEventName, "UserPromptSubmit");
+  // With no data dir there is nowhere to remember it: say it every time rather than never.
+  const c = run({ CLAUDE_PLUGIN_DATA: "", PLUGIN_DATA: "" });
+  assert.equal(c.status, 0);
+  assert.match(c.stderr, /needs Node 18 or newer/);
+});
+
 test("bin/intent.js names the Node requirement in the same stderr line style", () => {
   const src = fs.readFileSync(path.join(ROOT, "bin", "intent.js"), "utf8");
   assert.match(src.split("\n")[0], /Intent Check needs Node 18 or newer/);
