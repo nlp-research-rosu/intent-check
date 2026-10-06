@@ -81,3 +81,20 @@ test("install.json: placeholders come only from the allowed set; Codex steps use
 test("README links to docs/install.json", () => {
   assert.match(fs.readFileSync(path.join(ROOT, "README.md"), "utf8"), /\]\(docs\/install\.json\)/);
 });
+
+test("install.json: every Windows cell uses npx.cmd, never bare npx (PowerShell blocks npx.ps1)", () => {
+  for (const t of TOOLS) for (const i of INTERFACES) {
+    const c = data.cells[t]?.[i]?.windows;
+    if (!c) continue;
+    assert.doesNotMatch(JSON.stringify(c), /\bnpx(?!\.cmd)\b/, `${t}/${i}/windows: use npx.cmd`);
+  }
+  assert.match(JSON.stringify(data.cells["claude-code"].vscode.windows), /npx\.cmd -y @anthropic-ai\/claude-code@latest/);
+});
+
+test("install.json: desktop prereqs name the right shell per OS and drop the Mac quit-and-reopen note", () => {
+  const mac = data.cells["claude-code"].desktop.macos.prereqs.join(" ");
+  const win = data.cells["claude-code"].desktop.windows.prereqs.join(" ");
+  assert.match(mac, /in Terminal\./); assert.doesNotMatch(mac, /PowerShell/);
+  assert.match(win, /in PowerShell\./); assert.doesNotMatch(win, /Terminal/);
+  assert.doesNotMatch(JSON.stringify(data.cells), /quit and reopen/);
+});

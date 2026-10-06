@@ -23,9 +23,8 @@
         "macos": {
           "prereqs": [
             "Claude desktop app installed",
-            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in Terminal (Mac) or PowerShell (Windows).",
-            "Git installed (git-scm.com)",
-            "On a Mac, if you install Node after opening the Claude app, quit and reopen the app so it sees Node."
+            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in Terminal.",
+            "Git installed (git-scm.com)"
           ],
           "steps": [
             "Open Terminal and run `node -v`. You should see v18 or higher; if not, install Node from nodejs.org first.",
@@ -39,17 +38,17 @@
         "windows": {
           "prereqs": [
             "Claude desktop app installed",
-            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in Terminal (Mac) or PowerShell (Windows).",
+            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in PowerShell.",
             "Git installed (git-scm.com)"
           ],
           "steps": [
             "Open PowerShell and run `node -v`. You should see v18 or higher; if not, install Node from nodejs.org first.",
-            "In the same window, run `npx -y @anthropic-ai/claude-code@latest plugin marketplace add {marketplace}{ref}`, then `npx -y @anthropic-ai/claude-code@latest plugin install intent@intentcomputing`.",
+            "In the same window, run `npx.cmd -y @anthropic-ai/claude-code@latest plugin marketplace add {marketplace}{ref}`, then `npx.cmd -y @anthropic-ai/claude-code@latest plugin install intent@intentcomputing`.",
             "Restart the Claude app, then open a Code-tab session on a local folder.",
             "Send your first prompt: it shows a link to connect your account. Open it and approve."
           ],
           "verify": "Type `/intent:status` in the session, or click + → Plugins to see intent listed.",
-          "update": "Run `npx -y @anthropic-ai/claude-code@latest plugin update intent@intentcomputing` in PowerShell, then restart the Claude app."
+          "update": "Run `npx.cmd -y @anthropic-ai/claude-code@latest plugin update intent@intentcomputing` in PowerShell, then restart the Claude app."
         }
       },
       "cli": {
@@ -124,13 +123,13 @@
           ],
           "steps": [
             "Open the integrated terminal in VS Code (Terminal → New Terminal).",
-            "Run `npx -y @anthropic-ai/claude-code@latest plugin marketplace add {marketplace}{ref}`.",
-            "Run `npx -y @anthropic-ai/claude-code@latest plugin install intent@intentcomputing`.",
+            "Run `npx.cmd -y @anthropic-ai/claude-code@latest plugin marketplace add {marketplace}{ref}`.",
+            "Run `npx.cmd -y @anthropic-ai/claude-code@latest plugin install intent@intentcomputing`.",
             "Reload the VS Code window (Command Palette → Developer: Reload Window) and open the Claude Code panel.",
             "Send your first prompt: it shows a link to connect your account. Open it and approve."
           ],
           "verify": "In the Claude Code panel, type `/intent:status`: it shows whether this machine is connected. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
-          "update": "Run `npx -y @anthropic-ai/claude-code@latest plugin update intent@intentcomputing` in the integrated terminal, then reload the window. To get updates automatically, type `/plugins` in the Claude Code panel, open the Marketplaces tab, select intentcomputing and choose Enable auto-update (it is off by default for third-party marketplaces)."
+          "update": "Run `npx.cmd -y @anthropic-ai/claude-code@latest plugin update intent@intentcomputing` in the integrated terminal, then reload the window. To get updates automatically, type `/plugins` in the Claude Code panel, open the Marketplaces tab, select intentcomputing and choose Enable auto-update (it is off by default for third-party marketplaces)."
         },
         "linux": {
           "prereqs": [
