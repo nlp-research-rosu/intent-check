@@ -31,6 +31,7 @@ jobs:
       - run: node --test test/*.test.js
   release:
     needs: test
+    if: github.ref_type == 'branch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
@@ -50,24 +51,34 @@ jobs:
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
       - name: Bump, commit, tag, push
         run: |
-          if [ "$BRANCH" = main ]; then
-            V=$(node scripts/bump-version.mjs "$BUMP")
+          CURRENT=$(node -p 'require("./package.json").version')
+          if ! git rev-parse -q --verify "refs/tags/v$CURRENT" >/dev/null && [ "$(git log -1 --format=%s)" = "release: v$CURRENT" ]; then
+            # a previous run committed the bump but did not finish: tag and release it
+            V=$CURRENT
+            git tag "v$V"
+            git push origin "v$V"
           else
-            SLUG=$(printf '%s' "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
-            V=$(node scripts/bump-version.mjs "$BUMP" --pre "$SLUG")
+            if [ "$BRANCH" = main ]; then
+              V=$(node scripts/bump-version.mjs "$BUMP")
+            else
+              SLUG=$(printf '%s' "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g; s/^-*//; s/-*$//')
+              case "$SLUG" in ''|*[!0-9]*) ;; *) SLUG="b$SLUG" ;; esac
+              V=$(node scripts/bump-version.mjs "$BUMP" --pre "$SLUG")
+            fi
+            if git rev-parse -q --verify "refs/tags/v$V" >/dev/null; then
+              echo "tag v$V already exists" >&2
+              exit 1
+            fi
+            git commit -am "release: v$V"
+            git tag "v$V"
+            git push --atomic origin "HEAD:refs/heads/$BRANCH" "v$V"
           fi
-          if git rev-parse -q --verify "refs/tags/v$V" >/dev/null; then
-            echo "tag v$V already exists" >&2
-            exit 1
-          fi
-          git commit -am "release: v$V"
-          git tag "v$V"
-          git push origin "HEAD:refs/heads/$BRANCH"
-          git push origin "v$V"
           echo "V=$V" >> "$GITHUB_ENV"
       - name: GitHub release
         run: |
-          if [ "$BRANCH" = main ]; then
+          if gh release view "v$V" >/dev/null 2>&1; then
+            echo "release v$V already exists"
+          elif [ "$BRANCH" = main ]; then
             gh release create "v$V" --generate-notes --target "$(git rev-parse HEAD)"
           else
             gh release create "v$V" --generate-notes --prerelease
