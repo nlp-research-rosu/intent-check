@@ -25,7 +25,7 @@ Turn it off with `/intent:off` in Claude Code (back on with `/intent:on`), or se
 
 ## Install (Claude Code)
 
-Checks need Node 18 or newer on your `PATH`. Without it, the plugin says so once (with a link to nodejs.org) instead of failing silently.
+Requirements: Node.js 18+ on your `PATH` (get it at nodejs.org). The same goes for Codex.
 
 In a Claude Code session, type:
 
