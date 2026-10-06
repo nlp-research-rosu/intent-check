@@ -436,3 +436,46 @@ test("bin/intent.js names the Node requirement in the same stderr line style", (
   assert.match(src.split("\n")[0], /Intent Check needs Node 18 or newer/);
   assert.doesNotMatch(src.split("\n")[0], /\?\.|\?\?/, "line 1 stays old syntax");
 });
+
+// ---- a 401 acts on the key that was sent, not on whatever is current ------------------------------
+
+test("a key re-saved between the request and its 401 survives; a second 401 for the cleared key is silent", async () => {
+  const ctx = setup();
+  saveKey(ctx.data, TEST_KEY, fp.url);
+  const { handleSubmitFailure } = await import("../lib/runner.js");
+  const { saveApiKey, apiKey } = await import("../lib/config.js");
+  const { loadSession } = await import("../lib/state.js");
+  const { pausedFor } = await import("../lib/pause.js");
+  const NEW = "ic_" + "N".repeat(38);
+  await inProcess(ctx, async () => {
+    // The user connected a new key while a request sent with the old one was still in flight.
+    saveApiKey(NEW);
+    handleSubmitFailure("sess", { status: 401, code: "unauthorized" }, { touched: [] }, TEST_KEY);
+    assert.equal(apiKey().key, NEW);
+    assert.equal(fs.existsSync(cfileOf(ctx)), false, "no revoke flow for a key that is no longer current");
+    // Two requests sent with the same key both fail: the first clears it, the second does nothing.
+    handleSubmitFailure("sess", { status: 401, code: "unauthorized" }, { touched: [] }, NEW);
+    assert.equal(apiKey().key, null);
+    handleSubmitFailure("sess", { status: 401, code: "unauthorized" }, { touched: [] }, NEW);
+    assert.doesNotMatch(JSON.stringify(loadSession("sess").notes), /INTENT_API_KEY/);
+    assert.ok(pausedFor(NEW), "paused for the key that was sent, never for a missing one");
+  });
+});
+
+test("an env-key 401 notes INTENT_API_KEY, pauses that key and leaves it alone", async () => {
+  const ctx = setup();
+  saveKey(ctx.data, TEST_KEY, fp.url);
+  const { handleSubmitFailure } = await import("../lib/runner.js");
+  const { loadSession } = await import("../lib/state.js");
+  const { pausedFor } = await import("../lib/pause.js");
+  const ENV = "ic_" + "E".repeat(38);
+  await inProcess(ctx, async () => {
+    process.env.INTENT_API_KEY = ENV;
+    try {
+      handleSubmitFailure("sess", { status: 401, code: "unauthorized" }, { touched: [] }, ENV);
+    } finally { delete process.env.INTENT_API_KEY; }
+    assert.match(JSON.stringify(loadSession("sess").notes), /INTENT_API_KEY was not accepted/);
+    assert.ok(pausedFor(ENV));
+  });
+  assert.equal(readJson(path.join(ctx.data, "config.json")).keys[fp.url], TEST_KEY, "saved key untouched");
+});
