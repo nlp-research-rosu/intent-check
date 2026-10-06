@@ -106,4 +106,11 @@ test("claude -p with Node 16 on PATH: the 'needs Node 18' line shows once per da
   const said = (t) => t.responses.filter((e) => /needs Node 18 or newer \(found 16\.1\.0\)/.test(String(e.stderr || e.output))).length;
   assert.equal(said(out[0]), 1, "the first turn says it once");
   assert.equal(said(out[1]), 0, "the second turn in the same data dir stays quiet");
+  // The user-visible line is a systemMessage on stdout of SessionStart/UserPromptSubmit, shown once in total.
+  const msgs = out.flatMap((t) => t.responses.filter((e) => /"systemMessage"/.test(String(e.stdout))));
+  assert.equal(msgs.length, 1, "the systemMessage appears exactly once");
+  assert.match(JSON.parse(String(msgs[0].stdout).trim()).systemMessage, /^Intent Check needs Node\.js 18 or newer to run \(found 16\.1\.0\)\. Install it from nodejs\.org, then run \/reload-plugins\.$/);
+  for (const t of out) for (const e of t.responses) {
+    if (e !== msgs[0]) assert.equal(String(e.stdout || "").trim(), "", `${e.hook_event} prints nothing on stdout`);
+  }
 });

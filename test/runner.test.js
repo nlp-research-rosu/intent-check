@@ -367,7 +367,7 @@ test("old-Node shim: exits 0 with one stderr line when Node is older than 18", a
   const pre = path.join(tmpdir(), "old-node.cjs");
   fs.writeFileSync(pre, "Object.defineProperty(process, 'versions', { value: { ...process.versions, node: '16.20.0' } });\n");
   const r = await new Promise((resolve) => {
-    const c = spawn(process.execPath, ["--require", pre, BIN, "stop"], { stdio: ["pipe", "pipe", "pipe"] });
+    const c = spawn(process.execPath, ["--require", pre, BIN, "prompt"], { stdio: ["pipe", "pipe", "pipe"] });
     let out = "";
     c.stdout.on("data", (d) => { out += d; });
     c.stderr.on("data", (d) => { out += d; });
@@ -375,7 +375,7 @@ test("old-Node shim: exits 0 with one stderr line when Node is older than 18", a
     c.stdin.end("{}");
   });
   assert.equal(r.code, 0);
-  assert.match(r.out, /^Intent Check needs Node 18 or newer \(found 16\.20\.0\)[^\n]*\n$/);
+  assert.match(r.out, /^Intent Check needs Node 18 or newer \(found 16\.20\.0\)[^\n]*\n\{"systemMessage":"[^\n]*"\}\n$/);
   const first = fs.readFileSync(BIN, "utf8").split("\n")[0];
   assert.doesNotMatch(first, /\?\.|\?\?|=>|\bconst\b|\blet\b|`/);
 });

@@ -441,10 +441,19 @@ test("bin/intent.js on Node < 18: the stderr line appears once per data dir, exi
   const a = run({ CLAUDE_PLUGIN_DATA: data });
   assert.equal(a.status, 0);
   assert.equal(a.stderr, "Intent Check needs Node 18 or newer (found 16.1.0), so it is not running. Update Node to use it.\n");
+  assert.deepEqual(JSON.parse(a.stdout), { systemMessage: "Intent Check needs Node.js 18 or newer to run (found 16.1.0). Install it from nodejs.org, then run /reload-plugins." });
   assert.ok(fs.existsSync(path.join(data, ".node-too-old-16.1.0")));
   const b = run({ CLAUDE_PLUGIN_DATA: data });
   assert.equal(b.status, 0);
   assert.equal(b.stderr, "");
+  assert.equal(b.stdout, "");
+  // Other hooks stay silent and do not use up the one message; Codex gets its own restart wording.
+  const quiet = spawnSync(process.execPath, [shim, "post-tool"], { input: "{}", encoding: "utf8", env: { ...process.env, CLAUDE_PLUGIN_DATA: path.join(data, "q") } });
+  assert.equal(quiet.status, 0);
+  assert.equal(quiet.stdout, "");
+  assert.ok(!fs.existsSync(path.join(data, "q", ".node-too-old-16.1.0")));
+  const cx = spawnSync(process.execPath, [shim, "session-start", "--host", "codex"], { input: "{}", encoding: "utf8", env: { ...process.env, CLAUDE_PLUGIN_DATA: path.join(data, "q") } });
+  assert.match(JSON.parse(cx.stdout).systemMessage, /then restart Codex\.$/);
   // With no data dir there is nowhere to remember it: say it every time rather than never.
   const c = run({ CLAUDE_PLUGIN_DATA: "", PLUGIN_DATA: "" });
   assert.equal(c.status, 0);
