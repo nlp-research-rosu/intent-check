@@ -16,7 +16,7 @@ function sse(res, events) {
 
 const completed = (id) => ({ type: "response.completed", response: { id, object: "response", status: "completed", usage: { input_tokens: 10, input_tokens_details: null, output_tokens: 5, output_tokens_details: null, total_tokens: 15 } } });
 
-export function createMockResponses({ file = "src/a.js", content = "export const a = 1;\n" } = {}) {
+export function createMockResponses({ file = "src/a.js", content = "export const a = 1;\n", write = true, onModelRequest = null } = {}) {
   const requests = [];
   let base = "";
   let n = 0;
@@ -32,7 +32,8 @@ export function createMockResponses({ file = "src/a.js", content = "export const
       if (req.method === "POST" && /\/responses$/.test(pathname)) {
         const id = `resp_mock${++n}`;
         const created = { type: "response.created", response: { id } };
-        if (body && hasToolOutput(body.input)) {
+        if (onModelRequest) onModelRequest(); // a hook for the test to make its edit mid-turn
+        if (!write || (body && hasToolOutput(body.input))) {
           const item = { type: "message", role: "assistant", id: `msg_${n}`, content: [{ type: "output_text", text: "Done." }] };
           return sse(res, [created, { type: "response.output_item.done", item }, completed(id)]);
         }

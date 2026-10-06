@@ -29,12 +29,21 @@ after(async () => {
 });
 
 async function session({ key = null } = {}) {
-  const mock = createMockResponses({ file: "src/a.js", content: CODE });
+  const repo = makeRepo().dir;
+  // The test writes the edit, not Codex: on some CI runners Codex's sandbox is read-only or
+  // unavailable ("patch rejected: writing is blocked by read-only sandbox"), and what is under test
+  // is the plugin's hooks. It happens when the model request arrives, i.e. after the turn started
+  // (the plugin snapshots the repo at UserPromptSubmit), so it counts as this turn's edit; Stop finds
+  // it through the repo's diff.
+  const edit = () => {
+    fs.mkdirSync(path.join(repo, "src"), { recursive: true });
+    fs.writeFileSync(path.join(repo, "src", "a.js"), CODE);
+  };
+  const mock = createMockResponses({ write: false, onModelRequest: edit });
   await mock.listen();
   const home = tmpdir("intent-it-codex-");
   const codexHome = path.join(home, "codex");
   fs.mkdirSync(codexHome, { recursive: true });
-  const repo = makeRepo().dir;
   const env = cleanEnv({
     HOME: home,
     USERPROFILE: home,
@@ -44,7 +53,7 @@ async function session({ key = null } = {}) {
     MOCK_API_KEY: "dummy-not-a-real-key",
     ...(key ? { INTENT_API_KEY: key } : {}),
   });
-  const cx = (args, o = {}) => runCli(CODEX, args, { env, cwd: repo, timeoutMs: 40000, ...o });
+  const cx = (args, o = {}) => runCli(CODEX, args, { env, cwd: repo, timeoutMs: 40000, input: "", ...o }); // stdin closed: codex exec otherwise waits on "additional input"
   try {
     fs.writeFileSync(path.join(codexHome, "config.toml"), [
       'model = "gpt-5.6-luna"', // a model in Codex's bundled catalog, so it offers the apply_patch tool
@@ -67,8 +76,7 @@ async function session({ key = null } = {}) {
     const events = r.stdout.split("\n").filter((l) => l.startsWith("{")).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
     const bodies = mock.requests.map((q) => q.raw).join("\n");
     const log = (() => { try { return fs.readFileSync(path.join(codexHome, "plugins", "data", "intent-intentcomputing", "intent.log"), "utf8"); } catch { return ""; } })();
-    const wrote = fs.existsSync(path.join(repo, "src", "a.js"));
-    return { r, events, bodies, log, wrote, repo, mock };
+    return { r, events, bodies, log, repo, mock };
   } finally {
     await mock.close();
   }
@@ -83,7 +91,6 @@ function assertHooksRan(s, events) {
 
 test("codex exec without a key: hooks run, the connect line reaches the model, no job is sent", { skip, timeout: 60000 }, async () => {
   const s = await session();
-  assert.ok(s.wrote, note(s, "the mock apply_patch call did not write src/a.js"));
   assertHooksRan(s, ["SessionStart", "UserPromptSubmit", "Stop"]);
   assert.match(s.bodies, /Intent Check: connect your account/, note(s, "connect line missing from the model request"));
   assert.equal(fp.jobRequests().length, 0);
@@ -92,9 +99,8 @@ test("codex exec without a key: hooks run, the connect line reaches the model, n
 test("codex exec with a seeded key: the edit is uploaded to the prover as a job", { skip, timeout: 60000 }, async () => {
   const before = fp.jobRequests().length;
   const s = await session({ key: TEST_KEY });
-  assert.ok(s.wrote, note(s, "the mock apply_patch call did not write src/a.js"));
-  // No PostToolUse here: Codex 0.147 does not dispatch it for apply_patch at all (verified with a
-  // match-everything matcher; it does for exec_command). The Stop hook finds the edit through git.
+  // No PostToolUse here: the mock model makes no tool call (Codex 0.147 does not dispatch it for
+  // apply_patch anyway). The Stop hook finds the edit through the repo's diff.
   assertHooksRan(s, ["SessionStart", "UserPromptSubmit", "Stop"]);
   await waitFor(() => fp.jobRequests().length > before, { timeoutMs: 20000 });
   assert.ok(fp.jobRequests().length > before, note(s, "no POST /v1/jobs reached the fake prover"));

@@ -31,7 +31,8 @@ async function session({ key = null, prompt = "write the file" } = {}) {
   const home = tmpdir("intent-it-home-");
   const config = path.join(home, ".claude");
   fs.mkdirSync(config, { recursive: true });
-  const repo = makeRepo().dir;
+  // realpath: on Windows the temp dir can be an 8.3 short name, which Claude Code resolves differently
+  const repo = fs.realpathSync.native(makeRepo().dir);
   mock = createMockAnthropic({ cwd: repo, file: "src/a.js", content: CODE });
   await mock.listen();
   const env = cleanEnv({
@@ -55,7 +56,8 @@ async function session({ key = null, prompt = "write the file" } = {}) {
 }
 
 const EVENTS = ["SessionStart", "UserPromptSubmit", "PostToolUse", "Stop"];
-const note = (s, what) => `${what}\nstderr: ${s.r.stderr.slice(-1500)}\nhook events: ${JSON.stringify(s.hooks("hook_response").map((e) => [e.hook_event, e.outcome, e.exit_code, String(e.stderr || "").slice(0, 200)]))}`;
+const toolResults = (s) => JSON.stringify(s.events.filter((e) => e.type === "user").map((e) => (e.message && e.message.content) || []).flat().filter((b) => b && b.type === "tool_result").map((b) => b.content)).slice(0, 800);
+const note = (s, what) => `${what}\ntool results: ${toolResults(s)}\nwrote: ${fs.existsSync(path.join(s.repo, "src", "a.js"))}\nstderr: ${s.r.stderr.slice(-1500)}\nhook events: ${JSON.stringify(s.hooks("hook_response").map((e) => [e.hook_event, e.outcome, e.exit_code, String(e.stderr || "").slice(0, 200)]))}`;
 
 function assertHooksRan(s) {
   for (const ev of EVENTS) {
