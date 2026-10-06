@@ -8,6 +8,9 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const FILES = ["package.json", ".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", ".codex-plugin/plugin.json"];
+// The install picker shows this version and test/install-json.test.js pins it to package.json, so plain releases bump it too.
+// Prerelease bumps leave it alone: the per-edit branch requires install.json to stay plain semver.
+export const INSTALL_JSON = "docs/install.json";
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 const VERSION_FIELD = /("version":\s*")([^"]*)(")/g;
 
@@ -33,8 +36,8 @@ export function nextVersion(current, arg, pre, listTags = gitTags) {
   return `${base.join(".")}-${pre}.${Math.max(0, ...used) + 1}`;
 }
 
-export function readVersions(root = ROOT) {
-  return FILES.map((f) => {
+export function readVersions(root = ROOT, files = FILES) {
+  return files.map((f) => {
     const found = [...fs.readFileSync(path.join(root, f), "utf8").matchAll(VERSION_FIELD)];
     if (found.length !== 1) throw new Error(`${f}: expected exactly one version field`);
     return [f, found[0][2]];
@@ -44,7 +47,10 @@ export function readVersions(root = ROOT) {
 export function writeVersion(v, root = ROOT) {
   const vs = readVersions(root);
   for (const [f, cur] of vs) if (cur !== vs[0][1]) throw new Error(`versions disagree: ${f} has ${cur}, ${vs[0][0]} has ${vs[0][1]}`);
-  for (const f of FILES) {
+  const plain = !parse(v).pre;
+  const targets = plain ? [...FILES, INSTALL_JSON] : FILES;
+  if (plain) readVersions(root, [INSTALL_JSON]); // throws unless exactly one version field, before anything is written
+  for (const f of targets) {
     const p = path.join(root, f);
     fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace(VERSION_FIELD, `$1${v}$3`));
   }
