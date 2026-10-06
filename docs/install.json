@@ -1,5 +1,5 @@
 {
-  "$comment": "Single source of truth for Intent Check install steps. Keyed tool > interface > os. Placeholders: {marketplace} = owner/repo; {ref} = '#name' when installing a branch/tag, empty otherwise. Copied by the prover site (scripts/sync-install-json.mjs).",
+  "$comment": "Single source of truth for Intent Check install steps. Keyed tool > interface > os. Placeholders: {marketplace} = owner/repo; {ref} = '#name' when installing a branch/tag (Claude), empty otherwise; {codex_ref} = '@name' (Codex), empty otherwise. A cell is either full (steps, prereqs, verify, update) or a note pointing at another cell (note, see). Copied by the prover site (scripts/sync-install-json.mjs).",
   "version": "0.1.1",
   "marketplace": "intentcomputing",
   "plugin": "intent",
@@ -19,289 +19,219 @@
   },
   "cells": {
     "claude-code": {
+      "desktop": {
+        "macos": {
+          "prereqs": [
+            "Claude desktop app installed",
+            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in Terminal (Mac) or PowerShell (Windows).",
+            "Git installed (git-scm.com)",
+            "On a Mac, if you install Node after opening the Claude app, quit and reopen the app so it sees Node."
+          ],
+          "steps": [
+            "Open Terminal and run `node -v`. You should see v18 or higher; if not, install Node from nodejs.org first.",
+            "In the same window, run `npx -y @anthropic-ai/claude-code@latest plugin marketplace add {marketplace}{ref}`, then `npx -y @anthropic-ai/claude-code@latest plugin install intent@intentcomputing`.",
+            "Restart the Claude app, then open a Code-tab session on a local folder.",
+            "Send your first prompt: it shows a link to connect your account. Open it and approve."
+          ],
+          "verify": "Type `/intent:status` in the session, or click + → Plugins to see intent listed.",
+          "update": "Run `npx -y @anthropic-ai/claude-code@latest plugin update intent@intentcomputing` in Terminal, then restart the Claude app."
+        },
+        "windows": {
+          "prereqs": [
+            "Claude desktop app installed",
+            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in Terminal (Mac) or PowerShell (Windows).",
+            "Git installed (git-scm.com)"
+          ],
+          "steps": [
+            "Open PowerShell and run `node -v`. You should see v18 or higher; if not, install Node from nodejs.org first.",
+            "In the same window, run `npx -y @anthropic-ai/claude-code@latest plugin marketplace add {marketplace}{ref}`, then `npx -y @anthropic-ai/claude-code@latest plugin install intent@intentcomputing`.",
+            "Restart the Claude app, then open a Code-tab session on a local folder.",
+            "Send your first prompt: it shows a link to connect your account. Open it and approve."
+          ],
+          "verify": "Type `/intent:status` in the session, or click + → Plugins to see intent listed.",
+          "update": "Run `npx -y @anthropic-ai/claude-code@latest plugin update intent@intentcomputing` in PowerShell, then restart the Claude app."
+        }
+      },
       "cli": {
         "macos": {
           "prereqs": [
             "Claude Code installed",
-            "Node.js 18+ on PATH (check with `node -v`; install from nodejs.org or `brew install node`)"
+            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in Terminal."
           ],
           "steps": [
             "Open Terminal in your project and run `claude`.",
             "Run `/plugin marketplace add {marketplace}{ref}`.",
-            "Run `/plugin install intent@intentcomputing` and confirm the source when asked.",
+            "Run `/plugin install intent@intentcomputing` and choose \"Install for you\".",
             "Run `/reload-plugins` (or restart Claude Code).",
             "Send your first prompt: it shows a link to connect your account. Open it and approve."
           ],
-          "verify": "Run `/intent:status`: it shows whether this machine is connected. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
-          "update": "Run `/plugin`, open Marketplaces, choose intentcomputing, and turn on auto-update (it is off by default for third-party marketplaces). To update once now, run `/plugin marketplace update intentcomputing`, then `/reload-plugins`.",
-          "no_terminal": false
+          "verify": "Type `/intent:status`: it shows whether this machine is connected. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
+          "update": "Run `claude plugin update intent@intentcomputing` in your shell (or `/plugin` → Installed → Update now), then `/reload-plugins`. To get updates automatically: `/plugin` → Marketplaces → intentcomputing → Enable auto-update (it is off by default for third-party marketplaces)."
         },
         "windows": {
           "prereqs": [
             "Claude Code installed",
-            "Node.js 18+ on PATH (check with `node -v` in PowerShell; install from nodejs.org or `winget install OpenJS.NodeJS.LTS`)"
+            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in PowerShell."
           ],
           "steps": [
-            "Open PowerShell or Windows Terminal in your project and run `claude`.",
+            "Open PowerShell in your project and run `claude`.",
             "Run `/plugin marketplace add {marketplace}{ref}`.",
-            "Run `/plugin install intent@intentcomputing` and confirm the source when asked.",
+            "Run `/plugin install intent@intentcomputing` and choose \"Install for you\".",
             "Run `/reload-plugins` (or restart Claude Code).",
             "Send your first prompt: it shows a link to connect your account. Open it and approve."
           ],
-          "verify": "Run `/intent:status`: it shows whether this machine is connected. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
-          "update": "Run `/plugin`, open Marketplaces, choose intentcomputing, and turn on auto-update (it is off by default for third-party marketplaces). To update once now, run `/plugin marketplace update intentcomputing`, then `/reload-plugins`.",
-          "no_terminal": false
+          "verify": "Type `/intent:status`: it shows whether this machine is connected. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
+          "update": "Run `claude plugin update intent@intentcomputing` in your shell (or `/plugin` → Installed → Update now), then `/reload-plugins`. To get updates automatically: `/plugin` → Marketplaces → intentcomputing → Enable auto-update (it is off by default for third-party marketplaces)."
         },
         "linux": {
           "prereqs": [
             "Claude Code installed",
-            "Node.js 18+ on PATH (check with `node -v`; install from nodejs.org or your package manager)"
+            "Node.js 18 or newer (free, from nodejs.org or your package manager). Check by typing `node -v` in a terminal."
           ],
           "steps": [
             "Open a terminal in your project and run `claude`.",
             "Run `/plugin marketplace add {marketplace}{ref}`.",
-            "Run `/plugin install intent@intentcomputing` and confirm the source when asked.",
+            "Run `/plugin install intent@intentcomputing` and choose \"Install for you\".",
             "Run `/reload-plugins` (or restart Claude Code).",
             "Send your first prompt: it shows a link to connect your account. Open it and approve."
           ],
-          "verify": "Run `/intent:status`: it shows whether this machine is connected. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
-          "update": "Run `/plugin`, open Marketplaces, choose intentcomputing, and turn on auto-update (it is off by default for third-party marketplaces). To update once now, run `/plugin marketplace update intentcomputing`, then `/reload-plugins`.",
-          "no_terminal": false
+          "verify": "Type `/intent:status`: it shows whether this machine is connected. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
+          "update": "Run `claude plugin update intent@intentcomputing` in your shell (or `/plugin` → Installed → Update now), then `/reload-plugins`. To get updates automatically: `/plugin` → Marketplaces → intentcomputing → Enable auto-update (it is off by default for third-party marketplaces)."
         }
       },
       "vscode": {
         "macos": {
           "prereqs": [
             "Claude Code extension for VS Code installed",
-            "Node.js 18+ on PATH (check with `node -v`; install from nodejs.org or `brew install node`)"
+            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in Terminal.",
+            "Git installed (git-scm.com)"
           ],
           "steps": [
-            "Open the Claude Code panel in VS Code.",
-            "Type `/plugin marketplace add {marketplace}{ref}` in the chat and press Enter.",
-            "Type `/plugin install intent@intentcomputing` and confirm the source when asked.",
-            "Type `/reload-plugins` (or reload the VS Code window).",
+            "Open the integrated terminal in VS Code (Terminal → New Terminal).",
+            "Run `npx -y @anthropic-ai/claude-code@latest plugin marketplace add {marketplace}{ref}`.",
+            "Run `npx -y @anthropic-ai/claude-code@latest plugin install intent@intentcomputing`.",
+            "Reload the VS Code window (Command Palette → Developer: Reload Window) and open the Claude Code panel.",
             "Send your first prompt: it shows a link to connect your account. Open it and approve."
           ],
-          "verify": "Run `/intent:status`: it shows whether this machine is connected. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
-          "update": "In the Claude Code panel, run `/plugin`, open Marketplaces, choose intentcomputing, and turn on auto-update (off by default for third-party marketplaces). To update once now, run `/plugin marketplace update intentcomputing`.",
-          "no_terminal": false,
-          "unverified": true,
-          "unverified_reason": "Plugin slash commands in the VS Code extension panel were not run against the extension. The same commands work in the claude CLI, which the extension shares settings with; the integrated terminal fallback is `claude plugin marketplace add {marketplace}{ref}` then `claude plugin install intent@intentcomputing`."
+          "verify": "In the Claude Code panel, type `/intent:status`: it shows whether this machine is connected. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
+          "update": "Run `npx -y @anthropic-ai/claude-code@latest plugin update intent@intentcomputing` in the integrated terminal, then reload the window. To get updates automatically, type `/plugins` in the Claude Code panel, open the Marketplaces tab, select intentcomputing and choose Enable auto-update (it is off by default for third-party marketplaces)."
         },
         "windows": {
           "prereqs": [
             "Claude Code extension for VS Code installed",
-            "Node.js 18+ on PATH (check with `node -v` in PowerShell; install from nodejs.org or `winget install OpenJS.NodeJS.LTS`)"
+            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in PowerShell.",
+            "Git installed (git-scm.com)"
           ],
           "steps": [
-            "Open the Claude Code panel in VS Code.",
-            "Type `/plugin marketplace add {marketplace}{ref}` in the chat and press Enter.",
-            "Type `/plugin install intent@intentcomputing` and confirm the source when asked.",
-            "Type `/reload-plugins` (or reload the VS Code window).",
+            "Open the integrated terminal in VS Code (Terminal → New Terminal).",
+            "Run `npx -y @anthropic-ai/claude-code@latest plugin marketplace add {marketplace}{ref}`.",
+            "Run `npx -y @anthropic-ai/claude-code@latest plugin install intent@intentcomputing`.",
+            "Reload the VS Code window (Command Palette → Developer: Reload Window) and open the Claude Code panel.",
             "Send your first prompt: it shows a link to connect your account. Open it and approve."
           ],
-          "verify": "Run `/intent:status`: it shows whether this machine is connected. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
-          "update": "In the Claude Code panel, run `/plugin`, open Marketplaces, choose intentcomputing, and turn on auto-update (off by default for third-party marketplaces). To update once now, run `/plugin marketplace update intentcomputing`.",
-          "no_terminal": false,
-          "unverified": true,
-          "unverified_reason": "Plugin slash commands in the VS Code extension panel were not run against the extension. The same commands work in the claude CLI, which the extension shares settings with; the integrated terminal fallback is `claude plugin marketplace add {marketplace}{ref}` then `claude plugin install intent@intentcomputing`."
+          "verify": "In the Claude Code panel, type `/intent:status`: it shows whether this machine is connected. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
+          "update": "Run `npx -y @anthropic-ai/claude-code@latest plugin update intent@intentcomputing` in the integrated terminal, then reload the window. To get updates automatically, type `/plugins` in the Claude Code panel, open the Marketplaces tab, select intentcomputing and choose Enable auto-update (it is off by default for third-party marketplaces)."
         },
         "linux": {
           "prereqs": [
             "Claude Code extension for VS Code installed",
-            "Node.js 18+ on PATH (check with `node -v`; install from nodejs.org or your package manager)"
+            "Node.js 18 or newer (free, from nodejs.org or your package manager). Check by typing `node -v` in a terminal.",
+            "Git installed (git-scm.com)"
           ],
           "steps": [
-            "Open the Claude Code panel in VS Code.",
-            "Type `/plugin marketplace add {marketplace}{ref}` in the chat and press Enter.",
-            "Type `/plugin install intent@intentcomputing` and confirm the source when asked.",
-            "Type `/reload-plugins` (or reload the VS Code window).",
+            "Open the integrated terminal in VS Code (Terminal → New Terminal).",
+            "Run `npx -y @anthropic-ai/claude-code@latest plugin marketplace add {marketplace}{ref}`.",
+            "Run `npx -y @anthropic-ai/claude-code@latest plugin install intent@intentcomputing`.",
+            "Reload the VS Code window (Command Palette → Developer: Reload Window) and open the Claude Code panel.",
             "Send your first prompt: it shows a link to connect your account. Open it and approve."
           ],
-          "verify": "Run `/intent:status`: it shows whether this machine is connected. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
-          "update": "In the Claude Code panel, run `/plugin`, open Marketplaces, choose intentcomputing, and turn on auto-update (off by default for third-party marketplaces). To update once now, run `/plugin marketplace update intentcomputing`.",
-          "no_terminal": false,
-          "unverified": true,
-          "unverified_reason": "Plugin slash commands in the VS Code extension panel were not run against the extension. The same commands work in the claude CLI, which the extension shares settings with; the integrated terminal fallback is `claude plugin marketplace add {marketplace}{ref}` then `claude plugin install intent@intentcomputing`."
-        }
-      },
-      "desktop": {
-        "macos": {
-          "prereqs": [
-            "Claude desktop app installed",
-            "Node.js 18+ on PATH (needed for the checks; install from nodejs.org)"
-          ],
-          "steps": [
-            "Open the Claude desktop app.",
-            "Click + → Plugins → Add marketplace.",
-            "Enter `{marketplace}{ref}` and confirm.",
-            "Find `intent` in the intentcomputing marketplace and install it.",
-            "Send your first prompt: it shows a link to connect your account. Open it and approve."
-          ],
-          "verify": "Ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn. Or type `/intent:status`.",
-          "update": "Open the Marketplaces tab, choose intentcomputing, and turn on auto-update (off by default for third-party marketplaces).",
-          "no_terminal": true,
-          "unverified": true,
-          "unverified_reason": "The + → Plugins → Add marketplace path comes from the product brief; the install and auto-update wording after it, and whether the desktop app accepts a #ref, was not tested against the app."
-        },
-        "windows": {
-          "prereqs": [
-            "Claude desktop app installed",
-            "Node.js 18+ on PATH (needed for the checks; install from nodejs.org)"
-          ],
-          "steps": [
-            "Open the Claude desktop app.",
-            "Click + → Plugins → Add marketplace.",
-            "Enter `{marketplace}{ref}` and confirm.",
-            "Find `intent` in the intentcomputing marketplace and install it.",
-            "Send your first prompt: it shows a link to connect your account. Open it and approve."
-          ],
-          "verify": "Ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn. Or type `/intent:status`.",
-          "update": "Open the Marketplaces tab, choose intentcomputing, and turn on auto-update (off by default for third-party marketplaces).",
-          "no_terminal": true,
-          "unverified": true,
-          "unverified_reason": "The + → Plugins → Add marketplace path comes from the product brief; the install and auto-update wording after it, and whether the desktop app accepts a #ref, was not tested against the app."
+          "verify": "In the Claude Code panel, type `/intent:status`: it shows whether this machine is connected. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
+          "update": "Run `npx -y @anthropic-ai/claude-code@latest plugin update intent@intentcomputing` in the integrated terminal, then reload the window. To get updates automatically, type `/plugins` in the Claude Code panel, open the Marketplaces tab, select intentcomputing and choose Enable auto-update (it is off by default for third-party marketplaces)."
         }
       }
     },
     "codex": {
+      "desktop": {
+        "macos": {
+          "note": "Set it up with the Codex CLI steps.",
+          "see": {
+            "tool": "codex",
+            "interface": "cli"
+          }
+        },
+        "windows": {
+          "note": "Set it up with the Codex CLI steps.",
+          "see": {
+            "tool": "codex",
+            "interface": "cli"
+          }
+        }
+      },
       "cli": {
         "macos": {
           "prereqs": [
             "Codex CLI 0.147 or newer",
-            "Node.js 18+ on PATH (check with `node -v`; install from nodejs.org or `brew install node`)"
+            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in Terminal."
           ],
           "steps": [
-            "Open Terminal and run `codex plugin marketplace add {marketplace}{ref}`.",
+            "Open Terminal and run `codex plugin marketplace add {marketplace}{codex_ref}`.",
             "Run `codex plugin add intent@intentcomputing`.",
             "Start `codex` and choose \"Trust all and continue\" when it says the plugin's hooks need review (or trust them in `/hooks`).",
             "Send your first prompt: it shows a link to connect your account. Open it and approve."
           ],
-          "verify": "Start `codex`, send a prompt, then ask the agent to run Intent Check status (it runs the plugin's `intent.js status`). Or ask it to change a function by 3+ lines: the check note arrives with your next message.",
-          "update": "Run `codex plugin marketplace upgrade intentcomputing`, then restart `codex`. Codex may ask you to trust the plugin's hooks again after an update. No auto-update setting is documented for Codex.",
-          "no_terminal": false
+          "verify": "Start `codex`, send a prompt, then ask the agent to run Intent Check status. Or ask it to change a function by 3+ lines: the check note arrives with your next message.",
+          "update": "Run `codex plugin marketplace upgrade intentcomputing`, then restart `codex`. Codex may ask you to trust the plugin's hooks again after an update."
         },
         "windows": {
           "prereqs": [
             "Codex CLI 0.147 or newer",
-            "Node.js 18+ on PATH (check with `node -v` in PowerShell; install from nodejs.org or `winget install OpenJS.NodeJS.LTS`)"
+            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in PowerShell."
           ],
           "steps": [
-            "Open PowerShell or Windows Terminal and run `codex plugin marketplace add {marketplace}{ref}`.",
+            "Open PowerShell and run `codex plugin marketplace add {marketplace}{codex_ref}`.",
             "Run `codex plugin add intent@intentcomputing`.",
             "Start `codex` and choose \"Trust all and continue\" when it says the plugin's hooks need review (or trust them in `/hooks`).",
             "Send your first prompt: it shows a link to connect your account. Open it and approve."
           ],
-          "verify": "Start `codex`, send a prompt, then ask the agent to run Intent Check status (it runs the plugin's `intent.js status`). Or ask it to change a function by 3+ lines: the check note arrives with your next message.",
-          "update": "Run `codex plugin marketplace upgrade intentcomputing`, then restart `codex`. Codex may ask you to trust the plugin's hooks again after an update. No auto-update setting is documented for Codex.",
-          "no_terminal": false
+          "verify": "Start `codex`, send a prompt, then ask the agent to run Intent Check status. Or ask it to change a function by 3+ lines: the check note arrives with your next message.",
+          "update": "Run `codex plugin marketplace upgrade intentcomputing`, then restart `codex`. Codex may ask you to trust the plugin's hooks again after an update."
         },
         "linux": {
           "prereqs": [
             "Codex CLI 0.147 or newer",
-            "Node.js 18+ on PATH (check with `node -v`; install from nodejs.org or your package manager)"
+            "Node.js 18 or newer (free, from nodejs.org or your package manager). Check by typing `node -v` in a terminal."
           ],
           "steps": [
-            "Open a terminal and run `codex plugin marketplace add {marketplace}{ref}`.",
+            "Open a terminal and run `codex plugin marketplace add {marketplace}{codex_ref}`.",
             "Run `codex plugin add intent@intentcomputing`.",
             "Start `codex` and choose \"Trust all and continue\" when it says the plugin's hooks need review (or trust them in `/hooks`).",
             "Send your first prompt: it shows a link to connect your account. Open it and approve."
           ],
-          "verify": "Start `codex`, send a prompt, then ask the agent to run Intent Check status (it runs the plugin's `intent.js status`). Or ask it to change a function by 3+ lines: the check note arrives with your next message.",
-          "update": "Run `codex plugin marketplace upgrade intentcomputing`, then restart `codex`. Codex may ask you to trust the plugin's hooks again after an update. No auto-update setting is documented for Codex.",
-          "no_terminal": false
+          "verify": "Start `codex`, send a prompt, then ask the agent to run Intent Check status. Or ask it to change a function by 3+ lines: the check note arrives with your next message.",
+          "update": "Run `codex plugin marketplace upgrade intentcomputing`, then restart `codex`. Codex may ask you to trust the plugin's hooks again after an update."
         }
       },
       "vscode": {
         "macos": {
-          "prereqs": [
-            "Codex extension for VS Code installed",
-            "Codex CLI 0.147 or newer",
-            "Node.js 18+ on PATH (check with `node -v`; install from nodejs.org or `brew install node`)"
-          ],
-          "steps": [
-            "Open the integrated terminal in VS Code and run `codex plugin marketplace add {marketplace}{ref}`.",
-            "Run `codex plugin add intent@intentcomputing`.",
-            "Restart the Codex panel (or reload the VS Code window) and trust the plugin's hooks when asked.",
-            "Send your first prompt: it shows a link to connect your account. Open it and approve."
-          ],
-          "verify": "Start `codex`, send a prompt, then ask the agent to run Intent Check status (it runs the plugin's `intent.js status`). Or ask it to change a function by 3+ lines: the check note arrives with your next message.",
-          "update": "Run `codex plugin marketplace upgrade intentcomputing`, then restart `codex`. Codex may ask you to trust the plugin's hooks again after an update. No auto-update setting is documented for Codex.",
-          "no_terminal": false,
-          "unverified": true,
-          "unverified_reason": "The Codex CLI commands are verified against codex 0.147. That the VS Code extension reads the same plugin config, and how it presents the hook trust prompt, was not tested."
+          "note": "Codex's IDE extension doesn't load plugins; set it up with the Codex CLI.",
+          "see": {
+            "tool": "codex",
+            "interface": "cli"
+          }
         },
         "windows": {
-          "prereqs": [
-            "Codex extension for VS Code installed",
-            "Codex CLI 0.147 or newer",
-            "Node.js 18+ on PATH (check with `node -v` in PowerShell; install from nodejs.org or `winget install OpenJS.NodeJS.LTS`)"
-          ],
-          "steps": [
-            "Open the integrated terminal in VS Code and run `codex plugin marketplace add {marketplace}{ref}`.",
-            "Run `codex plugin add intent@intentcomputing`.",
-            "Restart the Codex panel (or reload the VS Code window) and trust the plugin's hooks when asked.",
-            "Send your first prompt: it shows a link to connect your account. Open it and approve."
-          ],
-          "verify": "Start `codex`, send a prompt, then ask the agent to run Intent Check status (it runs the plugin's `intent.js status`). Or ask it to change a function by 3+ lines: the check note arrives with your next message.",
-          "update": "Run `codex plugin marketplace upgrade intentcomputing`, then restart `codex`. Codex may ask you to trust the plugin's hooks again after an update. No auto-update setting is documented for Codex.",
-          "no_terminal": false,
-          "unverified": true,
-          "unverified_reason": "The Codex CLI commands are verified against codex 0.147. That the VS Code extension reads the same plugin config, and how it presents the hook trust prompt, was not tested."
+          "note": "Codex's IDE extension doesn't load plugins; set it up with the Codex CLI.",
+          "see": {
+            "tool": "codex",
+            "interface": "cli"
+          }
         },
         "linux": {
-          "prereqs": [
-            "Codex extension for VS Code installed",
-            "Codex CLI 0.147 or newer",
-            "Node.js 18+ on PATH (check with `node -v`; install from nodejs.org or your package manager)"
-          ],
-          "steps": [
-            "Open the integrated terminal in VS Code and run `codex plugin marketplace add {marketplace}{ref}`.",
-            "Run `codex plugin add intent@intentcomputing`.",
-            "Restart the Codex panel (or reload the VS Code window) and trust the plugin's hooks when asked.",
-            "Send your first prompt: it shows a link to connect your account. Open it and approve."
-          ],
-          "verify": "Start `codex`, send a prompt, then ask the agent to run Intent Check status (it runs the plugin's `intent.js status`). Or ask it to change a function by 3+ lines: the check note arrives with your next message.",
-          "update": "Run `codex plugin marketplace upgrade intentcomputing`, then restart `codex`. Codex may ask you to trust the plugin's hooks again after an update. No auto-update setting is documented for Codex.",
-          "no_terminal": false,
-          "unverified": true,
-          "unverified_reason": "The Codex CLI commands are verified against codex 0.147. That the VS Code extension reads the same plugin config, and how it presents the hook trust prompt, was not tested."
-        }
-      },
-      "desktop": {
-        "macos": {
-          "prereqs": [
-            "Codex desktop app installed",
-            "Node.js 18+ on PATH (needed for the checks; install from nodejs.org)"
-          ],
-          "steps": [
-            "Open the Codex desktop app and go to its plugins settings.",
-            "Add the marketplace `{marketplace}{ref}`.",
-            "Install `intent` from the intentcomputing marketplace and trust its hooks when asked.",
-            "Send your first prompt: it shows a link to connect your account. Open it and approve."
-          ],
-          "verify": "Ask the agent to change a function by 3+ lines: the Intent Check note arrives with your next message.",
-          "update": "Refresh the intentcomputing marketplace from the app's plugins settings.",
-          "no_terminal": true,
-          "unverified": true,
-          "unverified_reason": "No Codex desktop plugin UI is documented in this repo or in the codex 0.147 CLI help. These steps are the best-known shape, not tested. Terminal fallback: codex plugin marketplace add {marketplace}{ref}."
-        },
-        "windows": {
-          "prereqs": [
-            "Codex desktop app installed",
-            "Node.js 18+ on PATH (needed for the checks; install from nodejs.org)"
-          ],
-          "steps": [
-            "Open the Codex desktop app and go to its plugins settings.",
-            "Add the marketplace `{marketplace}{ref}`.",
-            "Install `intent` from the intentcomputing marketplace and trust its hooks when asked.",
-            "Send your first prompt: it shows a link to connect your account. Open it and approve."
-          ],
-          "verify": "Ask the agent to change a function by 3+ lines: the Intent Check note arrives with your next message.",
-          "update": "Refresh the intentcomputing marketplace from the app's plugins settings.",
-          "no_terminal": true,
-          "unverified": true,
-          "unverified_reason": "No Codex desktop plugin UI is documented in this repo or in the codex 0.147 CLI help. These steps are the best-known shape, not tested. Terminal fallback: codex plugin marketplace add {marketplace}{ref}."
+          "note": "Codex's IDE extension doesn't load plugins; set it up with the Codex CLI.",
+          "see": {
+            "tool": "codex",
+            "interface": "cli"
+          }
         }
       }
     }

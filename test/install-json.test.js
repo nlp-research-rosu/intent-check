@@ -7,13 +7,15 @@ import path from "node:path";
 import { ROOT } from "./helpers/env.js";
 
 const data = JSON.parse(fs.readFileSync(path.join(ROOT, "docs", "install.json"), "utf8"));
-const ALLOWED = new Set(["marketplace", "ref"]);
+const ALLOWED = new Set(["marketplace", "ref", "codex_ref"]);
 const TOOLS = ["claude-code", "codex"];
 const INTERFACES = ["desktop", "cli", "vscode"];
 const OSES = ["macos", "windows", "linux"];
 const expected = TOOLS.flatMap((t) =>
   INTERFACES.flatMap((i) => OSES.filter((o) => !(i === "desktop" && o === "linux")).map((o) => [t, i, o])),
 );
+const nonEmpty = (s) => typeof s === "string" && s.trim() !== "";
+const isNote = (c) => c.note !== undefined;
 
 test("install.json: labels cover every tool, interface and OS", () => {
   assert.deepEqual(Object.keys(data.tools), TOOLS);
@@ -34,34 +36,45 @@ test("install.json: every cell is present, and nothing else is", () => {
     Object.entries(ifs).flatMap(([i, oses]) => Object.keys(oses).map((o) => `${t}/${i}/${o}`)),
   );
   assert.deepEqual(found.sort(), expected.map((e) => e.join("/")).sort());
-  assert.equal(data.cells["claude-code"].desktop.linux, undefined);
 });
 
-test("install.json: each cell has the required fields", () => {
+test("install.json: full cells have steps, prereqs, verify and update; note cells point at a full cell", () => {
   for (const [t, i, o] of expected) {
     const c = data.cells[t][i][o];
     const at = `${t}/${i}/${o}`;
-    assert.ok(Array.isArray(c.steps) && c.steps.length > 0, `${at}: steps`);
-    for (const s of c.steps) assert.ok(typeof s === "string" && s.trim() !== "", `${at}: empty step`);
-    assert.ok(Array.isArray(c.prereqs) && c.prereqs.length > 0, `${at}: prereqs`);
-    for (const s of c.prereqs) assert.ok(typeof s === "string" && s.trim() !== "", `${at}: empty prereq`);
-    assert.ok(typeof c.verify === "string" && c.verify.trim() !== "", `${at}: verify`);
-    assert.ok(typeof c.update === "string" && c.update.trim() !== "", `${at}: update`);
-    assert.equal(typeof c.no_terminal, "boolean", `${at}: no_terminal`);
-    assert.equal(c.no_terminal, i === "desktop", `${at}: no_terminal is true for desktop cells only`);
-    if (c.unverified !== undefined) {
-      assert.equal(c.unverified, true, `${at}: unverified is true or absent`);
-      assert.ok(typeof c.unverified_reason === "string" && c.unverified_reason.trim() !== "", `${at}: unverified_reason`);
+    if (isNote(c)) {
+      assert.ok(nonEmpty(c.note), `${at}: note`);
+      assert.equal(c.steps, undefined, `${at}: a note cell has no steps`);
+      const target = data.cells[c.see?.tool]?.[c.see?.interface]?.[o];
+      assert.ok(target && !isNote(target), `${at}: see must name a full cell for the same OS`);
+      continue;
     }
+    assert.ok(Array.isArray(c.steps) && c.steps.length > 0, `${at}: steps`);
+    assert.ok(c.steps.every(nonEmpty), `${at}: empty step`);
+    assert.ok(Array.isArray(c.prereqs) && c.prereqs.length > 0 && c.prereqs.every(nonEmpty), `${at}: prereqs`);
+    assert.ok(nonEmpty(c.verify), `${at}: verify`);
+    assert.ok(nonEmpty(c.update), `${at}: update`);
   }
 });
 
-test("install.json: placeholders come only from the allowed set, and every cell adds the marketplace", () => {
+test("install.json: no cell is unverified and the terminal flag is gone", () => {
   for (const [t, i, o] of expected) {
     const c = data.cells[t][i][o];
-    const text = JSON.stringify([c.steps, c.prereqs, c.verify, c.update, c.unverified_reason ?? ""]);
+    assert.ok(!("unverified" in c) && !("unverified_reason" in c), `${t}/${i}/${o}: unverified cells must not ship`);
+    assert.ok(!("no_terminal" in c), `${t}/${i}/${o}: no_terminal was removed`);
+  }
+  assert.doesNotMatch(JSON.stringify(data.cells), /on PATH/, "user-facing text does not say 'on PATH'");
+});
+
+test("install.json: placeholders come only from the allowed set; Codex steps use {codex_ref}, Claude steps {ref}", () => {
+  for (const [t, i, o] of expected) {
+    const c = data.cells[t][i][o];
+    const text = JSON.stringify(c);
     for (const m of text.matchAll(/\{([^{}"\\]*)\}/g)) assert.ok(ALLOWED.has(m[1]), `${t}/${i}/${o}: unknown placeholder {${m[1]}}`);
+    if (isNote(c)) continue;
     assert.ok(c.steps.some((s) => s.includes("{marketplace}")), `${t}/${i}/${o}: no step uses {marketplace}`);
+    assert.equal(c.steps.join(" ").includes("{ref}"), t === "claude-code", `${t}/${i}/${o}: {ref} is for Claude steps only`);
+    assert.equal(c.steps.join(" ").includes("{codex_ref}"), t === "codex", `${t}/${i}/${o}: {codex_ref} is for Codex steps only`);
   }
 });
 
