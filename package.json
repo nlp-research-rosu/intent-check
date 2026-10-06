@@ -1,6 +1,6 @@
 {
   "name": "intent-check",
-  "version": "0.1.1-peredit",
+  "version": "0.1.2-per-edit",
   "private": true,
   "description": "Intent Check plugin for Claude Code and Codex. Zero runtime dependencies.",
   "type": "module",

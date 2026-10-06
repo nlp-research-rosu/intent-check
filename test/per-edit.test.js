@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { fixture, tmpdir, makeRepo, baseEnv, runHook, readSessionFiles, saveKey, waitFor, sleep } from "./helpers/env.js";
+import { fixture, tmpdir, makeRepo, baseEnv, runHook, readSessionFiles, saveKey, waitFor, sleep, ROOT } from "./helpers/env.js";
 
 const V1 = "def apply_discount(price_cents, percent):\n    return price_cents - price_cents * percent // 100\n\ndef total(items):\n    return sum(items)\n";
 const V2 = V1 + "\ndef tax(x):\n    return x * 2\n\ndef net(x):\n    return x - tax(x)\n";
@@ -138,7 +138,7 @@ test("per-edit off: no check at the edit, the normal Stop check", async () => {
 test("per-edit command and status", async () => {
   const ctx = setup({ perEdit: "" });
   delete ctx.env.INTENT_PER_EDIT;
-  const run = (...a) => import("node:child_process").then(({ spawnSync }) => spawnSync(process.execPath, [path.join(import.meta.dirname, "..", "bin", "intent.js"), ...a], { env: ctx.env, encoding: "utf8" }));
+  const run = (...a) => import("node:child_process").then(({ spawnSync }) => spawnSync(process.execPath, [path.join(ROOT, "bin", "intent.js"), ...a], { env: ctx.env, encoding: "utf8" }));
   assert.match((await run("status")).stdout, /Per-edit checks: on/);
   assert.match((await run("per-edit", "off")).stdout, /Per-edit checks are off/);
   assert.match((await run("status")).stdout, /Per-edit checks: off/);
