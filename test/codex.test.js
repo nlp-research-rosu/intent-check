@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { tmpdir, makeRepo, baseEnv, saveKey, waitFor, ROOT, BIN } from "./helpers/env.js";
+import { QUIET_GLOBAL, tmpdir, makeRepo, baseEnv, saveKey, waitFor, ROOT, BIN } from "./helpers/env.js";
 import { spawn } from "node:child_process";
 import { validateDef } from "./helpers/schema.js";
 import { applyPatchPaths, readTurnContext, codexModes, fixModeFor } from "../lib/codex.js";
@@ -52,7 +52,7 @@ function run(event, payload, env, { hostFlag = true } = {}) {
 function setup({ key = true } = {}) {
   const data = tmpdir("intent-codex-data-");
   if (key) saveKey(data, TEST_KEY);
-  fs.writeFileSync(path.join(data, "global.json"), JSON.stringify({ consent_shown_at: "x" }));
+  fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   const { dir, git } = makeRepo();
   const env = baseEnv(data, fp.url, { CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDECODE: "1", PLUGIN_ROOT: ROOT, PLUGIN_DATA: data });
   return { data, repo: dir, git, env, transcript: rollout(tmpdir("intent-codex-home-")) };
@@ -159,10 +159,13 @@ test("not connected: the connect link arrives as context (Codex shows it), host 
   const ctx = setup({ key: false });
   const n = fp.state.requests.length;
   const r = await run("prompt", cfx("prompt", ctx.repo, ctx.transcript), ctx.env, { hostFlag: false });
-  assert.equal(r.json.systemMessage, undefined);
-  assert.match(r.json.hookSpecificOutput.additionalContext, /^Intent Check: connect your account → http/);
+  assert.equal(r.stdout, "", "the prompt hook only reads; the request is made by a detached child");
+  assert.ok(await waitFor(() => fs.existsSync(path.join(ctx.data, "connect.json")), { timeoutMs: 10000 }));
   const start = fp.state.requests.slice(n).find((x) => x.path === "/v1/connect");
   assert.equal(start.body.host, "codex");
+  const r2 = await run("prompt", cfx("prompt", ctx.repo, ctx.transcript), ctx.env, { hostFlag: false });
+  assert.equal(r2.json.systemMessage, undefined);
+  assert.match(r2.json.hookSpecificOutput.additionalContext, /connect your account → http/);
 });
 
 test("the data dir is created on first use (Codex does not create it)", async () => {

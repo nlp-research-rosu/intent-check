@@ -91,7 +91,22 @@ export async function waitFor(fn, { timeoutMs = 15000, stepMs = 100 } = {}) {
   return null;
 }
 
-export function saveKey(dataDir, key) {
+// Without a url: the old top-level api_key. With one: keys[url], the current format.
+export function saveKey(dataDir, key, url = null) {
   fs.mkdirSync(dataDir, { recursive: true });
-  fs.writeFileSync(path.join(dataDir, "config.json"), JSON.stringify({ api_key: key }), { mode: 0o600 });
+  const cfg = url ? { keys: { [url]: key } } : { api_key: key };
+  fs.writeFileSync(path.join(dataDir, "config.json"), JSON.stringify(cfg), { mode: 0o600 });
+}
+
+// global.json content for tests that are not about the first-run notices (consent, "ready").
+export const PLUGIN_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, ".claude-plugin", "plugin.json"), "utf8")).version;
+export const QUIET_GLOBAL = JSON.stringify({ consent_shown_at: "x", ready_version: PLUGIN_VERSION });
+
+// Pre-seed machine-wide state (global.json), e.g. the consent notice already shown.
+export function seedGlobal(dataDir, obj) {
+  fs.mkdirSync(dataDir, { recursive: true });
+  const f = path.join(dataDir, "global.json");
+  let cur = {};
+  try { cur = JSON.parse(fs.readFileSync(f, "utf8")); } catch { /* none yet */ }
+  fs.writeFileSync(f, JSON.stringify({ ...cur, ...obj }), { mode: 0o600 });
 }

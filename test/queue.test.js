@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT } from "./helpers/env.js";
+import { QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT } from "./helpers/env.js";
 import { validateDef } from "./helpers/schema.js";
 import { writeUnit } from "../lib/intentdir.js";
 
@@ -19,7 +19,7 @@ const example = JSON.parse(fs.readFileSync(path.join(ROOT, "contract", "examples
 function setup() {
   const data = tmpdir("intent-data-");
   saveKey(data, TEST_KEY);
-  fs.writeFileSync(path.join(data, "global.json"), JSON.stringify({ consent_shown_at: "x" }));
+  fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   const { dir, git } = makeRepo();
   return { data, repo: dir, git, env: baseEnv(data, fp.url) };
 }
@@ -30,7 +30,7 @@ function cli(args, cwd, data) {
   return new Promise((resolve) => {
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("CLAUDE_") && !k.startsWith("INTENT_")));
     // HOME points at a throwaway dir so a failing run cannot log into the real plugin data dir.
-    const c = spawn(process.execPath, [BIN, "check", ...args, ...(data ? ["--data", data] : [])], { cwd, env: { ...env, HOME: tmpdir("intent-home-"), INTENT_API_URL: "http://127.0.0.1:9" } });
+    const c = spawn(process.execPath, [BIN, "check", ...args, ...(data ? ["--data", data] : [])], { cwd, env: { ...env, HOME: tmpdir("intent-home-"), INTENT_API_URL: fp.url } });
     let out = "";
     c.stdout.on("data", (d) => { out += d; });
     c.on("close", (code) => resolve({ code, out: out.trim() }));
