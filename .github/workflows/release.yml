@@ -1,0 +1,74 @@
+name: release
+# Run from the Actions tab and pick a branch. On main this cuts a release (vX.Y.Z); on any other branch it cuts a
+# prerelease (vX.Y.Z-<branch>.N) and commits the bump to that branch, because users install from the branch head.
+# Pushes made with GITHUB_TOKEN do not trigger ci.yml; that is fine because the test job below runs first.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+permissions:
+  contents: write
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        node: [18, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: node contract/hash.mjs
+      - run: node --test test/*.test.js
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUMP: ${{ inputs.bump }}
+      BRANCH: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+      - name: Bump, commit, tag, push
+        run: |
+          if [ "$BRANCH" = main ]; then
+            V=$(node scripts/bump-version.mjs "$BUMP")
+          else
+            SLUG=$(printf '%s' "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
+            V=$(node scripts/bump-version.mjs "$BUMP" --pre "$SLUG")
+          fi
+          if git rev-parse -q --verify "refs/tags/v$V" >/dev/null; then
+            echo "tag v$V already exists" >&2
+            exit 1
+          fi
+          git commit -am "release: v$V"
+          git tag "v$V"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          git push origin "v$V"
+          echo "V=$V" >> "$GITHUB_ENV"
+      - name: GitHub release
+        run: |
+          if [ "$BRANCH" = main ]; then
+            gh release create "v$V" --generate-notes --target "$(git rev-parse HEAD)"
+          else
+            gh release create "v$V" --generate-notes --prerelease
+          fi

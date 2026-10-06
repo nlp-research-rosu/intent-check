@@ -32,7 +32,7 @@ test("off switches and plugin version", () => {
   assert.equal(probe({ INTENT_DISABLED: "1" }).off, "INTENT_DISABLED");
   assert.equal(probe({ DO_NOT_TRACK: "1" }).off, "DO_NOT_TRACK");
   assert.equal(probe({}, { "config.json": { disabled: true } }).off, "off");
-  assert.equal(probe({}).v, "0.1.0");
+  assert.equal(probe({}).v, JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version);
 });
 
 test("isInteractiveEntrypoint: only the SDKs, local-agent and mcp are non-interactive", () => {

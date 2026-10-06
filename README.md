@@ -41,6 +41,12 @@ claude plugin marketplace add nlp-research-rosu/intent-check && claude plugin in
 
 Then restart Claude Code or run `/reload-plugins`. Your first prompt shows a link to connect your account; once you approve it, checks start. The saved key lives in Claude Code's plugin data folder, which is removed when you uninstall the plugin.
 
+## Updating
+
+Claude Code only updates a plugin when its version changes, and it does not auto-update third-party marketplaces unless you turn that on. To turn it on, open `/plugin`, go to Marketplaces, select `intentcomputing` and choose Enable auto-update. To update right now, open `/plugin`, go to Installed, select `intent` and choose Update, or run `claude plugin update intent@intentcomputing` in a terminal. Then restart Claude Code or run `/reload-plugins`. The installed version is shown under Installed in `/plugin`.
+
+Maintainers: in GitHub, open Actions, select release, choose Run workflow, pick the branch and the bump (patch, minor or major). On `main` it bumps the version, commits, tags and publishes a release. On any other branch it does the same as a prerelease (for example `0.1.2-per-edit.1`), committed to that branch, since people who install from a branch get its latest commit.
+
 ## Install (Codex CLI 0.147 or newer)
 
 In a terminal:
