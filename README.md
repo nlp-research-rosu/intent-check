@@ -25,6 +25,8 @@ Turn it off with `/intent:off` in Claude Code (back on with `/intent:on`), or se
 
 ## Install (Claude Code)
 
+Install steps for every tool, interface (desktop app, CLI, VS Code) and OS are in [docs/install.json](docs/install.json), which the website's install picker uses. The two sections below are the CLI short form.
+
 Requirements: Node.js 18+ on your `PATH` (get it at nodejs.org). The same goes for Codex.
 
 In a Claude Code session, type:
