@@ -30,7 +30,7 @@ function setup({ key = true, git = true, env = {} } = {}) {
 function cli(args, cwd, data, extraEnv = {}) {
   return new Promise((resolve) => {
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("CLAUDE_") && !k.startsWith("INTENT_") && k !== "DO_NOT_TRACK"));
-    const c = spawn(process.execPath, [BIN, "check", ...args, "--data", data], { cwd, env: { ...env, HOME: tmpdir("intent-home-"), INTENT_API_URL: "http://127.0.0.1:9", ...extraEnv } });
+    const c = spawn(process.execPath, [BIN, "check", ...args, "--data", data], { cwd, env: { ...env, HOME: tmpdir("intent-home-"), INTENT_API_URL: fp.url, ...extraEnv } });
     let out = "";
     c.stdout.on("data", (d) => { out += d; });
     c.on("close", () => resolve(out.trim()));

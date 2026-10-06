@@ -72,6 +72,7 @@ export function createFakeProver(opts = {}) {
         return json(res, 200, { requests: st.requests.map((r) => ({ method: r.method, path: r.path })), jobs: [...st.jobs.keys()] });
       }
       if (req.method === "GET" && url.pathname === "/v1/me") {
+        if (st.meStatus) return json(res, st.meStatus, { error: { code: "x", message: "x" } });
         if (!authed) return json(res, 401, { error: { code: "unauthorized", message: "bad key" } });
         return json(res, 200, { handle: st.handle || "tester", machine_name: "test-box", key_last4: st.key.slice(-4), environment: "test" });
       }
@@ -86,10 +87,13 @@ export function createFakeProver(opts = {}) {
         st.connectCreated = (st.connectCreated || 0) + 1;
         st.connectKeyTaken = false;
         st.deviceCode = crypto.randomBytes(24).toString("hex").slice(0, 32);
-        return json(res, 201, { device_code: st.deviceCode, user_code: "KDRT-MWQX", verification_url: `${base}/connect/KDRT-MWQX`, expires_in: 900, interval: 1 });
+        const body = { device_code: st.deviceCode, user_code: "KDRT-MWQX", verification_url: st.verifyUrl || `${base}/connect/KDRT-MWQX`, expires_in: 900, interval: 1 };
+        if (st.connectStartDelayMs) return void setTimeout(() => json(res, 201, body), st.connectStartDelayMs);
+        return json(res, 201, body);
       }
       const cm = url.pathname.match(/^\/v1\/connect\/([A-Za-z0-9]+)$/);
       if (req.method === "GET" && cm) {
+        if (st.pollStatus) return json(res, st.pollStatus, { error: { code: "rate_limited", message: "x" } });
         if (cm[1] !== st.deviceCode) return json(res, 404, { error: { code: "not_found", message: "unknown" } });
         if (st.connectStatus) return json(res, 200, { status: st.connectStatus }); // "denied" | "expired" | "consumed"
         if (!st.connectApproved) return json(res, 200, { status: "pending" });

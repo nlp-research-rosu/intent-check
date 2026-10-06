@@ -11,7 +11,7 @@ import { QUIET_GLOBAL, PLUGIN_VERSION, ROOT, fixture, tmpdir, makeRepo, baseEnv,
 let fp;
 before(async () => { fp = createFakeProver(); await fp.listen(); });
 after(() => fp.close());
-beforeEach(() => Object.assign(fp.state, { connectApproved: false, connectKeyTaken: false, connectStatus: null, connectStartStatus: null, keyRevoked: false, key: TEST_KEY, handle: "tester", pollsBeforeDone: 0, scenario: "concerns" }));
+beforeEach(() => Object.assign(fp.state, { connectApproved: false, connectKeyTaken: false, connectStatus: null, connectStartStatus: null, keyRevoked: false, key: TEST_KEY, handle: "tester", pollsBeforeDone: 0, scenario: "concerns", verifyUrl: null, connectStartDelayMs: 0, meStatus: null, pollStatus: null }));
 
 function setup() {
   const data = tmpdir("intent-data-");
@@ -39,7 +39,8 @@ test("a legacy top-level api_key is moved under the current URL once /v1/me says
   assert.equal(meCalls(), n + 1);
   const cfg = readJson(path.join(ctx.data, "config.json"));
   assert.equal(cfg.keys[fp.url], TEST_KEY);
-  assert.equal(cfg.api_key, TEST_KEY, "old field kept for one version");
+  assert.equal(cfg.api_key, undefined, "the old field is removed once its key lives under keys[url]");
+  assert.equal(cfg.legacy_for, fp.url);
   assert.equal(fs.existsSync(cfileOf(ctx)), false);
   // Already under keys[url]: no second /v1/me.
   await prompt(ctx);
@@ -85,7 +86,7 @@ test("429 from the service backs off for 30 s, then tries again", async () => {
   const ctx = setup();
   fp.state.connectStartStatus = 429;
   const r = await start(ctx);
-  assert.equal(r.stdout, "");
+  assert.match(r.json.systemMessage, /^Intent Check could not create a connect link \(429\)\. Run \/intent:connect to retry, or \/intent:status for details\.$/);
   const g = () => readJson(path.join(ctx.data, "global.json"));
   assert.ok(g().backoff.connect > Date.now() - 5000);
   assert.match(g().last_error.text, /could not start a connect request \(429\)/);
@@ -336,8 +337,14 @@ test("/intent:connect gives a fresh link even after one was shown, and the next 
   assert.equal(c.code, 0);
   assert.match(c.stdout, /^Intent Check: connect your account → http:\/\/127\.0\.0\.1:\d+\/connect\/KDRT-MWQX\n/);
   assert.equal(posts(), before + 1, "a fresh request");
+  // The prompt that ran the command is what marks this session as the one that saw the link.
+  await prompt(ctx, "/intent:connect");
   const p = await prompt(ctx);
   assert.equal(p.stdout, "");
+  // Another session did not see it: it still gets the line and the gate.
+  const other = await prompt(ctx, "please build the pricing module", { session_id: "other-session" });
+  assert.match(other.json.systemMessage, /connect your account/);
+  assert.match(other.json.hookSpecificOutput.additionalContext, /"done" or "skip"/);
 });
 
 test("/intent:connect when already connected says so", async () => {

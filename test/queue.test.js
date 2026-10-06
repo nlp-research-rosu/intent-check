@@ -30,7 +30,7 @@ function cli(args, cwd, data) {
   return new Promise((resolve) => {
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("CLAUDE_") && !k.startsWith("INTENT_")));
     // HOME points at a throwaway dir so a failing run cannot log into the real plugin data dir.
-    const c = spawn(process.execPath, [BIN, "check", ...args, ...(data ? ["--data", data] : [])], { cwd, env: { ...env, HOME: tmpdir("intent-home-"), INTENT_API_URL: "http://127.0.0.1:9" } });
+    const c = spawn(process.execPath, [BIN, "check", ...args, ...(data ? ["--data", data] : [])], { cwd, env: { ...env, HOME: tmpdir("intent-home-"), INTENT_API_URL: fp.url } });
     let out = "";
     c.stdout.on("data", (d) => { out += d; });
     c.on("close", (code) => resolve({ code, out: out.trim() }));
