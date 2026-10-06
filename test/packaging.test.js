@@ -15,10 +15,17 @@ test("marketplace: intentcomputing, plugin intent at the repo root", () => {
   assert.equal(m.plugins[0].version, read(".claude-plugin/plugin.json").version);
 });
 
-test("plugin.json: name intent, version 0.1.1-peredit, homepage set", () => {
+test("version: the same valid semver in all four files", () => {
+  const files = ["package.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json"];
+  const versions = [...files.map((f) => read(f).version), read(".claude-plugin/marketplace.json").plugins[0].version];
+  assert.match(versions[0], /^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/);
+  assert.deepEqual(versions, Array(4).fill(versions[0]));
+});
+
+test("plugin.json: name intent, version from package.json, homepage set", () => {
   const p = read(".claude-plugin/plugin.json");
   assert.equal(p.name, "intent");
-  assert.equal(p.version, "0.1.1-peredit");
+  assert.equal(p.version, read("package.json").version);
   assert.match(p.homepage, /^https:\/\//);
   assert.equal(fs.existsSync(path.join(ROOT, "plugin.json")), false, "no root plugin.json (Codex reads .codex-plugin/)");
 });
