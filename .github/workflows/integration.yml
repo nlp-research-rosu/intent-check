@@ -1,0 +1,65 @@
+name: integration
+# The real `claude -p` and `codex exec` run the plugin's hooks against a mock model API and the fake
+# prover (test/integration). LLM-free: no Anthropic/OpenAI secrets, nothing here reads a secret.
+# Called from ci.yml (PRs that touch hooks/bin/lib/commands/.github, pushes to main, manual runs) and
+# from release.yml before it releases; also runnable by hand from the Actions tab.
+on:
+  workflow_call:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  integration:
+    name: integration (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: ubuntu, os: ubuntu-latest, variant: default }
+          - { name: macos, os: macos-latest, variant: default }
+          - { name: windows, os: windows-latest, variant: default }
+          # Git for Windows' default install puts only Git\cmd on PATH, never sh: strip the rest.
+          - { name: windows-no-sh, os: windows-latest, variant: no-sh }
+          # PATH without anything under the user profile (npm/nvm/fnm shims live there for many people).
+          - { name: windows-no-userprofile-path, os: windows-latest, variant: no-userprofile-path }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install the CLIs
+        run: npm install -g @anthropic-ai/claude-code @openai/codex
+      - name: Versions
+        shell: bash
+        run: |
+          node --version
+          claude --version
+          codex --version
+      - name: Integration tests
+        shell: pwsh
+        env:
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          # Resolve the CLIs before PATH is trimmed; the tests find them through these.
+          $env:INTENT_IT_CLAUDE = (Get-Command claude -CommandType Application | Select-Object -First 1).Source
+          $env:INTENT_IT_CODEX = (Get-Command codex -CommandType Application | Select-Object -First 1).Source
+          $sep = [System.IO.Path]::PathSeparator
+          $entries = $env:PATH -split [regex]::Escape($sep) | Where-Object { $_ }
+          if ($env:VARIANT -eq 'no-sh') {
+            $git = 'C:\Program Files\Git'
+            $env:CLAUDE_CODE_GIT_BASH_PATH = "$git\bin\bash.exe"
+            $entries = $entries | Where-Object { -not ($_.StartsWith($git, [StringComparison]::OrdinalIgnoreCase) -and $_ -ne "$git\cmd") }
+          }
+          if ($env:VARIANT -eq 'no-userprofile-path') {
+            $entries = $entries | Where-Object { -not $_.StartsWith($env:USERPROFILE, [StringComparison]::OrdinalIgnoreCase) }
+          }
+          $env:PATH = $entries -join $sep
+          Write-Host "variant: $env:VARIANT"
+          if ($IsWindows) {
+            Write-Host "sh on PATH: $([bool](Get-Command sh -ErrorAction SilentlyContinue))"
+          }
+          Write-Host "node: $((Get-Command node).Source)"
+          npm run test:integration
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

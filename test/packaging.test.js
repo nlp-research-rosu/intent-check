@@ -38,8 +38,9 @@ test("hooks.json: exec form, four events, asyncRewake Stop with a 900 s timeout,
     assert.equal(h[ev].length, ev === "Stop" ? 2 : 1);
     const [cmd] = h[ev][0].hooks;
     assert.equal(cmd.type, "command");
-    assert.equal(cmd.command, "sh");
-    assert.deepEqual(cmd.args, ["${CLAUDE_PLUGIN_ROOT}/bin/intent", arg]);
+    // Exec form with node: no shell involved, so it works where `sh` is not on PATH (Windows).
+    assert.equal(cmd.command, "node");
+    assert.deepEqual(cmd.args, ["${CLAUDE_PLUGIN_ROOT}/bin/intent.js", arg]);
     assert.equal("statusMessage" in cmd, false);
   }
   assert.equal(h.PostToolUse[0].matcher, "Edit|Write|NotebookEdit|ExitPlanMode|TodoWrite");
@@ -56,8 +57,8 @@ test("hooks.json: exec form, four events, asyncRewake Stop with a 900 s timeout,
 test("Stop has a second asyncRewake entry, connect-wait, with its own message and summary", () => {
   const [review, wait] = read("hooks/hooks.json").hooks.Stop;
   const cmd = wait.hooks[0];
-  assert.equal(cmd.command, "sh");
-  assert.deepEqual(cmd.args, ["${CLAUDE_PLUGIN_ROOT}/bin/intent", "connect-wait"]);
+  assert.equal(cmd.command, "node");
+  assert.deepEqual(cmd.args, ["${CLAUDE_PLUGIN_ROOT}/bin/intent.js", "connect-wait"]);
   assert.equal(cmd.asyncRewake, true);
   assert.equal(cmd.timeout, 900);
   assert.equal(cmd.rewakeSummary, "Intent Check connected");
@@ -67,20 +68,22 @@ test("Stop has a second asyncRewake entry, connect-wait, with its own message an
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, "hooks/codex-hooks.json"), "utf8"), /connect-wait/);
 });
 
-test("skill and commands exist and reference the plugin root, routed through the sh launcher", () => {
+test("skill and commands exist and reference the plugin root, run with node directly", () => {
   const skill = fs.readFileSync(path.join(ROOT, "skills/intent-check/SKILL.md"), "utf8");
   assert.match(skill, /^---\nname: intent-check\ndescription: /);
-  assert.match(skill, /sh "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent"/);
-  assert.doesNotMatch(skill, /\bnode\b.*bin\/intent\.js/);
+  assert.match(skill, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent\.js"/);
+  assert.doesNotMatch(skill, /\bsh\b.*bin\/intent\b/);
   for (const w of ["status", "connect", "disconnect"]) assert.match(skill, new RegExp(`/intent:${w}|bin/intent status|\`${w}\``), `skill maps ${w}`);
   for (const c of ["off", "on", "check", "status", "connect", "disconnect"]) {
     const md = fs.readFileSync(path.join(ROOT, "commands", `${c}.md`), "utf8");
-    assert.match(md, /sh "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent"/);
-    assert.match(md, /allowed-tools: Bash\(sh \$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent:\*\)/);
+    assert.match(md, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent\.js"/);
+    assert.match(md, /allowed-tools: Bash\(node \$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent\.js:\*\)/);
+    assert.doesNotMatch(md, /\bsh\b.*bin\/intent\b/);
   }
 });
 
-test("bin/intent: the sh launcher exists, is executable, and routes to bin/intent.js", () => {
+test("bin/intent: the legacy sh launcher (no hook or command uses it any more) still exists and routes to bin/intent.js", () => {
+  for (const f of ["hooks/hooks.json", "hooks/codex-hooks.json"]) assert.doesNotMatch(fs.readFileSync(path.join(ROOT, f), "utf8"), /bin\/intent["\s]/, `${f} must not use the sh launcher`);
   const p = path.join(ROOT, "bin", "intent");
   const src = fs.readFileSync(p, "utf8");
   assert.match(src, /^#!\/bin\/sh/);
@@ -105,7 +108,7 @@ test("NOTICE credits the ported security-guidance logic (Apache-2.0)", () => {
   assert.match(n, /Apache License, Version 2\.0/);
 });
 
-test("Codex: its own manifest and shell-form hook file, sync Stop, nothing Claude-only", () => {
+test("Codex: its own manifest and shell-string hook file (node, one command line for sh, cmd and PowerShell), sync Stop, nothing Claude-only", () => {
   const c = read(".codex-plugin/plugin.json");
   assert.equal(c.name, "intent");
   assert.equal(c.version, read(".claude-plugin/plugin.json").version);
@@ -115,7 +118,7 @@ test("Codex: its own manifest and shell-form hook file, sync Stop, nothing Claud
   assert.deepEqual(Object.keys(h).sort(), Object.keys(events).sort());
   for (const [ev, arg] of Object.entries(events)) {
     const [cmd] = h[ev][0].hooks;
-    assert.equal(cmd.command, `sh "${"$"}{CLAUDE_PLUGIN_ROOT}/bin/intent" ${arg} --host codex`);
+    assert.equal(cmd.command, `node "${"$"}{CLAUDE_PLUGIN_ROOT}/bin/intent.js" ${arg} --host codex`);
     for (const k of ["args", "async", "asyncRewake", "statusMessage"]) assert.equal(k in cmd, false, `${ev}.${k}`);
   }
   assert.equal(h.PostToolUse[0].matcher, "^(apply_patch|Edit|Write)$");

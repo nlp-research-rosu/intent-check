@@ -3,6 +3,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -20,3 +21,28 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: node contract/hash.mjs
       - run: node --test test/*.test.js
+  # Decides whether the OS-matrix integration job runs, so the required unit job above never waits on it.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      integration: ${{ steps.filter.outputs.integration }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            integration:
+              - 'hooks/**'
+              - 'bin/**'
+              - 'lib/main.js'
+              - 'commands/**'
+              - '.github/**'
+              - 'test/integration/**'
+              - 'test/helpers/**'
+              - 'package.json'
+  integration:
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.integration == 'true'
+    uses: ./.github/workflows/integration.yml

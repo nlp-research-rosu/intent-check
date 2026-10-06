@@ -431,6 +431,26 @@ test("bin/intent.js says so on stderr when the plugin cannot start, and still ex
   assert.match(r.stderr, /^Intent Check could not start \(\w+\), so it is not running\./);
 });
 
+test("bin/intent.js on Node < 18: the stderr line appears once per data dir, exit 0 every time", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const { pathToFileURL } = await import("node:url");
+  const data = path.join(tmpdir("intent-oldnode-"), "data");
+  const shim = path.join(tmpdir("intent-oldnode-shim-"), "shim.mjs");
+  fs.writeFileSync(shim, `Object.defineProperty(process.versions, "node", { value: "16.1.0" });\nawait import(${JSON.stringify(pathToFileURL(path.join(ROOT, "bin", "intent.js")).href)});\n`);
+  const run = (env) => spawnSync(process.execPath, [shim, "prompt"], { input: "{}", encoding: "utf8", env: { ...process.env, ...env } });
+  const a = run({ CLAUDE_PLUGIN_DATA: data });
+  assert.equal(a.status, 0);
+  assert.equal(a.stderr, "Intent Check needs Node 18 or newer (found 16.1.0), so it is not running. Update Node to use it.\n");
+  assert.ok(fs.existsSync(path.join(data, ".node-too-old-16.1.0")));
+  const b = run({ CLAUDE_PLUGIN_DATA: data });
+  assert.equal(b.status, 0);
+  assert.equal(b.stderr, "");
+  // With no data dir there is nowhere to remember it: say it every time rather than never.
+  const c = run({ CLAUDE_PLUGIN_DATA: "", PLUGIN_DATA: "" });
+  assert.equal(c.status, 0);
+  assert.match(c.stderr, /needs Node 18 or newer/);
+});
+
 test("bin/intent.js names the Node requirement in the same stderr line style", () => {
   const src = fs.readFileSync(path.join(ROOT, "bin", "intent.js"), "utf8");
   assert.match(src.split("\n")[0], /Intent Check needs Node 18 or newer/);

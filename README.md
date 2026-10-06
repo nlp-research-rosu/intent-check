@@ -57,7 +57,7 @@ codex plugin marketplace add nlp-research-rosu/intent-check && codex plugin add 
 
 Then start `codex` and choose "Trust all and continue" when it says the plugin's hooks need review (or trust them in `/hooks`). Your first prompt shows the link to connect your account.
 
-If you already had the plugin trusted, updating past the `bin/intent` launcher changes the hook commands, so Codex asks you to trust them again once.
+If you already had the plugin trusted, updating to the `node .../bin/intent.js` hook commands (they used to run through the `sh` launcher `bin/intent`) changes them, so Codex asks you to trust them again once. Codex hooks are plain command strings, so the same `node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" ...` line serves every OS; Codex has no separate exec form to use for Windows.
 
 - Codex cannot wake an idle session, so concerns reach the agent with your next message (or at the end of the same turn, if the check already finished). Clean checks show one short "no concerns" line the next time you prompt.
 - Codex does not load plugin slash commands, so there is no `/intent:off`. To turn checks off, set `INTENT_DISABLED=1` when starting Codex, or ask the agent to turn Intent Check off (it runs the plugin's `intent.js off`, which may need your approval to write outside the sandbox).
@@ -78,7 +78,7 @@ Reports from the staging service:
 ## Development
 
 - Zero runtime dependencies. Plain ESM JavaScript, Node 18 syntax.
-- `npm test` (node:test) and `node contract/hash.mjs`. `test/e2e/claude-e2e.sh` drives a real Claude Code session through tmux; `test/e2e/codex-e2e.sh` runs `codex exec` in an isolated `CODEX_HOME`.
+- `npm test` (node:test) and `node contract/hash.mjs`. `npm run test:integration` runs the real `claude -p` and `codex exec` against a mock model API and the fake prover (no LLM, no secrets; skips a CLI that is not installed); CI runs it on Linux, macOS and Windows. `test/e2e/claude-e2e.sh` drives a real Claude Code session through tmux; `test/e2e/codex-e2e.sh` runs `codex exec` in an isolated `CODEX_HOME`.
 - Contract with the backend: `contract/` (identical copy in `nlp-research-rosu/intent-check-prover`).
 - Config: `INTENT_API_URL` overrides the service URL, `INTENT_API_KEY` the saved key.
 - `NOTICE` lists the Apache-2.0 code this plugin ports from Anthropic's security-guidance plugin.
