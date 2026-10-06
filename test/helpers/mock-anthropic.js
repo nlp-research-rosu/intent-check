@@ -7,6 +7,7 @@
 //                                      conversation, then a short end_turn text.
 // Every request body is recorded in `requests`. Standalone: node test/helpers/mock-anthropic.js [port]
 import http from "node:http";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const hasToolResult = (messages) =>
@@ -67,7 +68,7 @@ export function createMockAnthropic({ cwd = process.cwd(), file = "src/a.js", co
         const side = /haiku/i.test(model) || !(body && Array.isArray(body.tools) && body.tools.length);
         let events;
         if (side) events = textEvents(model, "Mock reply.", id);
-        else if (!hasToolResult(body.messages)) events = toolEvents(model, id, "Write", { file_path: `${cwd}/${file}`.replace(/\/+/g, "/"), content });
+        else if (!hasToolResult(body.messages)) events = toolEvents(model, id, "Write", { file_path: path.join(cwd, file), content });
         else events = textEvents(model, "Done.", id);
         if (!(body && body.stream)) {
           const msg = events.find((e) => e[0] === "message_start")[1].message;

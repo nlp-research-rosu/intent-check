@@ -431,8 +431,85 @@ test("bin/intent.js says so on stderr when the plugin cannot start, and still ex
   assert.match(r.stderr, /^Intent Check could not start \(\w+\), so it is not running\./);
 });
 
+test("bin/intent.js on Node < 18: the stderr line appears once per data dir, exit 0 every time", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const { pathToFileURL } = await import("node:url");
+  const data = path.join(tmpdir("intent-oldnode-"), "data");
+  const shim = path.join(tmpdir("intent-oldnode-shim-"), "shim.mjs");
+  fs.writeFileSync(shim, `Object.defineProperty(process.versions, "node", { value: "16.1.0" });\nawait import(${JSON.stringify(pathToFileURL(path.join(ROOT, "bin", "intent.js")).href)});\n`);
+  const run = (env) => spawnSync(process.execPath, [shim, "prompt"], { input: "{}", encoding: "utf8", env: { ...process.env, ...env } });
+  const a = run({ CLAUDE_PLUGIN_DATA: data });
+  assert.equal(a.status, 0);
+  assert.equal(a.stderr, "Intent Check needs Node 18 or newer (found 16.1.0), so it is not running. Update Node to use it.\n");
+  assert.deepEqual(JSON.parse(a.stdout), { systemMessage: "Intent Check needs Node.js 18 or newer to run (found 16.1.0). Install it from nodejs.org, then run /reload-plugins." });
+  assert.ok(fs.existsSync(path.join(data, ".node-too-old-16.1.0")));
+  const b = run({ CLAUDE_PLUGIN_DATA: data });
+  assert.equal(b.status, 0);
+  assert.equal(b.stderr, "");
+  assert.equal(b.stdout, "");
+  // Other hooks stay silent and do not use up the one message; Codex gets its own restart wording.
+  const quiet = spawnSync(process.execPath, [shim, "post-tool"], { input: "{}", encoding: "utf8", env: { ...process.env, CLAUDE_PLUGIN_DATA: path.join(data, "q") } });
+  assert.equal(quiet.status, 0);
+  assert.equal(quiet.stdout, "");
+  assert.ok(!fs.existsSync(path.join(data, "q", ".node-too-old-16.1.0")));
+  const cx = spawnSync(process.execPath, [shim, "session-start", "--host", "codex"], { input: "{}", encoding: "utf8", env: { ...process.env, CLAUDE_PLUGIN_DATA: path.join(data, "q") } });
+  const cxo = JSON.parse(cx.stdout);
+  assert.equal(cxo.systemMessage, undefined);
+  assert.equal(cxo.hookSpecificOutput.hookEventName, "SessionStart");
+  assert.match(cxo.hookSpecificOutput.additionalContext, /^Intent Check needs Node\.js 18 or newer to run \(found 16\.1\.0\)\. Install it from nodejs\.org, then restart Codex\.$/);
+  const cp = spawnSync(process.execPath, [shim, "prompt", "--host", "codex"], { input: "{}", encoding: "utf8", env: { ...process.env, CLAUDE_PLUGIN_DATA: path.join(data, "q2") } });
+  assert.equal(JSON.parse(cp.stdout).hookSpecificOutput.hookEventName, "UserPromptSubmit");
+  // With no data dir there is nowhere to remember it: say it every time rather than never.
+  const c = run({ CLAUDE_PLUGIN_DATA: "", PLUGIN_DATA: "" });
+  assert.equal(c.status, 0);
+  assert.match(c.stderr, /needs Node 18 or newer/);
+});
+
 test("bin/intent.js names the Node requirement in the same stderr line style", () => {
   const src = fs.readFileSync(path.join(ROOT, "bin", "intent.js"), "utf8");
   assert.match(src.split("\n")[0], /Intent Check needs Node 18 or newer/);
   assert.doesNotMatch(src.split("\n")[0], /\?\.|\?\?/, "line 1 stays old syntax");
+});
+
+// ---- a 401 acts on the key that was sent, not on whatever is current ------------------------------
+
+test("a key re-saved between the request and its 401 survives; a second 401 for the cleared key is silent", async () => {
+  const ctx = setup();
+  saveKey(ctx.data, TEST_KEY, fp.url);
+  const { handleSubmitFailure } = await import("../lib/runner.js");
+  const { saveApiKey, apiKey } = await import("../lib/config.js");
+  const { loadSession } = await import("../lib/state.js");
+  const { pausedFor } = await import("../lib/pause.js");
+  const NEW = "ic_" + "N".repeat(38);
+  await inProcess(ctx, async () => {
+    // The user connected a new key while a request sent with the old one was still in flight.
+    saveApiKey(NEW);
+    handleSubmitFailure("sess", { status: 401, code: "unauthorized" }, { touched: [] }, TEST_KEY);
+    assert.equal(apiKey().key, NEW);
+    assert.equal(fs.existsSync(cfileOf(ctx)), false, "no revoke flow for a key that is no longer current");
+    // Two requests sent with the same key both fail: the first clears it, the second does nothing.
+    handleSubmitFailure("sess", { status: 401, code: "unauthorized" }, { touched: [] }, NEW);
+    assert.equal(apiKey().key, null);
+    handleSubmitFailure("sess", { status: 401, code: "unauthorized" }, { touched: [] }, NEW);
+    assert.doesNotMatch(JSON.stringify(loadSession("sess").notes), /INTENT_API_KEY/);
+    assert.ok(pausedFor(NEW), "paused for the key that was sent, never for a missing one");
+  });
+});
+
+test("an env-key 401 notes INTENT_API_KEY, pauses that key and leaves it alone", async () => {
+  const ctx = setup();
+  saveKey(ctx.data, TEST_KEY, fp.url);
+  const { handleSubmitFailure } = await import("../lib/runner.js");
+  const { loadSession } = await import("../lib/state.js");
+  const { pausedFor } = await import("../lib/pause.js");
+  const ENV = "ic_" + "E".repeat(38);
+  await inProcess(ctx, async () => {
+    process.env.INTENT_API_KEY = ENV;
+    try {
+      handleSubmitFailure("sess", { status: 401, code: "unauthorized" }, { touched: [] }, ENV);
+    } finally { delete process.env.INTENT_API_KEY; }
+    assert.match(JSON.stringify(loadSession("sess").notes), /INTENT_API_KEY was not accepted/);
+    assert.ok(pausedFor(ENV));
+  });
+  assert.equal(readJson(path.join(ctx.data, "config.json")).keys[fp.url], TEST_KEY, "saved key untouched");
 });
