@@ -45,7 +45,7 @@ Then restart Claude Code or run `/reload-plugins`. Your first prompt shows a lin
 
 ## Per-edit preview (branch)
 
-This branch checks every edit as it happens. Each Edit, Write or MultiEdit your agent makes is sent for review on its own and runs to completion; findings reach the agent on its next edit, and anything still running at the end of the turn is waited for and can wake the agent as before. Hooks run through your shell (Git Bash on native Windows).
+This branch checks every edit as it happens. Each Edit, Write or MultiEdit your agent makes is sent for review on its own and runs to completion; findings reach the agent on its next edit, and anything still running at the end of the turn is waited for and can wake the agent as before. Hooks run `node` directly (Node.js 18+ on your PATH).
 
 Install it:
 
