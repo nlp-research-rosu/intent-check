@@ -192,3 +192,134 @@ test("writeUnit: an older job finishing late does not overwrite a unit from newe
   assert.equal(fs.readFileSync(path.join(root, ".intent", "a.py", "INTENT.md"), "utf8"), "new");
   assert.equal(writeUnit(root, unit("legacy"), { job_id: "L", url: "http://x/l" }, res), true);
 });
+
+// ---- auth interplay: the key that was sent decides what a 401 does ------------------------------
+
+const readJson = (f) => JSON.parse(fs.readFileSync(f, "utf8"));
+const notesText = (ctx) => readSessionFiles(ctx.data).flatMap((s) => (s.notes || []).map((n) => n.text || n.user || "")).join("\n");
+const sessionJson = (ctx) => path.join(ctx.data, "sessions", fs.readdirSync(path.join(ctx.data, "sessions")).find((x) => x.endsWith(".json")));
+
+function savedKeyCtx() {
+  const ctx = setup();
+  saveKey(ctx.data, TEST_KEY, fp.url);
+  fp.state.keyRevoked = false;
+  return ctx;
+}
+
+async function inProcess(ctx, fn) {
+  const keys = ["CLAUDE_PLUGIN_DATA", "INTENT_API_URL", "INTENT_API_KEY"];
+  const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  delete process.env.INTENT_API_KEY;
+  Object.assign(process.env, { CLAUDE_PLUGIN_DATA: ctx.data, INTENT_API_URL: fp.url });
+  try { return await fn(); } finally { for (const k of keys) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } }
+}
+
+test("a per-edit 401 with a saved key clears it, marks connect.json revoked, and the next prompt says why", async () => {
+  const ctx = savedKeyCtx();
+  await prompt(ctx);
+  fp.state.keyRevoked = true;
+  try {
+    await edit(ctx, "pricing.py", V1, "toolu_1");
+    const cfg = path.join(ctx.data, "config.json");
+    assert.ok(await waitFor(() => !((readJson(cfg).keys || {})[fp.url])), "saved key cleared");
+    const c = path.join(ctx.data, "connect.json");
+    assert.ok(await waitFor(() => fs.existsSync(c) && readJson(c).status === "pending", { timeoutMs: 10000 }), "connect.json updated with a new request");
+    assert.match(readJson(c).reason || "", /no longer accepted/);
+    const r = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "carry on with the next task please" }), ctx.env);
+    assert.match(r.json.systemMessage, /no longer accepted/);
+  } finally { fp.state.keyRevoked = false; }
+});
+
+test("two concurrent per-edit 401s do not claim INTENT_API_KEY was rejected", async () => {
+  const ctx = savedKeyCtx();
+  await prompt(ctx);
+  fp.state.keyRevoked = true;
+  fp.state.submitDelayMs = 400;
+  try {
+    await Promise.all([edit(ctx, "pricing.py", V1, "toolu_1"), edit(ctx, "other.py", V2, "toolu_2")]);
+    assert.ok(await waitFor(() => !((readJson(path.join(ctx.data, "config.json")).keys || {})[fp.url])));
+    await sleep(1500);
+    assert.doesNotMatch(notesText(ctx), /INTENT_API_KEY/);
+  } finally { fp.state.keyRevoked = false; fp.state.submitDelayMs = 0; }
+});
+
+test("a key re-saved between the request and its 401 survives", async () => {
+  const ctx = savedKeyCtx();
+  const { handleSubmitFailure } = await import("../lib/runner.js");
+  const { saveApiKey, apiKey } = await import("../lib/config.js");
+  const NEW = "ic_" + "N".repeat(38);
+  await inProcess(ctx, async () => {
+    saveApiKey(NEW);
+    handleSubmitFailure("sess", { status: 401, code: "unauthorized" }, { touched: [] }, TEST_KEY);
+    assert.equal(apiKey().key, NEW);
+  });
+  assert.equal(fs.existsSync(path.join(ctx.data, "connect.json")), false);
+});
+
+test("an env-key 401 from a per-edit check adds the env note, pauses, and keeps the key", async () => {
+  const ctx = setup();
+  ctx.env.INTENT_API_KEY = "ic_" + "R".repeat(38);
+  await prompt(ctx);
+  await edit(ctx, "pricing.py", V1, "toolu_1");
+  assert.ok(await waitFor(() => /INTENT_API_KEY was not accepted/.test(notesText(ctx))), "env note");
+  const g = readJson(path.join(ctx.data, "global.json"));
+  assert.equal(g.paused.code, 401);
+  assert.equal(g.paused.source, "env");
+  assert.equal(readJson(path.join(ctx.data, "config.json")).api_key, TEST_KEY);
+});
+
+test("a successful per-edit submit records the last check", async () => {
+  fp.state.scenario = "no_concerns";
+  const ctx = setup();
+  await prompt(ctx);
+  const out0 = await runHook("status", undefined, ctx.env);
+  assert.match(out0.stdout, /Last check: none yet/);
+  await edit(ctx, "pricing.py", V1, "toolu_1");
+  assert.ok(await waitFor(() => { try { return readJson(path.join(ctx.data, "global.json")).last_check?.ok === true; } catch { return false; } }));
+  const out = await runHook("status", undefined, ctx.env);
+  assert.doesNotMatch(out.stdout, /Last check: none yet/);
+});
+
+// ---- spawn gating ---------------------------------------------------------------------------------
+
+test("no per-edit job is spawned for a paused key", async () => {
+  const ctx = savedKeyCtx();
+  await prompt(ctx);
+  const { pause } = await import("../lib/pause.js");
+  await inProcess(ctx, async () => pause(TEST_KEY, 401));
+  const n = fp.jobRequests().length;
+  await edit(ctx, "pricing.py", V1, "toolu_1");
+  await sleep(800);
+  assert.equal(fp.jobRequests().length, n);
+});
+
+test("no per-edit job is spawned for an unverified legacy key", async () => {
+  const ctx = setup(); // legacy api_key that no prompt or SessionStart has promoted yet
+  const n = fp.jobRequests().length;
+  await edit(ctx, "pricing.py", V1, "toolu_1");
+  await sleep(800);
+  assert.equal(fp.jobRequests().length, n);
+});
+
+test("spawned-but-unregistered checks count toward the in-flight cap, and reservations expire", async () => {
+  const ctx = savedKeyCtx();
+  await prompt(ctx);
+  await edit(ctx, "pricing.py", V1, "toolu_0"); // creates the session file
+  assert.ok(await waitFor(() => editJobs(ctx).some((e) => e.settled)), "first check settled");
+  const { MAX_INFLIGHT_EDITS, EDIT_RESERVE_MS } = await import("../lib/runner.js");
+  const file = sessionJson(ctx);
+  const s = readJson(file);
+  s.edit_jobs = {};
+  s.edit_reserved = {};
+  for (let i = 0; i < MAX_INFLIGHT_EDITS; i++) s.edit_reserved[`r${i}`] = Date.now();
+  fs.writeFileSync(file, JSON.stringify(s));
+  const n = fp.jobRequests().length;
+  await edit(ctx, "pricing.py", V2, "toolu_1");
+  await sleep(1500);
+  assert.equal(fp.jobRequests().length, n, "capped by reservations alone");
+  const s2 = readJson(file);
+  for (const id of Object.keys(s2.edit_reserved)) s2.edit_reserved[id] = Date.now() - EDIT_RESERVE_MS - 1000;
+  fs.writeFileSync(file, JSON.stringify(s2));
+  await edit(ctx, "pricing.py", V3, "toolu_2");
+  assert.ok(await waitFor(() => fp.jobRequests().length > n, { timeoutMs: 8000 }), "expired reservations free the slots");
+});
