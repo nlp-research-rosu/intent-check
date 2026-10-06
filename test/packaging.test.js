@@ -77,7 +77,13 @@ test("skill and commands exist and reference the plugin root, run with node dire
   for (const c of ["off", "on", "check", "status", "connect", "disconnect"]) {
     const md = fs.readFileSync(path.join(ROOT, "commands", `${c}.md`), "utf8");
     assert.match(md, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent\.js"/);
-    assert.match(md, /allowed-tools: Bash\(node \$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent\.js:\*\)/);
+    // Claude Code matches the rule's prefix against the command text, quotes included: a rule without
+    // the quotes does not cover the quoted command (verified: "This command requires approval").
+    const rule = md.match(/^allowed-tools: Bash\((.*):\*\)$/m);
+    assert.ok(rule, `${c}: allowed-tools rule`);
+    const cmds = [...md.matchAll(/`(node "[^`"]*bin\/intent\.js" [^`]*)`/g)].map((m) => m[1]);
+    assert.ok(cmds.length, `${c}: a node command in the body`);
+    for (const cmd of cmds) assert.ok(cmd.startsWith(rule[1]), `${c}: "${cmd}" is covered by Bash(${rule[1]}:*)`);
     assert.doesNotMatch(md, /\bsh\b.*bin\/intent\b/);
   }
 });

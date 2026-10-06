@@ -1,7 +1,7 @@
 ---
 description: Queue an Intent Check review of files (runs in the background after this turn)
 argument-hint: "[paths | --repo]"
-allowed-tools: Bash(node ${CLAUDE_PLUGIN_ROOT}/bin/intent.js:*)
+allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js":*)
 ---
 
 The user wants these reviewed by Intent Check: $ARGUMENTS

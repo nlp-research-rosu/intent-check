@@ -22,6 +22,8 @@ jobs:
       - run: node contract/hash.mjs
       - run: node --test test/*.test.js
   # Decides whether the OS-matrix integration job runs, so the required unit job above never waits on it.
+  # PRs run it when they touch hooks/, bin/, lib/, commands/, skills/, .claude-plugin/, .codex-plugin/,
+  # .github/, test/integration|helpers|e2e/ or package.json; every other event runs it.
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -41,7 +43,7 @@ jobs:
             echo "integration=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if git diff --name-only "origin/$BASE...HEAD" | grep -Eq '^(hooks/|bin/|lib/main\.js$|commands/|\.github/|test/integration/|test/helpers/|package\.json$)'; then
+          if git diff --name-only "origin/$BASE...HEAD" | grep -Eq '^(hooks/|bin/|lib/|commands/|skills/|\.claude-plugin/|\.codex-plugin/|\.github/|test/(integration|helpers|e2e)/|package\.json$)'; then
             echo "integration=true" >> "$GITHUB_OUTPUT"
           else
             echo "integration=false" >> "$GITHUB_OUTPUT"

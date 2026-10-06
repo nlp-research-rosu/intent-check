@@ -64,8 +64,12 @@ function assertHooksRan(s) {
     assert.ok(s.hooks("hook_started").some((e) => e.hook_event === ev), note(s, `no hook_started for ${ev}`));
     const resp = s.hooks("hook_response").filter((e) => e.hook_event === ev);
     assert.ok(resp.length, note(s, `no hook_response for ${ev}`));
-    for (const e of resp) assert.ok(e.outcome !== "error" && e.exit_code !== 127 && e.exit_code !== 126, note(s, `${ev} hook failed to run`));
+    for (const e of resp) assert.ok(e.outcome === "success" && e.exit_code === 0, note(s, `${ev} hook did not finish successfully`));
   }
+  // Stop has two hooks (stop + connect-wait), each started and each answered, both successfully.
+  assert.equal(s.hooks("hook_started").filter((e) => e.hook_event === "Stop").length, 2, note(s, "two Stop hooks start"));
+  assert.equal(s.hooks("hook_response").filter((e) => e.hook_event === "Stop").length, 2, note(s, "two Stop hooks respond"));
+  assert.ok(!s.r.timedOut, note(s, "claude -p timed out"));
 }
 
 test("claude -p without a key: every hook runs, the connect note reaches the model, no job is sent", { skip, timeout: 60000 }, async () => {

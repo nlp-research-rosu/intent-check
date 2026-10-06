@@ -6,8 +6,18 @@ name: integration
 on:
   workflow_call:
   workflow_dispatch:
+    inputs:
+      cli:
+        description: Which Claude Code / Codex versions to install
+        type: choice
+        options: [pinned, latest]
+        default: pinned
 permissions:
   contents: read
+env:
+  # The versions the suite last passed with. PRs and releases use these; try newer by hand with cli=latest.
+  CLAUDE_CODE_VERSION: 2.1.291
+  CODEX_VERSION: 0.160.1
 jobs:
   integration:
     name: integration (${{ matrix.name }})
@@ -30,7 +40,15 @@ jobs:
         with:
           node-version: 22
       - name: Install the CLIs
-        run: npm install -g @anthropic-ai/claude-code @openai/codex
+        shell: bash
+        env:
+          CLI: ${{ inputs.cli || 'pinned' }}
+        run: |
+          if [ "$CLI" = latest ]; then
+            npm install -g @anthropic-ai/claude-code@latest @openai/codex@latest
+          else
+            npm install -g "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION" "@openai/codex@$CODEX_VERSION"
+          fi
       - name: Versions
         shell: bash
         run: |

@@ -35,7 +35,10 @@ async function session({ key = null } = {}) {
   // is the plugin's hooks. It happens when the model request arrives, i.e. after the turn started
   // (the plugin snapshots the repo at UserPromptSubmit), so it counts as this turn's edit; Stop finds
   // it through the repo's diff.
+  let edited = false;
   const edit = () => {
+    if (edited) return;
+    edited = true;
     fs.mkdirSync(path.join(repo, "src"), { recursive: true });
     fs.writeFileSync(path.join(repo, "src", "a.js"), CODE);
   };
@@ -84,14 +87,21 @@ async function session({ key = null } = {}) {
 
 const note = (s, what) => `${what}\nexit: ${s.r.code}${s.r.timedOut ? " (timed out)" : ""}\nstdout: ${s.r.stdout.slice(-1500)}\nstderr: ${s.r.stderr.slice(-1500)}\nplugin log: ${s.log.slice(-1500)}`;
 
-// The plugin logs `hook.in` for every hook it is started for.
-function assertHooksRan(s, events) {
+// What this proves: the plugin logs `hook.in` for every hook it is started for, and `hook.output` when
+// it hands text to Codex (SessionStart always does; UserPromptSubmit does when there is something to
+// say, e.g. the connect line); with a key, Stop's own work shows as a `job.submitted` entry. Codex
+// itself reports no per-hook result in `exec --json`, so the exit code and the absence of a timeout
+// are the only host-side signal that no hook hung or failed the turn.
+function assertHooksRan(s, events, outputs = ["SessionStart"]) {
+  assert.ok(!s.r.timedOut, note(s, "codex exec timed out"));
+  assert.equal(s.r.code, 0, note(s, "codex exec did not exit 0"));
   for (const ev of events) assert.match(s.log, new RegExp(`"event":"hook.in","hook":"${ev}"`), note(s, `the ${ev} hook never ran`));
+  for (const ev of outputs) assert.match(s.log, new RegExp(`"event":"hook.output","hook":"${ev}"`), note(s, `the ${ev} hook handed nothing to Codex`));
 }
 
 test("codex exec without a key: hooks run, the connect line reaches the model, no job is sent", { skip, timeout: 60000 }, async () => {
   const s = await session();
-  assertHooksRan(s, ["SessionStart", "UserPromptSubmit", "Stop"]);
+  assertHooksRan(s, ["SessionStart", "UserPromptSubmit", "Stop"], ["SessionStart", "UserPromptSubmit"]);
   assert.match(s.bodies, /Intent Check: connect your account/, note(s, "connect line missing from the model request"));
   assert.equal(fp.jobRequests().length, 0);
 });
@@ -104,4 +114,6 @@ test("codex exec with a seeded key: the edit is uploaded to the prover as a job"
   assertHooksRan(s, ["SessionStart", "UserPromptSubmit", "Stop"]);
   await waitFor(() => fp.jobRequests().length > before, { timeoutMs: 20000 });
   assert.ok(fp.jobRequests().length > before, note(s, "no POST /v1/jobs reached the fake prover"));
+  assert.match(s.log, /"event":"job\.submitted"/, note(s, "Stop did not log a submitted job"));
+  assert.ok(fp.jobRequests().at(-1).units.some((u) => /a\.js$/.test(u.path)), "the written file is in the job");
 });
