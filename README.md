@@ -62,11 +62,23 @@ Then start `codex` and choose "Trust all and continue" when it says the plugin's
 If you already had the plugin trusted, updating to the `node .../bin/intent.js` hook commands (they used to run through the `sh` launcher `bin/intent`) changes them, so Codex asks you to trust them again once. Codex hooks are plain command strings, so the same `node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" ...` line serves every OS;
 - Codex cannot wake an idle session, so concerns reach the agent with your next message (or at the end of the same turn, if the check already finished). Clean checks show one short "no concerns" line the next time you prompt.
 - Codex does not load plugin slash commands, so there is no `/intent:off`. To turn checks off, set `INTENT_DISABLED=1` when starting Codex, or ask the agent to turn Intent Check off (it runs the plugin's `intent.js off`, which may need your approval to write outside the sandbox).
-- To ask for a review, ask the agent to check specific files ("check auth.py with Intent Check") or the whole repo.
+- To ask for a review, ask the agent to check specific files ("check auth.py with Intent Check"), or for a whole-repo scan, ask for a DeepScan.
 
 ## Asking for a review
 
-Ask the agent to check specific files, or the whole repo ("check auth.py with Intent Check"); the `intent-check` skill runs `intent check <paths>` for it, and the review runs after the turn. In a project without git, run `intent check` from the project root (the folder the session started in).
+Ask the agent to check specific files ("check auth.py with Intent Check"); the `intent-check` skill runs `intent check <paths>` for it, and the review runs after the turn. In a project without git, run `intent check` from the project root (the folder the session started in).
+
+## DeepScan (whole repo)
+
+`/intent:deepscan` (Codex: ask the agent for a DeepScan, it runs `intent deepscan`) scans the whole repo for behaviour that breaks what the code is meant to do. It takes about 15 minutes and runs on the service, so it does not hold up your session.
+
+    /intent:deepscan [--scope <folder>]
+
+- What is sent: a snapshot of the files git tracks plus untracked files that are not ignored, as one compressed upload. Left out: files git ignores, binary files, lockfiles, vendored and generated folders (node_modules, vendor, dist, build, ...), files over 512 KB, and anything that looks like a secrets file. Obvious secrets inside the files are masked first. The limits are 3000 files and 15 MB of text; when a repo is larger, the least relevant files are dropped first and the command says so. Use `--scope <folder>` to scan one part of a big repo.
+- The upload is listed in `.intent/.sent.log` (paths and sizes, never contents). Intent Check must be on and connected; `INTENT_DISABLED=1` stops DeepScan too.
+- The command prints the report link and returns. When the scan finishes, a short summary with the top findings appears at your next message in that repo (also in a new session), once. The link shows the full report and live progress.
+- Findings are flagged, not reproduced. Ask the agent to reproduce the ones you care about.
+- Whole-repo review used to be `check --repo`; that is replaced by DeepScan.
 
 ## Sample reports
 
