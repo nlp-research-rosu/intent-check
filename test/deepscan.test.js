@@ -10,9 +10,10 @@ import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
 import { QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT } from "./helpers/env.js";
 import { validateDeepscan } from "./helpers/schema.js";
 import { C } from "../lib/config.js";
-import { buildSnapshot, normaliseRemote, pathReason, byPriority, tierOf, decodeText } from "../lib/snapshot.js";
+import { buildSnapshot, normaliseRemote, pathReason, byPriority, tierOf, decodeText, unstorable } from "../lib/snapshot.js";
 import { requestBinary } from "../lib/http.js";
-import { renderScan, countsLine } from "../lib/deepscan.js";
+import { uploadTimeoutMs } from "../lib/api.js";
+import { renderScan, countsLine, checkLateDeepscans, confirmDelivered, gcScans } from "../lib/deepscan.js";
 
 let fp;
 before(async () => { fp = createFakeProver(); await fp.listen(); });
@@ -252,7 +253,7 @@ test("deepscan: command errors are one line and nothing is recorded", async () =
     [{ status: 413, code: "payload_too_large" }, /too large.*--scope/],
     [{ status: 429, code: "spend_cap", reason: "daily" }, /daily limit/],
     [{ status: 429, code: "rate_limited" }, /Too many/],
-    [{ status: 400, code: "invalid_request" }, /did not accept the snapshot.*invalid_request/],
+    [{ status: 400, code: "invalid_request", message: "A file has odd text." }, /did not accept the snapshot: A file has odd text\./],
   ]) {
     fp.state.deepscan.submit = [fail];
     const r = await cli([], c3);
@@ -370,12 +371,13 @@ test("delivery: failed scans give one line; untrusted summary text is sanitised"
 test("a waiter that is not the owner of the scan exits and a second waiter does not double-run", async () => {
   const ctx = setup();
   const id = await finishedScan(ctx);
-  const before = fp.state.requests.length;
+  const gets = () => fp.state.requests.filter((x) => x.path === `/v1/deepscans/${id}`).length;
+  const before = gets();
   await new Promise((resolve) => {
     const c = spawn(process.execPath, [BIN, "deepscan-wait", id], { env: ctx.env });
     c.on("close", resolve);
   });
-  assert.equal(fp.state.requests.length, before); // already settled: no GET
+  assert.equal(gets(), before); // already settled: no GET for this scan
 });
 
 // ---- packaging and docs ----
@@ -389,4 +391,182 @@ test("packaging: command file, skill mapping and README are in place; repo mode 
   assert.match(fs.readFileSync(path.join(ROOT, "README.md"), "utf8"), /## DeepScan/);
   for (const f of ["lib/queue.js", "lib/payload.js"]) assert.ok(!/mode === "repo"|"repo"/.test(fs.readFileSync(path.join(ROOT, f), "utf8")), f);
   assert.ok(!/--repo/.test(fs.readFileSync(path.join(ROOT, "commands", "check.md"), "utf8")));
+});
+
+// ---- review fixes ----
+
+const OK_SUMMARY = { counts: { HIGH: 1 }, one_liners: [], cards: [{ id: "F1", criticality: "HIGH", title: "Price goes negative", property: "p", cause: [{ path: "a.py", line: 1 }], repro_sketch: "r", control: "c" }] };
+function seedScan(ctx, over = {}) {
+  const id = over.job_id || [...Array(22)].map(() => "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)]).join("");
+  fs.mkdirSync(path.join(ctx.data, "deepscans"), { recursive: true });
+  const rec = { v: 1, job_id: id, url: `${fp.url}/r/${id}`, repo_root: fs.realpathSync(ctx.repo), created_at: new Date().toISOString(), host: "claude-code", scope: null, status: "queued", waiter: { pid: 999999, token: "t", at: 1 }, delivered: false, ...over };
+  fs.writeFileSync(path.join(ctx.data, "deepscans", `${id}.json`), JSON.stringify(rec));
+  fp.state.scans.set(id, { request: null, polls: 0 });
+  return id;
+}
+const getsFor = (id) => fp.state.requests.filter((x) => x.method === "GET" && x.path === `/v1/deepscans/${id}`).length;
+
+// Run the in-process delivery against a data dir.
+async function inProcess(ctx, fn) {
+  const keep = { d: process.env.CLAUDE_PLUGIN_DATA, u: process.env.INTENT_API_URL };
+  process.env.CLAUDE_PLUGIN_DATA = ctx.data;
+  process.env.INTENT_API_URL = fp.url;
+  try { return await fn(); } finally {
+    for (const [k, v] of [["CLAUDE_PLUGIN_DATA", keep.d], ["INTENT_API_URL", keep.u]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
+}
+const collector = () => { const o = { user: [], context: [], claims: [], add(u, c) { if (u) o.user.push(u); if (c) o.context.push(c); } }; return o; };
+
+test("a NUL byte anywhere, or an unpaired surrogate, makes a file binary (the server would 400 the whole upload)", async () => {
+  const { repo, git } = setup();
+  w(repo, "src/ok.py", "x = 1\n");
+  w(repo, "src/late_nul.txt", "a".repeat(20000) + "\0" + "tail\n");
+  commitAll(git);
+  const r = await buildSnapshot({ cwd: repo });
+  const doc = unzip(r.gz);
+  assert.ok(!doc.files.some((f) => f.path === "src/late_nul.txt"));
+  assert.ok(doc.meta.trimmed.some((t) => t.path === "src/late_nul.txt" && t.reason === "binary"));
+  for (const f of doc.files) assert.ok(!unstorable(f.content));
+  assert.equal(decodeText(Buffer.from([0xed, 0xa0, 0x80])), null); // encoded lone surrogate
+  assert.equal(unstorable("a\ud800b"), true);
+  assert.equal(unstorable("a\ud83d\ude00b"), false);
+});
+
+test("never-upload names for DeepScan", () => {
+  for (const f of [".envrc", ".npmrc", ".netrc", ".pypirc", ".git-credentials", ".pgpass", ".htpasswd", "infra/prod.tfvars", "a/x.jks", "a/x.keystore", "k.p8", "k.p12", "k.pfx", "config/secrets.yaml", "secrets.json", "service-account-prod.json", "service_account.json", "home/id_rsa", "id_ed25519.pub"]) {
+    assert.equal(pathReason(f), "secret", f);
+  }
+  assert.equal(pathReason("src/secret_santa.py"), null);
+});
+
+test("scope is a literal pathspec; --scope without a value is an error; a symlinked parent cannot leak outside files", async () => {
+  const { repo, git } = setup();
+  w(repo, "a[1]/one.py", "1\n"); w(repo, "a1/two.py", "2\n"); w(repo, "d/x.txt", "inside\n");
+  commitAll(git);
+  assert.deepEqual(unzip((await buildSnapshot({ cwd: repo, scope: "a[1]" })).gz).files.map((f) => f.path), ["a[1]/one.py"]);
+  const outside = tmpdir("intent-outside-");
+  fs.writeFileSync(path.join(outside, "x.txt"), "OUTSIDE SECRET\n");
+  fs.rmSync(path.join(repo, "d"), { recursive: true });
+  fs.symlinkSync(outside, path.join(repo, "d"));
+  const doc = unzip((await buildSnapshot({ cwd: repo })).gz);
+  assert.ok(!doc.files.some((f) => f.content.includes("OUTSIDE SECRET")));
+  assert.ok(doc.meta.trimmed.some((t) => t.path === "d/x.txt"));
+  const ctx = setup();
+  const r = await cli(["--scope"], ctx);
+  assert.match(r.out, /--scope needs a folder/);
+  assert.deepEqual(fp.deepscanUploads(), []);
+});
+
+test("upload: the timeout grows with the body; a network failure is retried once with the same key; an off-origin link is refused", async () => {
+  assert.equal(uploadTimeoutMs(1000), 80000);
+  assert.ok(uploadTimeoutMs(10 * 1024 * 1024) > uploadTimeoutMs(1024 * 1024));
+  assert.equal(uploadTimeoutMs(1024 * 1024 * 1024), 300000);
+  const ctx = setup();
+  fp.state.deepscan.submit = [{ drop: true }];
+  const r = await cli([], ctx);
+  assert.match(r.out, /DeepScan started/);
+  const posts = fp.state.requests.filter((x) => x.method === "POST" && x.path === "/v1/deepscans");
+  assert.equal(posts.length, 2);
+  assert.equal(posts[0].headers["idempotency-key"], posts[1].headers["idempotency-key"]);
+
+  const c2 = setup();
+  fp.state.deepscan.urlOverride = "https://evil.example/r/x";
+  const bad = await cli([], c2);
+  assert.ok(!/started/.test(bad.out));
+  assert.deepEqual(scanFiles(c2.data), []);
+});
+
+test("a done scan without a valid summary never claims zero findings; malformed cards do not throw", () => {
+  for (const sm of [undefined, null, {}, { counts: {}, cards: "x", one_liners: [] }]) {
+    const r = renderScan({ status: "done", url: "https://x/r/1", summary: sm });
+    assert.match(r.user, /DeepScan finished; open the report: https:\/\/x\/r\/1/);
+    assert.ok(!/no findings/.test(r.user + r.context));
+  }
+  const r = renderScan({ status: "done", url: "https://x/r/1", summary: { counts: { HIGH: 2 }, cards: [null, 5, { title: "T", cause: [null, { path: 3 }, { path: "a.py", line: 2 }] }, { criticality: "HIGH", title: "U", cause: "x" }], one_liners: [null, { title: "z" }, { title: "ok", path: "b.py", line: 1 }] } });
+  assert.match(r.context, /a\.py:2/);
+  assert.match(r.context, /b\.py:1/);
+});
+
+test("delivery is marked after the output: a hook killed before that loses nothing; a lease stops double delivery", async () => {
+  const ctx = setup();
+  const id = seedScan(ctx, { status: "done", summary: OK_SUMMARY });
+  await inProcess(ctx, async () => {
+    const o1 = collector();
+    await checkLateDeepscans(o1, fs.realpathSync(ctx.repo));
+    assert.equal(o1.claims.length, 1);
+    assert.equal(readScanFile(ctx.data, id).delivered, false); // not marked yet: the process may die here
+    const o2 = collector();
+    await checkLateDeepscans(o2, fs.realpathSync(ctx.repo));
+    assert.equal(o2.claims.length, 0); // inside the lease
+    const o3 = collector();
+    await checkLateDeepscans(o3, fs.realpathSync(ctx.repo), { now: Date.now() + 31000 });
+    assert.equal(o3.claims.length, 1); // lease ran out: shown again
+    confirmDelivered(o3.claims);
+    assert.equal(readScanFile(ctx.data, id).delivered, true);
+    const o4 = collector();
+    await checkLateDeepscans(o4, fs.realpathSync(ctx.repo), { now: Date.now() + 99000 });
+    assert.equal(o4.claims.length, 0);
+  });
+});
+
+test("two concurrent hooks deliver a scan exactly once", async () => {
+  const ctx = setup();
+  const id = seedScan(ctx, { status: "done", summary: OK_SUMMARY });
+  const rs = await Promise.all([1, 2, 3].map((i) => runHook("prompt", fixture("prompt", ctx.repo, { session_id: `c${i}` }), ctx.env)));
+  assert.equal(rs.filter((r) => /DeepScan finished/.test(r.stdout)).length, 1);
+  assert.equal(readScanFile(ctx.data, id).delivered, true);
+});
+
+test("a hook does one GET even with several undelivered scans of a dead waiter", async () => {
+  const ctx = setup();
+  const ids = [seedScan(ctx), seedScan(ctx), seedScan(ctx)];
+  await runHook("prompt", fixture("prompt", ctx.repo, { session_id: "g1" }), ctx.env);
+  assert.equal(ids.reduce((n, id) => n + getsFor(id), 0), 1);
+});
+
+test("dead waiter and a failing GET: at most one GET per interval, then a note at the wait limit; old scans expire", async () => {
+  const ctx = setup();
+  fp.state.deepscan.getStatus = 500;
+  const slow = { ...ctx.env, INTENT_DEEPSCAN_POLL_MS: "60000" };
+  const id = seedScan(ctx);
+  await runHook("prompt", fixture("prompt", ctx.repo, { session_id: "f1" }), slow);
+  await runHook("prompt", fixture("prompt", ctx.repo, { session_id: "f2" }), slow);
+  assert.equal(getsFor(id), 1);
+  assert.ok(readScanFile(ctx.data, id).last_poll_at > 0);
+
+  const old = seedScan(ctx, { created_at: new Date(Date.now() - 61 * 60 * 1000).toISOString() });
+  const r = await runHook("prompt", fixture("prompt", ctx.repo, { session_id: "f3" }), slow);
+  assert.match(r.stdout, /taking longer than expected/);
+  assert.match(r.stdout, new RegExp(`/r/${old}`));
+  assert.equal(getsFor(old), 0);
+  assert.equal(readScanFile(ctx.data, old).delivered, true);
+
+  const stale = seedScan(ctx, { created_at: new Date(Date.now() - 25 * 3600 * 1000).toISOString(), repo_root: "/elsewhere" });
+  await inProcess(ctx, async () => gcScans(Date.now()));
+  assert.ok(!fs.existsSync(path.join(ctx.data, "deepscans", `${stale}.json`)));
+  assert.ok(fs.existsSync(path.join(ctx.data, "deepscans", `${id}.json`)));
+});
+
+test("hooks do nothing for DeepScan when no scan was ever started", async () => {
+  const ctx = setup();
+  const r = await runHook("prompt", fixture("prompt", ctx.repo, { session_id: "n1" }), ctx.env);
+  assert.equal(r.code, 0);
+  assert.ok(!fs.existsSync(path.join(ctx.data, "deepscans")));
+  assert.equal(fp.state.requests.filter((x) => x.path.startsWith("/v1/deepscans")).length, 0);
+});
+
+test("the waiter survives a check runner taking over the session, and scan-file lock contention", async () => {
+  const ctx = setup();
+  fp.state.deepscan.statuses = ["running", "running", "running", "running", "done"];
+  const id = idOf((await cli([], ctx)).out);
+  // A turn that edits a file: the Stop runner takes over the session's owner token.
+  w(ctx.repo, "pricing.py", "def apply_discount(p, d):\n    return p - p * d // 100\n");
+  await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "is apply_discount right?", session_id: "own1" }), ctx.env);
+  await runHook("stop", fixture("stop", ctx.repo, { session_id: "own1" }), ctx.env);
+  // Hold the scan's lock for a moment while the waiter wants it.
+  const lock = path.join(ctx.data, "deepscans", `${id}.lock`);
+  fs.writeFileSync(lock, "");
+  setTimeout(() => fs.rmSync(lock, { force: true }), 300);
+  const rec = await until(() => { const x = readScanFile(ctx.data, id); return x.status === "done" ? x : null; }, 12000);
+  assert.equal(rec.summary.cards.length, 1);
 });

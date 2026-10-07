@@ -133,8 +133,9 @@ export function createFakeProver(opts = {}) {
         const ds = (st.deepscan = st.deepscan || {});
         st.deepscanContentType = req.headers["content-type"];
         const fail = (ds.submit || []).shift();
+        if (fail && fail.drop) return void req.socket.destroy();
         if (fail) {
-          const b = JSON.stringify({ error: { code: fail.code || "x", message: "x", reason: fail.reason || null } });
+          const b = JSON.stringify({ error: { code: fail.code || "x", message: fail.message || "x", reason: fail.reason || null } });
           res.writeHead(fail.status, { "content-type": "application/json", ...(fail.retryAfter ? { "retry-after": String(fail.retryAfter) } : {}) });
           return res.end(b);
         }
@@ -147,11 +148,12 @@ export function createFakeProver(opts = {}) {
           st.scans.set(job_id, { request: body, polls: 0 });
           if (idem) ds.idem.set(idem, job_id);
         }
-        return json(res, 202, { job_id, url: `${base}/r/${job_id}`, status: "queued" });
+        return json(res, 202, { job_id, url: ds.urlOverride || `${base}/r/${job_id}`, status: "queued" });
       }
       const dm = url.pathname.match(/^\/v1\/deepscans\/([A-Za-z0-9]+)$/);
       if (req.method === "GET" && dm) {
         if (!authed) return json(res, 401, { error: { code: "unauthorized", message: "bad key" } });
+        if ((st.deepscan || {}).getStatus) return json(res, st.deepscan.getStatus, { error: { code: "internal", message: "x", reason: null } });
         const scan = st.scans && st.scans.get(dm[1]);
         if (!scan) return json(res, 404, { error: { code: "not_found", message: "no scan" } });
         const ds = st.deepscan || {};
