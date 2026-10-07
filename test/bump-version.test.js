@@ -80,6 +80,7 @@ test("CLI: plain release also sets docs/install.json's top-level version", () =>
 
 test("CLI: prerelease bump leaves docs/install.json untouched", () => {
   const { dir, run } = sandbox();
+  run("0.1.1"); // pin the base so the test doesn't depend on the repo's current release
   const p = path.join(dir, INSTALL_JSON);
   const before = fs.readFileSync(p, "utf8");
   assert.equal(run("patch", "--pre", "per-edit"), "0.1.2-per-edit.1\n");
