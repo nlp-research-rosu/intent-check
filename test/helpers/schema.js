@@ -13,11 +13,11 @@ function typeOf(v) {
   return typeof v;
 }
 
-export function validate(value, schema, at = "$") {
+export function validate(value, schema, at = "$", root = SCHEMA) {
   const errs = [];
-  if (schema.$ref) return validate(value, SCHEMA.$defs[schema.$ref.split("/").pop()], at);
+  if (schema.$ref) return validate(value, root.$defs[schema.$ref.split("/").pop()], at, root);
   if (schema.oneOf) {
-    const ok = schema.oneOf.filter((s) => validate(value, s, at).length === 0).length;
+    const ok = schema.oneOf.filter((s) => validate(value, s, at, root).length === 0).length;
     if (ok !== 1) errs.push(`${at}: matches ${ok} of oneOf`);
     return errs;
   }
@@ -40,13 +40,13 @@ export function validate(value, schema, at = "$") {
   if (Array.isArray(value)) {
     if (schema.maxItems !== undefined && value.length > schema.maxItems) errs.push(`${at}: more than ${schema.maxItems} items`);
     if (schema.minItems !== undefined && value.length < schema.minItems) errs.push(`${at}: fewer than ${schema.minItems} items`);
-    if (schema.items) value.forEach((v, i) => errs.push(...validate(v, schema.items, `${at}[${i}]`)));
+    if (schema.items) value.forEach((v, i) => errs.push(...validate(v, schema.items, `${at}[${i}]`, root)));
   }
   if (value && typeof value === "object" && !Array.isArray(value)) {
     for (const r of schema.required || []) if (!(r in value)) errs.push(`${at}: missing ${r}`);
     const props = schema.properties || {};
     for (const [k, v] of Object.entries(value)) {
-      if (props[k]) errs.push(...validate(v, props[k], `${at}.${k}`));
+      if (props[k]) errs.push(...validate(v, props[k], `${at}.${k}`, root));
       else if (schema.additionalProperties === false) errs.push(`${at}: unexpected ${k}`);
     }
   }
@@ -55,4 +55,9 @@ export function validate(value, schema, at = "$") {
 
 export function validateDef(value, def) {
   return validate(value, SCHEMA.$defs[def]);
+}
+
+export const DEEPSCAN = JSON.parse(fs.readFileSync(path.join(ROOT, "contract", "deepscan-v1.schema.json"), "utf8"));
+export function validateDeepscan(value, def) {
+  return validate(value, DEEPSCAN.$defs[def], "$", DEEPSCAN);
 }
