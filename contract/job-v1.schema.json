@@ -233,12 +233,26 @@
       "properties": {
         "status": { "enum": ["pending", "approved", "denied", "expired", "consumed"] },
         "api_key": { "$ref": "#/$defs/ApiKey" },
+        "handle": { "description": "Handle of the approving account; sent with api_key. Same value as account.handle.", "type": "string", "maxLength": 120 },
         "account": {
           "type": "object",
           "additionalProperties": false,
           "required": ["handle"],
           "properties": { "handle": { "type": "string", "maxLength": 120 } }
         }
+      }
+    },
+
+    "Me": {
+      "description": "GET /v1/me (Bearer): who the calling key belongs to.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handle", "machine_name", "key_last4", "environment"],
+      "properties": {
+        "handle": { "type": "string", "maxLength": 120 },
+        "machine_name": { "type": ["string", "null"], "maxLength": 80 },
+        "key_last4": { "type": "string", "minLength": 4, "maxLength": 4 },
+        "environment": { "description": "Deployment the key is for, e.g. production or staging.", "type": "string", "maxLength": 40 }
       }
     },
 
