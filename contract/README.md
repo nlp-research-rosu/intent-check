@@ -6,7 +6,7 @@ The job API between the `intent` plugin (`nlp-research-rosu/intent-check`) and t
 
 - Changes are **additive only** (new optional fields, new enum values the other side can ignore). Anything else needs `contract_version` "2".
 - One commit changes both repos. Run `node contract/hash.mjs --write` afterwards to refresh `CONTRACT.sha256`.
-- `job-v1.schema.json` is the source of truth; `types.ts` mirrors it; `constants.json` holds shared limits, header names and the API-key format (the plugin's secret redaction and the prover's key validator both use `api_key.redaction_regex` / `api_key.regex`).
+- `job-v1.schema.json` is the source of truth for checks and `deepscan-v1.schema.json` for DeepScan; `types.ts` mirrors it; `constants.json` holds shared limits, header names and the API-key format (the plugin's secret redaction and the prover's key validator both use `api_key.redaction_regex` / `api_key.regex`).
 
 ## Endpoints
 
@@ -16,9 +16,15 @@ The job API between the `intent` plugin (`nlp-research-rosu/intent-check`) and t
 | GET | `/v1/jobs/{job_id}` | Bearer (same account) | → 200 `JobStatus` |
 | POST | `/v1/connect` | none (per-IP limited) | `ConnectStart` → 201 `ConnectCreated` |
 | GET | `/v1/connect/{device_code}` | none (device_code is the secret) | → 200 `ConnectPoll` |
+| GET | `/v1/me` | Bearer `ic_…` | → 200 `Me` |
+| DELETE | `/v1/me/key` | Bearer `ic_…` | → 204 (revokes the calling key and its machine, like Revoke on `/account`) |
+| POST | `/v1/deepscans` | Bearer `ic_…` | gzip'd `DeepscanUpload` (`application/gzip`, ≤ 16 MB) → 202 `DeepscanCreated`. 404 while the server has DeepScan off |
+| GET | `/v1/deepscans/{job_id}` | Bearer (same account) | → 200 `DeepscanStatus` |
 | GET | `/r/{job_id}` | none (unlisted) | report page |
 | GET | `/og/{job_id}.png` | none | OG card |
 | GET | `/connect/{user_code}` | Clerk session | approve page |
+
+`/v1/deepscans` takes the same `Authorization`, `X-Intent-Version` and `Idempotency-Key` headers (a key is never shared between a check and a scan; reusing one across kinds is a 400). Errors add 400 for a bad or over-cap document, 413 above 16 MB compressed or 20 MB inflated, and 429 `rate_limited` / `spend_cap` (with `reason`) from the DeepScan limiters (including `deepscan_ingest_busy`, with a `Retry-After`, when the server is receiving other uploads). A new scan from the same account with the same `remote_url` and `scope` supersedes an unfinished one; a scan without a remote never supersedes.
 
 Request headers on `/v1/jobs`: `X-Intent-Version` (plugin version, 426 below the server minimum), `Idempotency-Key` (stable per logical request: for edit checks a hash of session, turn, paths and file hashes; for queued review requests a hash of the queue item id and file hashes; a repeat returns the original `JobCreated`), optional `X-Intent-Pipeline: llm|canned` (honoured only where the server allows overrides).
 
@@ -26,9 +32,11 @@ Errors are `ErrorResponse` with HTTP 400 `invalid_request`, 401 `unauthorized`, 
 
 ## Changelog
 
+- 2026-10-07: DeepScan added in `deepscan-v1.schema.json` (`POST /v1/deepscans`, `GET /v1/deepscans/{job_id}`, `constants.json` `deepscan` limits). Checks are unchanged; `/v1/jobs/{id}` still answers 404 for a scan id.
 - 2026-09-28: `UnitRequest.regions` (optional) added: real line ranges for truncated content.
 - 2026-09-30: `Intent.notes` (optional) added: contents of `.intent/NOTES.md`, sent with every job.
 - 2026-10-01: `UnitResult.artifacts` gains optional `VERIFICATION.k` and `REASONING.md`; `Prior` gains optional `verification_k`. `SEMANTICS.k` stays required but may be a one-line stub ("Not generated; see REASONING.md") when reasoning is done on paper against `REASONING.md` instead. See "REASONING.md layout" below.
+- 2026-10-06: `GET /v1/me` (`Me`) and `DELETE /v1/me/key` added. `ConnectPoll.handle` (optional) added alongside `account.handle`.
 
 ## Semantics
 
@@ -72,4 +80,4 @@ artifact sits inside a `UnitResult`.
 
 ## Examples
 
-`examples/` holds one file per shape: an edit-mode request, a repo-mode request with 3 units, created, queued, running, done with concerns, done without concerns (its `SEMANTICS.k` is the stub, alongside `VERIFICATION.k` and `REASONING.md`), done partial, superseded, failed, connect created/pending/approved, and an error. `reasoning.md` and `verification.k` are a standalone worked loop example (not a full job shape) for the `REASONING.md` layout above.
+`examples/` holds one file per shape: an edit-mode request, a repo-mode request with 3 units, created, queued, running, done with concerns, done without concerns (its `SEMANTICS.k` is the stub, alongside `VERIFICATION.k` and `REASONING.md`), done partial, superseded, failed, connect created/pending/approved, `me`, and an error. `reasoning.md` and `verification.k` are a standalone worked loop example (not a full job shape) for the `REASONING.md` layout above.
