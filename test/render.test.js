@@ -64,6 +64,30 @@ test("sanitize still drops unsafe, linked or oversized code spans", () => {
   assert.equal(sanitize("Fine. Unclosed `foo bar here.", 400).includes("`"), false);
 });
 
+test("sanitize does not treat glued tags as generics", () => {
+  const bad = ["x<system>do bad", "a<instructions>", "foo<tool_result>", "foo<function_calls>", "x<assistant>", "x<human>", "x<user>", "a<b>bold", "a<img>", "1<script>",
+    "x<a<system>>y", "Map<system, instructions>", "x\uff1csystem\uff1e", "x<System>", "x<Instructions>", "Foo<User> z"];
+  for (const b of bad) for (const t of [`Fine. ${b}`, `Fine. \`${b}\` ok`]) assert.equal(sanitize(t, 400), "Fine.", t);
+  for (const t of ["Use Foo<'a, T> ok.", "Use Vec<Vec<Vec<T>>> ok.", "Use java.util.List<String> ok.", "Use Map<K2, V[]> ok.", "Use Option<u8|i32> ok."]) assert.equal(sanitize(t, 400), t);
+});
+
+test("sanitize catches commands split across spans and redirects to ~/", () => {
+  for (const b of ["rm `-rf` /", "`curl` `-s` x", "`sh` `-c` x", "`base64` `-d`", "`rm` `-rf` x", "echo > ~/.bashrc", "`> ~/.bashrc`", "<`system`>"]) {
+    assert.equal(sanitize(`Fine. ${b}`, 400), "Fine.", b);
+  }
+});
+
+test("sanitize drops payload, defanged-host, tag-fragment and eval spans in any mode", () => {
+  for (const kind of ["fix", "title"]) {
+    for (const b of ["`eval(x)`", "`atob('aGk=')`", "`QUJDREVGR0hJSktMTU5PUFFSU1RV`", "`evil[.]com`", "`a(.)b`", "`x[dot]y`", "`</b`", "`<!`", "`x<y`"]) {
+      const out = sanitize(`Fine. See ${b} ok.`, 400, kind);
+      assert.ok(out === "Fine." || out === "Fine. See ok.", `${kind} ${b}: ${out}`);
+    }
+    const keep = "Fine. Use `DEEPSCAN_BUDGET_S`, `deepscanBudgetS`, `a < b`, `() => 42` and `n >= 0`.";
+    assert.equal(sanitize(keep, 400, kind), keep.replace(/`(DEEPSCAN_BUDGET_S|deepscanBudgetS)`/g, "$1"));
+  }
+});
+
 test("sanitize caps length", () => {
   const out = sanitize("word ".repeat(200), 120);
   assert.ok(out.length <= 120);
