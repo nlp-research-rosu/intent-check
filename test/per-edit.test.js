@@ -337,3 +337,31 @@ test("spawned-but-unregistered checks count toward the in-flight cap, and reserv
   await edit(ctx, "pricing.py", V3, "toolu_2");
   assert.ok(await waitFor(() => fp.jobRequests().length > n, { timeoutMs: 8000 }), "expired reservations free the slots");
 });
+
+test("no INTENT_MODE and no config is classic: the Bash hook does nothing and the Stop body has no per_edit", async () => {
+  const ctx = setup();
+  delete ctx.env.INTENT_MODE;
+  await prompt(ctx);
+  const n = fp.jobRequests().length;
+  fs.writeFileSync(path.join(ctx.repo, "pricing.py"), V1);
+  const b = await runHook("post-tool", fixture("post-tool-write", ctx.repo, { tool_name: "Bash", tool_input: { command: "echo" }, tool_response: "" }), ctx.env);
+  assert.equal(b.code, 0);
+  assert.equal(b.stdout, "");
+  await edit(ctx, "pricing.py", V1, "toolu_1");
+  await sleep(800);
+  assert.equal(fp.jobRequests().length, n, "no per-edit child");
+  const r = await runHook("stop", fixture("stop", ctx.repo), ctx.env);
+  assert.equal(r.code, 2, r.stderr);
+  const reqs = fp.jobRequests().slice(n);
+  assert.equal(reqs.length, 1);
+  assert.equal("per_edit" in reqs[0], false);
+});
+
+test("INTENT_MODE is case-insensitive and an unknown value is reported by status", async () => {
+  const ctx = setup({ mode: "" });
+  const run = (extra, ...a) => import("node:child_process").then(({ spawnSync }) => spawnSync(process.execPath, [path.join(ROOT, "bin", "intent.js"), ...a], { env: { ...ctx.env, ...extra }, encoding: "utf8" }));
+  assert.match((await run({ INTENT_MODE: "Per-Edit" }, "status")).stdout, /Mode: per-edit/);
+  const bad = (await run({ INTENT_MODE: "foo" }, "status")).stdout;
+  assert.match(bad, /Mode: classic/);
+  assert.match(bad, /INTENT_MODE=foo ignored/);
+});

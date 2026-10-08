@@ -211,3 +211,80 @@ test("codex hook notice shows once per version, never on Claude Code", async () 
   const r = await runHook("session-start", fixture("session-start", cc.repo), env);
   assert.doesNotMatch(r.stdout, /approve it in \/hooks/);
 });
+
+const sessionFile = (ctx) => { const d = path.join(ctx.data, "sessions"); return path.join(d, fs.readdirSync(d).find((f) => f.endsWith(".json"))); };
+function seed(ctx, fn) {
+  const f = sessionFile(ctx);
+  const s = JSON.parse(fs.readFileSync(f, "utf8"));
+  fn(s);
+  fs.writeFileSync(f, JSON.stringify(s));
+}
+const flags = (ctx) => readSessionFiles(ctx.data)[0].flags;
+
+test("an edit child spawned but not yet registered covers its file against a following bash scan", async () => {
+  fp.state.scenario = "no_concerns";
+  fp.state.submitDelayMs = 1500; // the edit child is still inside its submit when Bash fires
+  const ctx = setup();
+  await prompt(ctx);
+  const n = jobsBefore();
+  await applyPatch(ctx, { "a.py": CODE(1) });
+  await bash(ctx);
+  assert.ok(await waitFor(() => fp.jobRequests().length >= n + 1, 8000), "the edit job");
+  await sleep(1500);
+  assert.equal(jobsBefore(), n + 1, "no second job for the same content");
+});
+
+test("a stale pending entry no longer covers a file", async () => {
+  fp.state.scenario = "no_concerns";
+  const ctx = setup();
+  await prompt(ctx);
+  const n = jobsBefore();
+  fs.writeFileSync(path.join(ctx.repo, "p.py"), CODE(5));
+  seed(ctx, (s) => { s.edit_pending = { dead: { abs: path.join(ctx.repo, "p.py"), at: Date.now() - 120000 } }; });
+  await bash(ctx);
+  assert.ok(await waitFor(() => fp.jobRequests().length >= n + 1), "checked despite the dead entry");
+});
+
+test("bash burst: a call during a scan asks for another pass instead of spawning a second scan", async () => {
+  const ctx = setup();
+  await prompt(ctx);
+  const n = jobsBefore();
+  fs.writeFileSync(path.join(ctx.repo, "p.py"), CODE(5));
+  seed(ctx, (s) => { s.flags.shell_scan = { at: Date.now(), again: false }; });
+  await bash(ctx);
+  await sleep(800);
+  assert.equal(jobsBefore(), n);
+  assert.equal(flags(ctx).shell_scan.again, true);
+});
+
+test("bash burst: a stale scan flag expires and the next call scans", async () => {
+  const ctx = setup();
+  await prompt(ctx);
+  const n = jobsBefore();
+  fs.writeFileSync(path.join(ctx.repo, "p.py"), CODE(5));
+  seed(ctx, (s) => { s.flags.shell_scan = { at: Date.now() - 5 * 60 * 1000, again: false }; });
+  await bash(ctx);
+  assert.ok(await waitFor(() => fp.jobRequests().length >= n + 1), "scan ran");
+});
+
+test("a scan child with 'again' set makes another pass and then clears its flag", async () => {
+  fp.state.scenario = "no_concerns";
+  const ctx = setup();
+  await prompt(ctx);
+  seed(ctx, (s) => { s.flags.shell_scan = { at: Date.now(), again: true }; });
+  const file = path.join(ctx.data, "scan.json");
+  fs.writeFileSync(file, JSON.stringify({ session_id: "01a0e925-b8c6-7ff3-ad68-a52ef7638565", cwd: ctx.repo, tool_use_id: "x", transcript_path: ctx.transcript, host: "codex" }));
+  await new Promise((resolve) => {
+    const c = spawn(process.execPath, [BIN, "shell-scan-detached", file], { env: ctx.env, cwd: ctx.repo });
+    c.on("close", resolve);
+  });
+  const passes = fs.readFileSync(path.join(ctx.data, "intent.log"), "utf8").split("\n").filter((l) => l.includes('"shell.scan"'));
+  assert.equal(passes.length, 2);
+  assert.equal(flags(ctx).shell_scan, undefined);
+});
+
+test("apply_patch with CRLF line endings: the moved-from path is dropped, targets are clean", async () => {
+  const { applyPatchPaths } = await import("../lib/codex.js");
+  const cmd = "*** Begin Patch\r\n*** Update File: old.py\r\n*** Move to: new.py\r\n@@\r\n-a\r\n+b\r\n*** Add File: x.py\r\n+1\r\n*** End Patch";
+  assert.deepEqual(applyPatchPaths(cmd, "/w"), ["/w/new.py", "/w/x.py"]);
+});
