@@ -712,6 +712,27 @@ test("depth: arguments parse as --depth <d> or a bare word; the default is balan
   assert.deepEqual(DEPTH_TIMES, { fast: "15–20 min", balanced: "30–35 min", full: "40–45 min" });
 });
 
+test("depth: --depth=fast works; any other --depth* token and more than one depth word are one-line errors", () => {
+  assert.deepEqual(takeDepth(["--depth=fast"]), { depth: "fast" });
+  assert.deepEqual(takeDepth(["--depth=FULL"]), { depth: "full" });
+  const rest = ["--scope", "src", "--depth=full"];
+  assert.deepEqual(takeDepth(rest), { depth: "full" });
+  assert.deepEqual(rest, ["--scope", "src"]);
+  assert.match(takeDepth(["--depth="]).error, /needs one of fast, balanced, full/);
+  assert.match(takeDepth(["--depth=deep"]).error, /not a DeepScan depth/);
+  for (const bad of [["--depthfast"], ["--depths", "fast"], ["--depth-fast"]]) {
+    const e = takeDepth(bad).error;
+    assert.match(e, /is not a DeepScan option/);
+    assert.equal(e.includes("\n"), false);
+  }
+  for (const bad of [["fast", "full"], ["fast", "fast"], ["--depth", "fast", "full"], ["--depth=fast", "full"]]) {
+    const e = takeDepth(bad).error;
+    assert.match(e, /one depth, not several/);
+    assert.equal(e.includes("\n"), false);
+  }
+  assert.match(takeDepth(["--depth", "fast", "--depth=full"]).error, /once/);
+});
+
 test("depth: the upload carries it at the top level (balanced when none is named), the start message and scan file name it", async () => {
   const ctx = setup();
   w(ctx.repo, "src/a.py", "def f(x):\n    return x + 1\n");
