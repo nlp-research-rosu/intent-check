@@ -39,5 +39,18 @@
     "connect_interval_ms": 3000,
     "connect_expires_s": 900
   },
-  "job_budget_s": 180
+  "job_budget_s": 180,
+  "deepscan": {
+    "max_files": 3000,
+    "max_text_bytes": 15728640,
+    "max_file_bytes": 524288,
+    "max_upload_bytes": 16777216,
+    "max_inflated_bytes": 20971520,
+    "max_path_chars": 1024,
+    "max_trimmed": 20000,
+    "summary_max_bytes": 8192,
+    "summary_max_cards": 8,
+    "summary_max_one_liners": 20,
+    "poll_interval_s": 30
+  }
 }

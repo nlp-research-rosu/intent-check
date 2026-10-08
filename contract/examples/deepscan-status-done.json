@@ -1,0 +1,24 @@
+{
+  "job_id": "9kWm3PqXe7NdTz2RbVc8Hy",
+  "status": "done",
+  "stage": "done",
+  "progress": { "stage": "done", "hunters_done": 14, "hunters_total": 14, "elapsed_s": 803 },
+  "url": "https://intent-check-staging.up.railway.app/r/9kWm3PqXe7NdTz2RbVc8Hy",
+  "summary": {
+    "counts": { "CRITICAL": 0, "HIGH": 0, "MODERATE": 1, "LOW": 1, "MARGINAL": 0 },
+    "cards": [
+      {
+        "id": "F1",
+        "criticality": "MODERATE",
+        "title": "A discount above 100 percent makes the price negative",
+        "property": "apply_discount never returns a negative price (README.md:3).",
+        "cause": [{ "path": "src/pricing.py", "line": 3 }],
+        "repro_sketch": "Call apply_discount(1000, 150) and check the result is not below zero.",
+        "control": "apply_discount(1000, 100) returns 0."
+      }
+    ],
+    "one_liners": [
+      { "criticality": "LOW", "title": "apply_discount does not validate that price_cents is an int", "path": "src/pricing.py", "line": 2 }
+    ]
+  }
+}

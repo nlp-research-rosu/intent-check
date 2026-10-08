@@ -163,5 +163,104 @@ export interface ConnectCreated {
 export interface ConnectPoll {
   status: "pending" | "approved" | "denied" | "expired" | "consumed";
   api_key?: string;
+  /** Handle of the approving account; sent with api_key. Same value as account.handle. */
+  handle?: string;
   account?: { handle: string };
+}
+
+/** GET /v1/me (Bearer): who the calling key belongs to. */
+export interface Me {
+  handle: string;
+  machine_name: string | null;
+  key_last4: string;
+  /** Deployment the key is for, e.g. "production" or "staging". */
+  environment: string;
+}
+
+// DeepScan, contract v1. Mirrors deepscan-v1.schema.json exactly.
+
+export type Criticality = "CRITICAL" | "HIGH" | "MODERATE" | "LOW" | "MARGINAL";
+
+export interface DeepscanTrimmed {
+  path: string;
+  reason: string;
+}
+
+export interface DeepscanMeta {
+  contract_version: "1";
+  host: Host;
+  plugin_version: string;
+  os: string;
+  /** https, userinfo stripped; null when the repo has no remote. */
+  remote_url: string | null;
+  head_sha: string | null;
+  branch: string | null;
+  dirty: boolean;
+  scope: string | null;
+  file_count: number;
+  bytes: number;
+  trimmed: DeepscanTrimmed[];
+}
+
+export interface DeepscanFile {
+  path: string;
+  content: string;
+}
+
+/** The document inside the gzip body of POST /v1/deepscans. */
+export interface DeepscanUpload {
+  meta: DeepscanMeta;
+  files: DeepscanFile[];
+}
+
+export interface DeepscanCreated {
+  job_id: string;
+  url: string;
+  status: "queued";
+}
+
+export interface DeepscanProgress {
+  stage: string;
+  hunters_done: number;
+  hunters_total: number;
+  elapsed_s: number;
+}
+
+export interface DeepscanCause {
+  path: string;
+  line: number;
+}
+
+export interface DeepscanCard {
+  id: string;
+  criticality: Criticality;
+  title: string;
+  property: string;
+  cause: DeepscanCause[];
+  repro_sketch: string;
+  control: string;
+}
+
+export interface DeepscanOneLiner {
+  criticality: Criticality;
+  title: string;
+  path: string;
+  line: number;
+}
+
+/** Agent-facing result, at most 8 KB serialized. */
+export interface DeepscanSummary {
+  counts: Record<Criticality, number>;
+  cards: DeepscanCard[];
+  one_liners: DeepscanOneLiner[];
+}
+
+export interface DeepscanStatus {
+  job_id: string;
+  status: JobStatusValue;
+  stage: string;
+  progress: DeepscanProgress;
+  url: string;
+  summary?: DeepscanSummary;
+  error?: { code: string; message: string; reason?: string | null };
 }

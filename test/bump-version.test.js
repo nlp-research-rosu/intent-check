@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { tmpdir, ROOT } from "./helpers/env.js";
-import { nextVersion, readVersions, FILES } from "../scripts/bump-version.mjs";
+import { nextVersion, readVersions, FILES, INSTALL_JSON } from "../scripts/bump-version.mjs";
 
 const none = () => [];
 
@@ -40,7 +40,7 @@ test("--pre: bumps the base the first time, then numbers on from the highest tag
 
 function sandbox() {
   const dir = tmpdir("bump-");
-  for (const f of [...FILES, "scripts/bump-version.mjs"]) {
+  for (const f of [...FILES, INSTALL_JSON, "scripts/bump-version.mjs"]) {
     fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
     fs.copyFileSync(path.join(ROOT, f), path.join(dir, f));
   }
@@ -66,6 +66,35 @@ test("CLI: --pre numbers from git tags", () => {
   assert.equal(run("patch", "--pre", "per-edit"), "1.4.1-per-edit.2\n");
   assert.equal(run("patch", "--pre", "per-edit"), "1.4.1-per-edit.2\n");
   assert.deepEqual(readVersions(dir).map(([, v]) => v), Array(4).fill("1.4.1-per-edit.2"));
+});
+
+test("CLI: plain release also sets docs/install.json's top-level version", () => {
+  const { dir, run } = sandbox();
+  const p = path.join(dir, INSTALL_JSON);
+  const before = fs.readFileSync(p, "utf8");
+  const cur = readVersions(dir, [INSTALL_JSON])[0][1];
+  assert.equal(run("2.3.4"), "2.3.4\n");
+  assert.equal(JSON.parse(fs.readFileSync(p, "utf8")).version, "2.3.4");
+  assert.equal(fs.readFileSync(p, "utf8"), before.replace(`"version": "${cur}"`, '"version": "2.3.4"'));
+});
+
+test("CLI: prerelease bump leaves docs/install.json untouched", () => {
+  const { dir, run } = sandbox();
+  run("0.1.1"); // pin the base so the test doesn't depend on the repo's current release
+  const p = path.join(dir, INSTALL_JSON);
+  const before = fs.readFileSync(p, "utf8");
+  assert.equal(run("patch", "--pre", "per-edit"), "0.1.2-per-edit.1\n");
+  assert.equal(fs.readFileSync(p, "utf8"), before);
+  assert.deepEqual(readVersions(dir).map(([, v]) => v), Array(4).fill("0.1.2-per-edit.1"));
+});
+
+test("CLI: plain release refuses when install.json lacks exactly one version field, writing nothing", () => {
+  const { dir } = sandbox();
+  const p = path.join(dir, INSTALL_JSON);
+  fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace(/"version": "[^"]*",/, '"version": "0.1.1", "x": {"version": "1"},'));
+  const before = FILES.map((f) => fs.readFileSync(path.join(dir, f), "utf8"));
+  assert.throws(() => execFileSync("node", ["scripts/bump-version.mjs", "patch"], { cwd: dir, stdio: "pipe" }));
+  assert.deepEqual(FILES.map((f) => fs.readFileSync(path.join(dir, f), "utf8")), before);
 });
 
 test("CLI: refuses when the four files disagree", () => {
