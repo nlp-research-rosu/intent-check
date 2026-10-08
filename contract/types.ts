@@ -211,9 +211,14 @@ export interface DeepscanFile {
 
 /** The document inside the gzip body of POST /v1/deepscans. */
 export interface DeepscanUpload {
+  /** Optional; a missing depth means "balanced". */
+  depth?: DeepscanDepth;
   meta: DeepscanMeta;
   files: DeepscanFile[];
 }
+
+/** fast: each property hunted once; balanced: both models hunt every property; full: adds a second attack on every property that held. */
+export type DeepscanDepth = "fast" | "balanced" | "full";
 
 export interface DeepscanCreated {
   job_id: string;
@@ -221,6 +226,7 @@ export interface DeepscanCreated {
   status: "queued";
   /** Wall-clock seconds the scan may run once started. */
   budget_s: number;
+  depth: DeepscanDepth;
 }
 
 export interface DeepscanProgress {
@@ -278,6 +284,7 @@ export interface DeepscanStatus {
   progress: DeepscanProgress;
   url: string;
   budget_s: number;
+  depth: DeepscanDepth;
   summary?: DeepscanSummary;
   error?: { code: string; message: string; reason?: string | null };
 }

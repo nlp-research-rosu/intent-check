@@ -33,6 +33,7 @@ Errors are `ErrorResponse` with HTTP 400 `invalid_request`, 401 `unauthorized`, 
 ## Changelog
 
 - 2026-10-08: `DeepscanCard` and `DeepscanOneLiner` gain optional `found_by` (the models whose hunters found the finding) and `jury` (`DeepscanVote[]`: `{model, verdict: "keep"|"drop"}` per juror). Both appear on scans run with two models; a `tiebreak` jury rule adds a third entry that repeats the first reviewer's model.
+- 2026-10-08: `DeepscanUpload.depth` (optional `"fast" | "balanced" | "full"`, top level next to `meta`; a missing depth means balanced) added, and echoed as the required `depth` on `DeepscanCreated` and `DeepscanStatus`. `budget_s` now follows the depth (fast 1800, balanced and full 3600).
 - 2026-10-08: `DeepscanCreated.budget_s` and `DeepscanStatus.budget_s` (required integer, seconds) added: the wall-clock time the scan may run, so a waiting client sizes its wait from the server's value.
 - 2026-10-07: DeepScan added in `deepscan-v1.schema.json` (`POST /v1/deepscans`, `GET /v1/deepscans/{job_id}`, `constants.json` `deepscan` limits). Checks are unchanged; `/v1/jobs/{id}` still answers 404 for a scan id.
 - 2026-09-28: `UnitRequest.regions` (optional) added: real line ranges for truncated content.
