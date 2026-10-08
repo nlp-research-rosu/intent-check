@@ -83,9 +83,15 @@ Ask the agent to check specific files ("check auth.py with Intent Check"); the `
 
 ## DeepScan (whole repo)
 
-`/intent:deepscan` (Codex: ask the agent for a DeepScan, it runs `intent deepscan`) scans the whole repo for behaviour that breaks what the code is meant to do. It takes about 15 minutes and runs on the service, so it does not hold up your session.
+`/intent:deepscan` (Codex: ask the agent for a DeepScan, it runs `intent deepscan`) scans the whole repo for behaviour that breaks what the code is meant to do. It runs on the service, so it does not hold up your session. Pick a depth:
 
-    /intent:deepscan [--scope <folder>]
+| Depth | Takes | Best for |
+|---|---|---|
+| `fast` | about 15-20 min | a quick pass while you keep working |
+| `balanced` (default) | about 30-35 min | the everyday whole-repo scan |
+| `full` | about 40-45 min | the deepest pass, before a release or a handover |
+
+    /intent:deepscan [fast|balanced|full] [--scope <folder>]
 
 - What is sent: a snapshot of the files git tracks plus untracked files that are not ignored, as one compressed upload. Left out: files git ignores, binary files, lockfiles, vendored and generated folders (node_modules, vendor, dist, build, ...), files over 512 KB, and anything that looks like a secrets file. Obvious secrets inside the files are masked first. The limits are 3000 files and 15 MB of text; when a repo is larger, the least relevant files are dropped first and the command says so. Use `--scope <folder>` to scan one part of a big repo.
 - The upload is listed in `.intent/.sent.log` (paths and sizes, never contents). Intent Check must be on and connected; `INTENT_DISABLED=1` stops DeepScan too.

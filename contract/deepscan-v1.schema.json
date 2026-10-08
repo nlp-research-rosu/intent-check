@@ -63,20 +63,27 @@
       "additionalProperties": false,
       "required": ["meta", "files"],
       "properties": {
+        "depth": { "$ref": "#/$defs/DeepscanDepth" },
         "meta": { "$ref": "#/$defs/DeepscanMeta" },
         "files": { "type": "array", "minItems": 1, "maxItems": 3000, "items": { "$ref": "#/$defs/DeepscanFile" } }
       }
     },
 
+    "DeepscanDepth": {
+      "description": "How deep the scan goes: fast hunts each property once (about 15-20 minutes), balanced has both models hunt every property (about 30-35 minutes), full adds a second attack on every property that held (about 40-45 minutes). A missing depth means balanced.",
+      "enum": ["fast", "balanced", "full"]
+    },
+
     "DeepscanCreated": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["job_id", "url", "status", "budget_s"],
+      "required": ["job_id", "url", "status", "budget_s", "depth"],
       "properties": {
         "job_id": { "type": "string", "pattern": "^[A-Za-z0-9]{22}$" },
         "url": { "type": "string" },
         "status": { "const": "queued" },
-        "budget_s": { "description": "Wall-clock seconds the scan is allowed to run, from when it starts. A client waiting for the result waits at most this long, plus the queue time.", "type": "integer", "minimum": 1 }
+        "budget_s": { "description": "Wall-clock seconds the scan is allowed to run, from when it starts. A client waiting for the result waits at most this long, plus the queue time.", "type": "integer", "minimum": 1 },
+        "depth": { "$ref": "#/$defs/DeepscanDepth" }
       }
     },
 
@@ -183,7 +190,7 @@
       "description": "GET /v1/deepscans/{job_id}. Owner only (404 for anyone else and for check jobs). `summary` only when done, `error` only when failed.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["job_id", "status", "stage", "progress", "url", "budget_s"],
+      "required": ["job_id", "status", "stage", "progress", "url", "budget_s", "depth"],
       "properties": {
         "job_id": { "type": "string", "pattern": "^[A-Za-z0-9]{22}$" },
         "status": { "$ref": "#/$defs/DeepscanStatusValue" },
@@ -191,6 +198,7 @@
         "progress": { "$ref": "#/$defs/DeepscanProgress" },
         "url": { "type": "string" },
         "budget_s": { "description": "Wall-clock seconds the scan is allowed to run (as on DeepscanCreated).", "type": "integer", "minimum": 1 },
+        "depth": { "$ref": "#/$defs/DeepscanDepth" },
         "summary": { "$ref": "#/$defs/DeepscanSummary" },
         "error": { "$ref": "#/$defs/DeepscanError" }
       }

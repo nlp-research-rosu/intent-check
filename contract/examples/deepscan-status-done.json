@@ -4,7 +4,8 @@
   "stage": "done",
   "progress": { "stage": "done", "hunters_done": 14, "hunters_total": 14, "elapsed_s": 803 },
   "url": "https://intent-check-staging.up.railway.app/r/9kWm3PqXe7NdTz2RbVc8Hy",
-  "budget_s": 900,
+  "budget_s": 3600,
+  "depth": "balanced",
   "summary": {
     "counts": { "CRITICAL": 0, "HIGH": 0, "MODERATE": 1, "LOW": 1, "MARGINAL": 0 },
     "cards": [

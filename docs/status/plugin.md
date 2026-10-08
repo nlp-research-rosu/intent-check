@@ -31,6 +31,7 @@ Wait for review/merge of PRs 1-7 and the orchestrator's Codex e2e. Then M6 plugi
 
 - `lib/snapshot.js` builds the upload (filters, redaction, priority trim); `lib/deepscan.js` holds the command, a detached waiter and late delivery. Repo mode (`check --repo`) is removed; `check --repo` prints a pointer to DeepScan.
 - Per-scan state: `${CLAUDE_PLUGIN_DATA}/deepscans/<job_id>.json`. The waiter polls GET every 30 s until 30 min after the scan's `budget_s` (from the 202 and every GET, capped at 24 h; 60 min after `created_at` when absent) and owns its own token (not the session owner). SessionStart and UserPromptSubmit show a finished scan of the current repo once (`delivered` flag, under a lock); a scan whose waiter died gets one GET from the hook. Delivered files are removed after 7 days.
+- `intent deepscan [fast|balanced|full]` (default balanced) sends `depth` at the top level of the upload next to `meta`, records it in the scan file and names it with its expected time in the start message (fast 15-20 min, balanced 30-35, full 40-45). The server sets `budget_s` from the depth.
 - `POST /v1/deepscans` busy (429 `deepscan_ingest_busy`, `Retry-After`) is retried once, then one line.
 
 ## Open questions
