@@ -32,6 +32,7 @@ Errors are `ErrorResponse` with HTTP 400 `invalid_request`, 401 `unauthorized`, 
 
 ## Changelog
 
+- 2026-10-08: `DeepscanCreated.budget_s` and `DeepscanStatus.budget_s` (required integer, seconds) added: the wall-clock time the scan may run, so a waiting client sizes its wait from the server's value.
 - 2026-10-07: DeepScan added in `deepscan-v1.schema.json` (`POST /v1/deepscans`, `GET /v1/deepscans/{job_id}`, `constants.json` `deepscan` limits). Checks are unchanged; `/v1/jobs/{id}` still answers 404 for a scan id.
 - 2026-09-28: `UnitRequest.regions` (optional) added: real line ranges for truncated content.
 - 2026-09-30: `Intent.notes` (optional) added: contents of `.intent/NOTES.md`, sent with every job.

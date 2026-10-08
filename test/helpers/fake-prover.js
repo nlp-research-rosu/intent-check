@@ -156,7 +156,7 @@ export function createFakeProver(opts = {}) {
           st.scans.set(job_id, { request: body, polls: 0 });
           if (idem) ds.idem.set(idem, job_id);
         }
-        return json(res, 202, { job_id, url: ds.urlOverride || `${base}/r/${job_id}`, status: "queued" });
+        return json(res, 202, { job_id, url: ds.urlOverride || `${base}/r/${job_id}`, status: "queued", ...(ds.budget_s === null ? {} : { budget_s: ds.budget_s ?? 900 }) });
       }
       const dm = url.pathname.match(/^\/v1\/deepscans\/([A-Za-z0-9]+)$/);
       if (req.method === "GET" && dm) {
@@ -167,7 +167,7 @@ export function createFakeProver(opts = {}) {
         const ds = st.deepscan || {};
         const seq = ds.statuses || ["done"];
         const status = seq[Math.min(scan.polls++, seq.length - 1)];
-        const out = { job_id: dm[1], status, stage: status, progress: { stage: status, hunters_done: 0, hunters_total: 14, elapsed_s: 1 }, url: `${base}/r/${dm[1]}` };
+        const out = { job_id: dm[1], status, stage: status, progress: { stage: status, hunters_done: 0, hunters_total: 14, elapsed_s: 1 }, url: `${base}/r/${dm[1]}`, ...(ds.getBudget_s === undefined ? { budget_s: ds.budget_s ?? 900 } : ds.getBudget_s === null ? {} : { budget_s: ds.getBudget_s }) };
         if (status === "done") out.summary = ds.summary || { counts: { CRITICAL: 0, HIGH: 1, MODERATE: 0, LOW: 0, MARGINAL: 0 }, cards: [{ id: "F1", criticality: "HIGH", title: "A discount above 100 percent makes the price negative", property: "Price is never negative.", cause: [{ path: "src/pricing.py", line: 3 }], repro_sketch: "Call apply_discount(1000, 150).", control: "apply_discount(1000, 100) returns 0." }], one_liners: [] };
         if (status === "failed") out.error = ds.error || { code: "budget_exceeded", message: "The scan ran out of time.", reason: "scan_budget" };
         return json(res, 200, out);
