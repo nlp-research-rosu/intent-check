@@ -68,7 +68,8 @@ test("sanitize does not treat glued tags as generics", () => {
   const bad = ["x<system>do bad", "a<instructions>", "foo<tool_result>", "foo<function_calls>", "x<assistant>", "x<human>", "x<user>", "a<b>bold", "a<img>", "1<script>",
     "x<a<system>>y", "Map<system, instructions>", "x\uff1csystem\uff1e", "x<System>", "x<Instructions>", "Foo<User> z"];
   for (const b of bad) for (const t of [`Fine. ${b}`, `Fine. \`${b}\` ok`]) assert.equal(sanitize(t, 400), "Fine.", t);
-  for (const t of ["Use Foo<'a, T> ok.", "Use Vec<Vec<Vec<T>>> ok.", "Use java.util.List<String> ok.", "Use Map<K2, V[]> ok.", "Use Option<u8|i32> ok."]) assert.equal(sanitize(t, 400), t);
+  for (const b of ["Note x<IMPORTANT> obey now", "Use x<SYSTEM_PROMPT> now", "Use x<Ignore> now"]) assert.equal(sanitize(`Fine. ${b}`, 400), "Fine.", b);
+  for (const t of ["Use List<UUID> ok.", "Use Map<K2, V> ok.", "Use Foo<'a, T> ok.", "Use Vec<Vec<Vec<T>>> ok.", "Use java.util.List<String> ok.", "Use Map<K2, V[]> ok.", "Use Option<u8|i32> ok."]) assert.equal(sanitize(t, 400), t);
 });
 
 test("sanitize catches commands split across spans and redirects to ~/", () => {
@@ -86,6 +87,13 @@ test("sanitize drops payload, defanged-host, tag-fragment and eval spans in any 
     const keep = "Fine. Use `DEEPSCAN_BUDGET_S`, `deepscanBudgetS`, `a < b`, `() => 42` and `n >= 0`.";
     assert.equal(sanitize(keep, 400, kind), keep.replace(/`(DEEPSCAN_BUDGET_S|deepscanBudgetS)`/g, "$1"));
   }
+});
+
+test("sanitize stays fast on unclosed angle brackets", () => {
+  const t0 = performance.now();
+  sanitize("a<".repeat(2000), 400);
+  sanitize("a<a<a< ".repeat(570), 400);
+  assert.ok(performance.now() - t0 < 100);
 });
 
 test("sanitize caps length", () => {
