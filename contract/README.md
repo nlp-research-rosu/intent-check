@@ -40,7 +40,8 @@ Errors are `ErrorResponse` with HTTP 400 `invalid_request`, 401 `unauthorized`, 
 
 ## Semantics
 
-- **Supersede:** a new job from the same account for a path supersedes any unfinished job covering that path. The old job's status becomes `superseded` and it never gets a result.
+- **Supersede.** A new job supersedes the caller's unfinished jobs that overlap it, whatever their mode, unless it carries `per_edit: true`. A `per_edit` job never supersedes anything, so per-edit checks on different files of the same turn all run to completion.
+- A superseded job's status becomes `superseded` and it never gets a result. Supersede is account-wide (per caller), not per session.
 - **Budget:** each job has a time budget (`job_budget_s`). Past it, the job finishes `done` with `partial: true`, stage-A artifacts, claims `not_checked`, verdict `no_concerns`.
 - **Agent concerns:** `result.agent_concerns` holds only what the user's agent should hear about (already filtered by the prover). The plugin shows at most `max_agent_concerns_shown`, and builds all agent-facing text itself from these fields.
 - **Staleness:** the plugin compares `units[].checked_sha256` with the file's current hash; the prover does not know about later edits.

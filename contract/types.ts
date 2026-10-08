@@ -59,6 +59,8 @@ export interface JobRequest {
   units: UnitRequest[];
   changed_lines: number;
   truncated: boolean;
+  /** Optional: true when submitted right after a single tool edit (per-edit mode). A per_edit job supersedes nothing. Omitted means false. */
+  per_edit?: boolean;
 }
 
 export interface JobCreated {

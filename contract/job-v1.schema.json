@@ -103,7 +103,8 @@
         "intent": { "$ref": "#/$defs/Intent" },
         "units": { "type": "array", "minItems": 1, "maxItems": 10, "items": { "$ref": "#/$defs/UnitRequest" } },
         "changed_lines": { "type": "integer", "minimum": 0 },
-        "truncated": { "description": "True when units were dropped because of the size cap (page says 'partial review').", "type": "boolean" }
+        "truncated": { "description": "True when units were dropped because of the size cap (page says 'partial review').", "type": "boolean" },
+        "per_edit": { "description": "True when the plugin submitted this check right after a single tool edit (per-edit mode). A per_edit job supersedes nothing. Omitted means false.", "type": "boolean" }
       }
     },
 
