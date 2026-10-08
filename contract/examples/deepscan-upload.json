@@ -1,0 +1,29 @@
+{
+  "meta": {
+    "contract_version": "1",
+    "host": "claude-code",
+    "plugin_version": "0.1.3",
+    "os": "darwin",
+    "remote_url": "https://github.com/example/billing",
+    "head_sha": "5bcfb13a9c2e4d7f10b8a6e3c4d5f60718293a4b",
+    "branch": "main",
+    "dirty": true,
+    "scope": null,
+    "file_count": 2,
+    "bytes": 235,
+    "trimmed": [
+      { "path": "assets/logo.png", "reason": "binary" },
+      { "path": "src/generated/schema.ts", "reason": "generated" }
+    ]
+  },
+  "files": [
+    {
+      "path": "src/pricing.py",
+      "content": "# pricing.py\ndef apply_discount(price_cents: int, percent: int) -> int:\n    return price_cents - price_cents * percent // 100\n"
+    },
+    {
+      "path": "README.md",
+      "content": "# billing\n\nPrices are never negative.\n"
+    }
+  ]
+}

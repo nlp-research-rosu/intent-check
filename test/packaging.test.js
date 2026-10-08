@@ -74,7 +74,7 @@ test("skill and commands exist and reference the plugin root, run with node dire
   assert.match(skill, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent\.js"/);
   assert.doesNotMatch(skill, /\bsh\b.*bin\/intent\b/);
   for (const w of ["status", "connect", "disconnect"]) assert.match(skill, new RegExp(`/intent:${w}|bin/intent status|\`${w}\``), `skill maps ${w}`);
-  for (const c of ["off", "on", "check", "per-edit", "status", "connect", "disconnect"]) {
+  for (const c of ["off", "on", "check", "per-edit", "deepscan", "status", "connect", "disconnect"]) {
     const md = fs.readFileSync(path.join(ROOT, "commands", `${c}.md`), "utf8");
     assert.match(md, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent\.js"/);
     // Claude Code matches the rule's prefix against the command text, quotes included: a rule without

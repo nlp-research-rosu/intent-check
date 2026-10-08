@@ -1,4 +1,4 @@
-// M2b: `intent check` queue (S5/S6) and renames/deletes of unit folders.
+// M2b: `intent check` queue (S5) and renames/deletes of unit folders.
 import { test, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -82,23 +82,13 @@ test("S5: a queued request is submitted at the next Stop as a request job withou
   assert.equal(log.at(-1).mode, "request");
 });
 
-test("S6: repo mode sends up to 10 files as one repo job", async () => {
-  fp.state.scenario = "no_concerns";
+test("check --repo is gone: one line points to DeepScan and nothing is queued", async () => {
   const ctx = setup();
-  const names = Array.from({ length: 12 }, (_, i) => `m${i}.py`);
-  for (const f of names) fs.writeFileSync(path.join(ctx.repo, f), `X = ${f.length}\n`);
-  await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "review my repo" }), ctx.env);
-  const q = await cli(["--repo", ...names], ctx.repo, ctx.data);
-  assert.match(q.out, /queued a review of 10 files/);
-  assert.match(q.out, /only the first 10/);
-  const n = fp.jobRequests().length;
-  const r = await runHook("stop", fixture("stop", ctx.repo), ctx.env);
-  assert.equal(r.code, 0);
-  const reqs = fp.jobRequests().slice(n);
-  assert.equal(reqs.length, 1);
-  assert.equal(reqs[0].mode, "repo");
-  assert.equal(reqs[0].units.length, 10);
-  assert.deepEqual(validateDef(reqs[0], "JobRequest"), []);
+  fs.writeFileSync(path.join(ctx.repo, "m.py"), "X = 1\n");
+  const q = await cli(["--repo", "m.py"], ctx.repo, ctx.data);
+  assert.match(q.out, /DeepScan/);
+  assert.match(q.out, /deepscan/);
+  assert.deepEqual(queueFiles(ctx.repo), []);
 });
 
 test("a file both edited and queued goes only into the request job", async () => {
