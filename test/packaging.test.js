@@ -30,7 +30,7 @@ test("plugin.json: name intent, version from package.json, homepage set", () => 
   assert.equal(fs.existsSync(path.join(ROOT, "plugin.json")), false, "no root plugin.json (Codex reads .codex-plugin/)");
 });
 
-test("hooks.json: exec form, four events, asyncRewake Stop with a 900 s timeout, no statusMessage", () => {
+test("hooks.json: shell form, four events, asyncRewake Stop with a 900 s timeout, no statusMessage", () => {
   const h = read("hooks/hooks.json").hooks;
   assert.deepEqual(Object.keys(h).sort(), ["PostToolUse", "SessionStart", "Stop", "UserPromptSubmit"]);
   const events = { SessionStart: "session-start", UserPromptSubmit: "prompt", PostToolUse: "post-tool", Stop: "stop" };
@@ -43,7 +43,7 @@ test("hooks.json: exec form, four events, asyncRewake Stop with a 900 s timeout,
     assert.deepEqual(cmd.args, ["${CLAUDE_PLUGIN_ROOT}/bin/intent.js", arg]);
     assert.equal("statusMessage" in cmd, false);
   }
-  assert.equal(h.PostToolUse[0].matcher, "Edit|Write|NotebookEdit|ExitPlanMode|TodoWrite");
+  assert.equal(h.PostToolUse[0].matcher, "Edit|Write|MultiEdit|NotebookEdit|ExitPlanMode|TodoWrite");
   const stop = h.Stop[0].hooks[0];
   assert.equal(stop.asyncRewake, true);
   assert.equal(stop.timeout, 900);
@@ -74,7 +74,7 @@ test("skill and commands exist and reference the plugin root, run with node dire
   assert.match(skill, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent\.js"/);
   assert.doesNotMatch(skill, /\bsh\b.*bin\/intent\b/);
   for (const w of ["status", "connect", "disconnect"]) assert.match(skill, new RegExp(`/intent:${w}|bin/intent status|\`${w}\``), `skill maps ${w}`);
-  for (const c of ["off", "on", "check", "deepscan", "status", "connect", "disconnect"]) {
+  for (const c of ["off", "on", "check", "per-edit", "deepscan", "status", "connect", "disconnect"]) {
     const md = fs.readFileSync(path.join(ROOT, "commands", `${c}.md`), "utf8");
     assert.match(md, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent\.js"/);
     // Claude Code matches the rule's prefix against the command text, quotes included: a rule without
