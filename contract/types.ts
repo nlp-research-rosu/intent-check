@@ -219,6 +219,8 @@ export interface DeepscanCreated {
   job_id: string;
   url: string;
   status: "queued";
+  /** Wall-clock seconds the scan may run once started. */
+  budget_s: number;
 }
 
 export interface DeepscanProgress {
@@ -263,6 +265,7 @@ export interface DeepscanStatus {
   stage: string;
   progress: DeepscanProgress;
   url: string;
+  budget_s: number;
   summary?: DeepscanSummary;
   error?: { code: string; message: string; reason?: string | null };
 }

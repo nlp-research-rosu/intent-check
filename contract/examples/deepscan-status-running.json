@@ -3,5 +3,6 @@
   "status": "running",
   "stage": "hunt",
   "progress": { "stage": "hunt", "hunters_done": 4, "hunters_total": 14, "elapsed_s": 412 },
-  "url": "https://intent-check-staging.up.railway.app/r/9kWm3PqXe7NdTz2RbVc8Hy"
+  "url": "https://intent-check-staging.up.railway.app/r/9kWm3PqXe7NdTz2RbVc8Hy",
+  "budget_s": 900
 }
