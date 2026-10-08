@@ -13,7 +13,7 @@ import { C } from "../lib/config.js";
 import { buildSnapshot, normaliseRemote, pathReason, byPriority, tierOf, decodeText, unstorable } from "../lib/snapshot.js";
 import { requestBinary } from "../lib/http.js";
 import { uploadTimeoutMs } from "../lib/api.js";
-import { renderScan, countsLine, checkLateDeepscans, confirmDelivered, gcScans } from "../lib/deepscan.js";
+import { renderScan, countsLine, checkLateDeepscans, confirmDelivered, gcScans, validBudget, waitDeadline, WAIT_MAX_MS, runDeepscanWaiter } from "../lib/deepscan.js";
 
 let fp;
 before(async () => { fp = createFakeProver(); await fp.listen(); });
@@ -545,6 +545,73 @@ test("dead waiter and a failing GET: at most one GET per interval, then a note a
   await inProcess(ctx, async () => gcScans(Date.now()));
   assert.ok(!fs.existsSync(path.join(ctx.data, "deepscans", `${stale}.json`)));
   assert.ok(fs.existsSync(path.join(ctx.data, "deepscans", `${id}.json`)));
+});
+
+test("waiter deadline: budget_s plus 30 min, 60 min without it; bad values are ignored or capped", () => {
+  const at = "2026-01-01T00:00:00.000Z";
+  const t0 = Date.parse(at);
+  assert.equal(waitDeadline({ created_at: at, budget_s: 10800 }), t0 + (10800 + 1800) * 1000);
+  assert.equal(waitDeadline({ created_at: at }), t0 + WAIT_MAX_MS);
+  assert.equal(WAIT_MAX_MS, 60 * 60 * 1000);
+  for (const bad of [0, -5, "900", 1.5, null, NaN, Infinity, {}]) assert.equal(waitDeadline({ created_at: at, budget_s: bad }), t0 + WAIT_MAX_MS, String(bad));
+  assert.equal(waitDeadline({ created_at: at, budget_s: 10 ** 9 }), t0 + (24 * 3600 + 1800) * 1000);
+  assert.equal(validBudget(900), 900);
+  assert.equal(validBudget(0), null);
+});
+
+test("budget_s: stored at submit, learned from a GET, and a GET value extends the waiter's deadline", async () => {
+  const ctx = setup();
+  fp.state.deepscan.budget_s = 7200;
+  fp.state.deepscan.getBudget_s = 10800; // the server changes it later
+  fp.state.deepscan.statuses = ["queued", "running", "done"];
+  const id = idOf((await cli([], ctx)).out);
+  assert.equal(readScanFile(ctx.data, id).budget_s, 7200);
+  const rec = await until(() => { const s = readScanFile(ctx.data, id); return s.status === "done" ? s : null; });
+  assert.equal(rec.budget_s, 10800);
+
+  // A scan file written without it picks it up from the first GET; a hostile value is capped.
+  const bare = seedScan(ctx);
+  assert.equal(readScanFile(ctx.data, bare).budget_s, undefined);
+  fp.state.deepscan.getBudget_s = 10 ** 12;
+  fp.state.deepscan.statuses = ["running", "done"];
+  await inProcess(ctx, () => runDeepscanWaiter(bare));
+  assert.equal(readScanFile(ctx.data, bare).budget_s, 24 * 3600);
+  assert.equal(waitDeadline(readScanFile(ctx.data, bare)), Date.parse(readScanFile(ctx.data, bare).created_at) + (24 * 3600 + 1800) * 1000);
+});
+
+test("a server without budget_s: nothing is stored and the 60 min wait applies; an invalid 202 value is dropped", async () => {
+  const ctx = setup();
+  fp.state.deepscan.budget_s = null;
+  fp.state.deepscan.getBudget_s = null;
+  fp.state.deepscan.statuses = ["done"];
+  const id = idOf((await cli([], ctx)).out);
+  await until(() => readScanFile(ctx.data, id).status === "done");
+  assert.equal("budget_s" in readScanFile(ctx.data, id), false);
+  assert.equal(waitDeadline(readScanFile(ctx.data, id)) - Date.parse(readScanFile(ctx.data, id).created_at), WAIT_MAX_MS);
+  const ctx2 = setup();
+  fp.state.deepscan.budget_s = -3;
+  fp.state.deepscan.getBudget_s = null;
+  const id2 = idOf((await cli([], ctx2)).out);
+  await until(() => readScanFile(ctx2.data, id2).status === "done");
+  assert.equal("budget_s" in readScanFile(ctx2.data, id2), false);
+});
+
+test("a scan with a long budget_s is still waited for past 60 min, and kept past 24 h only while its wait runs", async () => {
+  const ctx = setup();
+  fp.state.deepscan.getStatus = 500;
+  const slow = { ...ctx.env, INTENT_DEEPSCAN_POLL_MS: "60000" };
+  const created = new Date(Date.now() - 90 * 60 * 1000).toISOString();
+  const long = seedScan(ctx, { created_at: created, budget_s: 10800, waiter: { pid: process.pid, token: "t", at: 1 } });
+  const r = await runHook("prompt", fixture("prompt", ctx.repo, { session_id: "g1" }), slow);
+  assert.doesNotMatch(r.stdout, /taking longer than expected/, "90 min in, but the budget is 3 h: the waiter still has it");
+  const short = seedScan(ctx, { created_at: created, budget_s: 900 });
+  const r2 = await runHook("prompt", fixture("prompt", ctx.repo, { session_id: "g2" }), slow);
+  assert.match(r2.stdout, /taking longer than expected/);
+  assert.match(r2.stdout, new RegExp(`/r/${short}`));
+  const capped = seedScan(ctx, { created_at: new Date(Date.now() - 24.2 * 3600 * 1000).toISOString(), budget_s: 10 ** 9, repo_root: "/elsewhere" });
+  await inProcess(ctx, async () => gcScans(Date.now()));
+  assert.ok(fs.existsSync(path.join(ctx.data, "deepscans", `${capped}.json`)));
+  assert.ok(fs.existsSync(path.join(ctx.data, "deepscans", `${long}.json`)));
 });
 
 test("hooks do nothing for DeepScan when no scan was ever started", async () => {

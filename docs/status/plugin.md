@@ -30,7 +30,7 @@ Wait for review/merge of PRs 1-7 and the orchestrator's Codex e2e. Then M6 plugi
 ## DeepScan (P2)
 
 - `lib/snapshot.js` builds the upload (filters, redaction, priority trim); `lib/deepscan.js` holds the command, a detached waiter and late delivery. Repo mode (`check --repo`) is removed; `check --repo` prints a pointer to DeepScan.
-- Per-scan state: `${CLAUDE_PLUGIN_DATA}/deepscans/<job_id>.json`. The waiter polls GET every 30 s for up to 60 min and owns its own token (not the session owner). SessionStart and UserPromptSubmit show a finished scan of the current repo once (`delivered` flag, under a lock); a scan whose waiter died gets one GET from the hook. Delivered files are removed after 7 days.
+- Per-scan state: `${CLAUDE_PLUGIN_DATA}/deepscans/<job_id>.json`. The waiter polls GET every 30 s until 30 min after the scan's `budget_s` (from the 202 and every GET, capped at 24 h; 60 min after `created_at` when absent) and owns its own token (not the session owner). SessionStart and UserPromptSubmit show a finished scan of the current repo once (`delivered` flag, under a lock); a scan whose waiter died gets one GET from the hook. Delivered files are removed after 7 days.
 - `POST /v1/deepscans` busy (429 `deepscan_ingest_busy`, `Retry-After`) is retried once, then one line.
 
 ## Open questions
