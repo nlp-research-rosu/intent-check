@@ -1,6 +1,6 @@
 {
   "name": "intent",
-  "version": "0.1.2-per-edit.1",
+  "version": "0.1.2-per-edit.2",
   "description": "Checks that the code your agent wrote does what you asked",
   "author": { "name": "Intent Computing" },
   "homepage": "https://web-per-edit.up.railway.app/privacy",

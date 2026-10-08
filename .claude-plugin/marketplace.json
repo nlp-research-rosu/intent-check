@@ -9,7 +9,7 @@
       "name": "intent",
       "source": "./",
       "description": "Checks that the code your agent wrote does what you asked",
-      "version": "0.1.2-per-edit.1"
+      "version": "0.1.2-per-edit.2"
     }
   ]
 }
