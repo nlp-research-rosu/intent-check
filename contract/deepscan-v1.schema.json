@@ -102,6 +102,17 @@
       }
     },
 
+    "DeepscanVote": {
+      "description": "One juror's vote on a finding: the model that reviewed it and whether it kept the finding. A third review (the tiebreak) is a further entry with the same model as the first reviewer.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "verdict"],
+      "properties": {
+        "model": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "verdict": { "enum": ["keep", "drop"] }
+      }
+    },
+
     "DeepscanCard": {
       "type": "object",
       "additionalProperties": false,
@@ -113,7 +124,9 @@
         "property": { "description": "The property the code breaks, in checkable form.", "type": "string", "maxLength": 600 },
         "cause": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/DeepscanCause" } },
         "repro_sketch": { "description": "How the user's agent can reproduce the finding on the user's machine.", "type": "string", "maxLength": 1200 },
-        "control": { "description": "A nearby case that should not fail, to rule out a bad repro.", "type": "string", "maxLength": 600 }
+        "control": { "description": "A nearby case that should not fail, to rule out a bad repro.", "type": "string", "maxLength": 600 },
+        "found_by": { "description": "The models whose hunters found it (two-model scans).", "type": "array", "maxItems": 4, "items": { "type": "string", "minLength": 1, "maxLength": 120 } },
+        "jury": { "description": "How each juror voted (two-model scans).", "type": "array", "maxItems": 6, "items": { "$ref": "#/$defs/DeepscanVote" } }
       }
     },
 
@@ -125,7 +138,9 @@
         "criticality": { "$ref": "#/$defs/Criticality" },
         "title": { "type": "string", "maxLength": 200 },
         "path": { "$ref": "#/$defs/RepoPath" },
-        "line": { "type": "integer", "minimum": 1 }
+        "line": { "type": "integer", "minimum": 1 },
+        "found_by": { "description": "The models whose hunters found it (two-model scans).", "type": "array", "maxItems": 4, "items": { "type": "string", "minLength": 1, "maxLength": 120 } },
+        "jury": { "description": "How each juror voted (two-model scans).", "type": "array", "maxItems": 6, "items": { "$ref": "#/$defs/DeepscanVote" } }
       }
     },
 
