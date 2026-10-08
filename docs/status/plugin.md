@@ -7,7 +7,7 @@ Milestone: M2a (Claude Code plugin core). Stacked PRs (each merges into the one 
 3. `feat/plugin-m2a-wiring` → `feat/plugin-m2a-client`: hooks, Stop runner, connect flow, CLI, packaging (Claude + Codex placeholder), captured-payload replay and fake-prover integration tests.
 4. `feat/plugin-m2a-e2e` → `feat/plugin-m2a-wiring`: `test/e2e/claude-e2e.sh`, README (what is sent, install), connect/config/packaging tests.
 5. `feat/plugin-m2a-fixes` → `feat/plugin-m2a-e2e`: review fixes 1-10, `UnitRequest.regions`, e2e script fixes.
-6. `feat/plugin-m2b` → `feat/plugin-m2a-fixes`: M2b (`intent check` queue for S5/S6, repo mode, renames/deletes, full skill + commands).
+6. `feat/plugin-m2b` → `feat/plugin-m2a-fixes`: M2b (`intent check` queue for S5, renames/deletes, full skill + commands).
 7. `feat/plugin-m5` → `feat/plugin-m2b`: M5 Codex.
 
 ## Current step
@@ -26,6 +26,12 @@ Wait for review/merge of PRs 1-7 and the orchestrator's Codex e2e. Then M6 plugi
 - State: `${CLAUDE_PLUGIN_DATA}/sessions/<sha256(session)[:32]>.json` (lock file per session), `config.json` (key, api_url, disabled; mode 600), `global.json` (consent shown), `connect.json` (pending connect; mode 600), `intent.log`.
 - Runner ownership: each runner/finisher writes `owner {pid, token}`; a newer runner takes over all pending jobs and the older one exits 0. The prompt hook only checks pending jobs when no live owner exists.
 - Wake rules: exit 2 only if interactive (`CLAUDE_CODE_ENTRYPOINT=cli`), `stop_hook_active` false, fewer than 3 wakes in 2 min, and no concern file woke the agent in the last 10 min; otherwise a next-prompt note. Findings are deduped for 1 h.
+
+## DeepScan (P2)
+
+- `lib/snapshot.js` builds the upload (filters, redaction, priority trim); `lib/deepscan.js` holds the command, a detached waiter and late delivery. Repo mode (`check --repo`) is removed; `check --repo` prints a pointer to DeepScan.
+- Per-scan state: `${CLAUDE_PLUGIN_DATA}/deepscans/<job_id>.json`. The waiter polls GET every 30 s for up to 60 min and owns its own token (not the session owner). SessionStart and UserPromptSubmit show a finished scan of the current repo once (`delivered` flag, under a lock); a scan whose waiter died gets one GET from the hook. Delivered files are removed after 7 days.
+- `POST /v1/deepscans` busy (429 `deepscan_ingest_busy`, `Retry-After`) is retried once, then one line.
 
 ## Open questions
 

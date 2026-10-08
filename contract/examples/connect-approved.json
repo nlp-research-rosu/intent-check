@@ -1,6 +1,7 @@
 {
   "status": "approved",
   "api_key": "ic_EXAMPLEexampleEXAMPLEexampleEXAMPLEabc",
+  "handle": "octocat",
   "account": {
     "handle": "octocat"
   }
