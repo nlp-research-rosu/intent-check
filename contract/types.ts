@@ -235,6 +235,12 @@ export interface DeepscanCause {
   line: number;
 }
 
+/** One juror's vote on a finding; a third review (the tiebreak) is a further entry with the first reviewer's model. */
+export interface DeepscanVote {
+  model: string;
+  verdict: "keep" | "drop";
+}
+
 export interface DeepscanCard {
   id: string;
   criticality: Criticality;
@@ -243,6 +249,10 @@ export interface DeepscanCard {
   cause: DeepscanCause[];
   repro_sketch: string;
   control: string;
+  /** The models whose hunters found it (two-model scans). */
+  found_by?: string[];
+  /** How each juror voted (two-model scans). */
+  jury?: DeepscanVote[];
 }
 
 export interface DeepscanOneLiner {
@@ -250,6 +260,8 @@ export interface DeepscanOneLiner {
   title: string;
   path: string;
   line: number;
+  found_by?: string[];
+  jury?: DeepscanVote[];
 }
 
 /** Agent-facing result, at most 8 KB serialized. */
