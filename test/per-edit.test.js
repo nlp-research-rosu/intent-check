@@ -16,12 +16,12 @@ before(async () => { fp = createFakeProver(); await fp.listen(); });
 after(() => fp.close());
 beforeEach(() => Object.assign(fp.state, { scenario: "concerns", pollsBeforeDone: 0, submitStatus: null, concern: null, submitDelayMs: 0, idem: new Map() }));
 
-function setup({ perEdit = "1" } = {}) {
+function setup({ mode = "per-edit" } = {}) {
   const data = tmpdir("intent-data-");
   saveKey(data, TEST_KEY);
   const repo = makeRepo();
   fs.writeFileSync(path.join(data, "global.json"), JSON.stringify({ consent_shown_at: "2026-09-28T00:00:00Z" }));
-  return { data, repo: repo.dir, env: baseEnv(data, fp.url, { INTENT_PER_EDIT: perEdit }) };
+  return { data, repo: repo.dir, env: baseEnv(data, fp.url, { INTENT_MODE: mode }) };
 }
 
 async function prompt(ctx) {
@@ -54,7 +54,7 @@ test("post-tool spawns a per-edit check and stays fast", async () => {
   assert.ok(Math.min(...times) < 400, JSON.stringify(times));
 });
 
-test("three sequential edits to one file make three jobs, none superseded, all with the header", async () => {
+test("three sequential edits to one file make three jobs, none superseded, no supersede header", async () => {
   fp.state.pollsBeforeDone = 3;
   const ctx = setup();
   await prompt(ctx);
@@ -66,7 +66,8 @@ test("three sequential edits to one file make three jobs, none superseded, all w
   const posts = post().slice(n);
   assert.equal(posts.length, 3);
   assert.equal(new Set(posts.map((p) => p.headers["idempotency-key"])).size, 3);
-  for (const p of posts) assert.equal(p.headers["x-intent-supersede"], "off");
+  for (const p of posts) assert.equal(p.headers["x-intent-supersede"], undefined);
+  for (const p of posts) assert.equal(p.body.per_edit, true);
   assert.equal([...fp.state.jobs.values()].filter((j) => j.superseded).length, 0);
 });
 
@@ -123,8 +124,8 @@ test("Stop wakes the agent on a concern from a per-edit job still in flight", as
   assert.equal(s.notes.filter((x) => x.kind === "concerns").length, 0);
 });
 
-test("per-edit off: no check at the edit, the normal Stop check", async () => {
-  const ctx = setup({ perEdit: "0" });
+test("classic mode: no check at the edit, the normal Stop check", async () => {
+  const ctx = setup({ mode: "classic" });
   await prompt(ctx);
   const n = fp.jobRequests().length;
   await edit(ctx, "pricing.py", V1, "toolu_1");
@@ -133,16 +134,29 @@ test("per-edit off: no check at the edit, the normal Stop check", async () => {
   const r = await runHook("stop", fixture("stop", ctx.repo), ctx.env);
   assert.equal(r.code, 2, r.stderr);
   assert.equal(fp.jobRequests().length, n + 1);
+  assert.equal("per_edit" in fp.jobRequests()[n], false, "the end-of-turn body has no per_edit key");
 });
 
-test("per-edit command and status", async () => {
-  const ctx = setup({ perEdit: "" });
-  delete ctx.env.INTENT_PER_EDIT;
+test("mode command, status, and the legacy per_edit migration", async () => {
+  const ctx = setup({ mode: "" });
+  delete ctx.env.INTENT_MODE;
   const run = (...a) => import("node:child_process").then(({ spawnSync }) => spawnSync(process.execPath, [path.join(ROOT, "bin", "intent.js"), ...a], { env: ctx.env, encoding: "utf8" }));
-  assert.match((await run("status")).stdout, /Per-edit checks: on/);
-  assert.match((await run("per-edit", "off")).stdout, /Per-edit checks are off/);
-  assert.match((await run("status")).stdout, /Per-edit checks: off/);
-  assert.match((await run("per-edit", "on")).stdout, /Per-edit checks are on/);
+  assert.match((await run("status")).stdout, /Mode: classic/);
+  assert.match((await run("mode", "per-edit")).stdout, /Mode: per-edit/);
+  assert.match((await run("status")).stdout, /Mode: per-edit/);
+  assert.match((await run("mode", "classic")).stdout, /Mode: classic/);
+  assert.match((await run("mode", "bogus")).stdout, /Usage: \/intent:mode classic\|per-edit/);
+  assert.match((await run("mode")).stdout, /Mode: classic/);
+  // Legacy boolean from the preview branch.
+  const cfg = path.join(ctx.data, "config.json");
+  fs.writeFileSync(cfg, JSON.stringify({ per_edit: true }));
+  assert.match((await run("status")).stdout, /Mode: per-edit/);
+  fs.writeFileSync(cfg, JSON.stringify({ per_edit: false }));
+  assert.match((await run("status")).stdout, /Mode: classic/);
+  await run("mode", "per-edit");
+  assert.equal(JSON.parse(fs.readFileSync(cfg, "utf8")).per_edit, undefined);
+  // The env var wins.
+  assert.match((await import("node:child_process")).spawnSync(process.execPath, [path.join(ROOT, "bin", "intent.js"), "status"], { env: { ...ctx.env, INTENT_MODE: "classic" }, encoding: "utf8" }).stdout, /Mode: classic/);
 });
 
 const sessionFile = (ctx) => { const d = path.join(ctx.data, "sessions"); return path.join(d, fs.readdirSync(d).find((f) => f.endsWith(".json"))); };

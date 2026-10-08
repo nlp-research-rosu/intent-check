@@ -46,6 +46,8 @@ Errors are `ErrorResponse` with HTTP 400 `invalid_request`, 401 `unauthorized`, 
 - **Staleness:** the plugin compares `units[].checked_sha256` with the file's current hash; the prover does not know about later edits.
 - **Connect:** the plugin starts a connect request, shows `verification_url`, and polls `GET /v1/connect/{device_code}` every `interval` seconds until `approved` (the key is returned once), `denied`, `expired` or `consumed`.
 
+**Supersede.** A new `request` job supersedes the caller's unfinished jobs that overlap it, whatever their mode. An `edit` job never supersedes anything, so per-edit checks on different files of the same turn all run to completion.
+
 ## REASONING.md layout
 
 `REASONING.md` is the primary evidence for each claim's status: a natural-language

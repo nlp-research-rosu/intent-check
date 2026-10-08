@@ -16,7 +16,7 @@ function probe(env, files = {}) {
 }
 
 test("API base: INTENT_API_URL, then config.json api_url, then the compiled default", () => {
-  assert.equal(probe({}).url, "https://web-per-edit.up.railway.app");
+  assert.equal(probe({}).url, "https://web-staging-7e1c.up.railway.app");
   assert.equal(probe({}, { "config.json": { api_url: "https://cfg.example/" } }).url, "https://cfg.example");
   assert.equal(probe({ INTENT_API_URL: "http://127.0.0.1:1" }, { "config.json": { api_url: "https://cfg.example" } }).url, "http://127.0.0.1:1");
 });

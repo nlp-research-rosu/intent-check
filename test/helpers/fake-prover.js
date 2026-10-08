@@ -119,9 +119,9 @@ export function createFakeProver(opts = {}) {
         let job_id = idem && st.idem.get(idem);
         if (!job_id) {
           job_id = id22();
-          // Server behavior: a new job supersedes queued/running jobs of the session on overlapping
-          // paths, unless the client sends X-Intent-Supersede: off.
-          if (req.headers["x-intent-supersede"] !== "off" && body && Array.isArray(body.units)) {
+          // Server behavior: a job supersedes the session's unfinished jobs on overlapping
+          // paths, whatever their mode, unless it is a per-edit job (per_edit: true).
+          if (body && body.per_edit !== true && Array.isArray(body.units)) {
             const paths = new Set(body.units.map((u) => u.path));
             for (const j of st.jobs.values()) {
               if (!j.superseded && j.request && j.request.session_id === body.session_id && j.request.units.some((u) => paths.has(u.path))) j.superseded = true;
