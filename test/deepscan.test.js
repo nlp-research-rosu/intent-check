@@ -203,7 +203,7 @@ test("deepscan: uploads a gzip snapshot, prints the link, writes the scan record
   fp.state.deepscan.statuses = ["queued", "running", "done"];
   const r = await cli([], ctx);
   assert.equal(r.code, 0);
-  assert.match(r.out, /DeepScan \(balanced, about 30–35 min\) started on 2 files/);
+  assert.match(r.out, /DeepScan \(fast, about 15–20 min\) started on 2 files/);
   assert.match(r.out, /Report: http:\/\/127\.0\.0\.1:\d+\/r\/[A-Za-z0-9]{22}/);
   assert.equal(r.out.split("\n").filter(Boolean).length <= 3, true);
   const id = idOf(r.out);
@@ -267,7 +267,7 @@ test("deepscan: a busy 429 is retried once; twice busy prints one line", async (
   const ctx = setup();
   fp.state.deepscan.submit = [{ status: 429, code: "rate_limited", reason: "deepscan_ingest_busy", retryAfter: 5 }];
   const ok = await cli([], ctx);
-  assert.match(ok.out, /DeepScan \(balanced, about 30–35 min\) started/);
+  assert.match(ok.out, /DeepScan \(fast, about 15–20 min\) started/);
   assert.equal(fp.deepscanUploads().length, 2);
   const keys = fp.state.requests.filter((x) => x.path === "/v1/deepscans" && x.method === "POST").map((x) => x.headers["idempotency-key"]);
   assert.equal(keys[0], keys[1]);
@@ -466,7 +466,7 @@ test("upload: the timeout grows with the body; a network failure is retried once
   const ctx = setup();
   fp.state.deepscan.submit = [{ drop: true }];
   const r = await cli([], ctx);
-  assert.match(r.out, /DeepScan \(balanced, about 30–35 min\) started/);
+  assert.match(r.out, /DeepScan \(fast, about 15–20 min\) started/);
   const posts = fp.state.requests.filter((x) => x.method === "POST" && x.path === "/v1/deepscans");
   assert.equal(posts.length, 2);
   assert.equal(posts[0].headers["idempotency-key"], posts[1].headers["idempotency-key"]);
@@ -697,10 +697,10 @@ test("the waiter survives a check runner taking over the session, and scan-file 
 
 // ---- depth ----
 
-test("depth: arguments parse as --depth <d> or a bare word; the default is balanced; anything else is an error", () => {
+test("depth: arguments parse as --depth <d> or a bare word; the default is fast; anything else is an error", () => {
   assert.deepEqual(DEPTHS, ["fast", "balanced", "full"]);
-  assert.equal(DEFAULT_DEPTH, "balanced");
-  assert.deepEqual(takeDepth([]), { depth: "balanced" });
+  assert.equal(DEFAULT_DEPTH, "fast");
+  assert.deepEqual(takeDepth([]), { depth: "fast" });
   assert.deepEqual(takeDepth(["fast"]), { depth: "fast" });
   assert.deepEqual(takeDepth(["--depth", "full"]), { depth: "full" });
   assert.deepEqual(takeDepth(["FULL"]), { depth: "full" });
@@ -733,20 +733,20 @@ test("depth: --depth=fast works; any other --depth* token and more than one dept
   assert.match(takeDepth(["--depth", "fast", "--depth=full"]).error, /once/);
 });
 
-test("depth: the upload carries it at the top level (balanced when none is named), the start message and scan file name it", async () => {
+test("depth: the upload carries it at the top level (fast when none is named), the start message and scan file name it", async () => {
   const ctx = setup();
   w(ctx.repo, "src/a.py", "def f(x):\n    return x + 1\n");
   commitAll(ctx.git);
   const r0 = await cli([], ctx);
-  assert.match(r0.out, /DeepScan \(balanced, about 30–35 min\) started/);
-  const r1 = await cli(["--depth", "fast"], ctx);
-  assert.match(r1.out, /DeepScan \(fast, about 15–20 min\) started/);
+  assert.match(r0.out, /DeepScan \(fast, about 15–20 min\) started/);
+  const r1 = await cli(["--depth", "balanced"], ctx);
+  assert.match(r1.out, /DeepScan \(balanced, about 30–35 min\) started/);
   const r2 = await cli(["full"], ctx);
   assert.match(r2.out, /DeepScan \(full, about 40–45 min\) started/);
   const ups = fp.deepscanUploads();
-  assert.deepEqual(ups.map((u) => u.depth), ["balanced", "fast", "full"]);
+  assert.deepEqual(ups.map((u) => u.depth), ["fast", "balanced", "full"]);
   for (const u of ups) assert.deepEqual(validateDeepscan(u, "DeepscanUpload"), []);
-  assert.equal(readScanFile(ctx.data, idOf(r1.out)).depth, "fast");
+  assert.equal(readScanFile(ctx.data, idOf(r1.out)).depth, "balanced");
   const bad = await cli(["--depth", "deep"], ctx);
   assert.match(bad.out, /not a DeepScan depth/);
   assert.equal(fp.deepscanUploads().length, 3);

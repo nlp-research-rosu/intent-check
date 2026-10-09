@@ -25,7 +25,7 @@ When the user asks for a deep scan, a security review, or a review of the whole 
 
     node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" deepscan --data "${CLAUDE_PLUGIN_DATA}" [--depth fast|balanced|full] [--scope <folder>]
 
-In Codex: `node <folder of this SKILL.md>/../../bin/intent.js deepscan [--depth fast|balanced|full] [--scope <folder>]` (it needs network access and writes the plugin data folder, so it may need approval to run outside the sandbox). It uploads a redacted snapshot of the tracked source files, prints the report link, and returns. Pick the depth from the request: "quick" or "fast deep scan" is `--depth fast` (about 15-20 minutes), a plain deep scan is `--depth balanced` (30-35 minutes, the default), "full", "thorough" or "deepest" is `--depth full` (40-45 minutes). Do not wait or poll. The result arrives as a note at a later message. Tell the user the link in one line.
+In Codex: `node <folder of this SKILL.md>/../../bin/intent.js deepscan [--depth fast|balanced|full] [--scope <folder>]` (it needs network access and writes the plugin data folder, so it may need approval to run outside the sandbox). It uploads a redacted snapshot of the tracked source files, prints the report link, and returns. Pick the depth from the request: a plain deep scan, "quick" or "fast deep scan" is `--depth fast` (about 15-20 minutes, the default), "balanced" or "both models on every property" is `--depth balanced` (30-35 minutes), "full", "thorough" or "deepest" is `--depth full` (40-45 minutes). Do not wait or poll. The result arrives as a note at a later message. Tell the user the link in one line.
 
 ## Relaying a result
 

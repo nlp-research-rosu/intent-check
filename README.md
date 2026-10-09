@@ -87,8 +87,8 @@ Ask the agent to check specific files ("check auth.py with Intent Check"); the `
 
 | Depth | Takes | Best for |
 |---|---|---|
-| `fast` | about 15-20 min | a quick pass while you keep working |
-| `balanced` (default) | about 30-35 min | the everyday whole-repo scan |
+| `fast` (default) | about 15-20 min | the everyday whole-repo scan |
+| `balanced` | about 30-35 min | a deeper pass: both models hunt every property |
 | `full` | about 40-45 min | the deepest pass, before a release or a handover |
 
     /intent:deepscan [fast|balanced|full] [--scope <folder>]
