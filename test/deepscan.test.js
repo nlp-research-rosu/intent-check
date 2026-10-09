@@ -153,6 +153,26 @@ test("snapshot: over the file cap, source is kept before tests before docs; the 
   assert.deepEqual(["z/b/c.py", "a.py", "b.py"].sort(byPriority), ["a.py", "b.py", "z/b/c.py"]);
 });
 
+test("snapshot: a committed .intent/ folder is left out, except NOTES.md", async () => {
+  const { repo, git } = setup();
+  w(repo, "src/app.py", "def f():\n    return 1\n");
+  w(repo, ".intent/src/app.py/SPEC.k", "rule\n");
+  w(repo, ".intent/src/app.py/VERIFICATION.k", "claim\n");
+  w(repo, ".intent/README.md", "# .intent\n");
+  w(repo, ".intent/NOTES.md", "my notes\n");
+  commitAll(git);
+  for (const scope of [null, "."]) {
+    const r = await buildSnapshot({ cwd: repo, scope });
+    assert.equal(r.ok, true);
+    const paths = r.meta ? JSON.parse(zlib.gunzipSync(r.gz)).files.map((f) => f.path) : [];
+    assert.ok(paths.includes("src/app.py") && paths.includes(".intent/NOTES.md"));
+    assert.ok(!paths.some((p) => p.startsWith(".intent/") && p !== ".intent/NOTES.md"));
+    for (const p of [".intent/src/app.py/SPEC.k", ".intent/src/app.py/VERIFICATION.k", ".intent/README.md"]) {
+      assert.deepEqual(r.meta.trimmed.find((t) => t.path === p), { path: p, reason: "generated" });
+    }
+  }
+});
+
 test("snapshot: remote URLs are normalised and stripped of credentials", () => {
   assert.equal(normaliseRemote("git@github.com:org/repo.git"), "https://github.com/org/repo");
   assert.equal(normaliseRemote("https://user:tok@github.com/org/repo.git"), "https://github.com/org/repo");
@@ -169,6 +189,8 @@ test("snapshot: name rules and text decoding", () => {
   assert.equal(pathReason("a/vendor/x.go"), "vendored");
   assert.equal(pathReason("yarn.lock"), "lockfile");
   assert.equal(pathReason("src/a.py"), null);
+  for (const p of [".intent/x.py/SPEC.k", ".intent/README.md", ".intent/.sent.log"]) assert.equal(pathReason(p), "generated", p);
+  for (const p of [".intent/NOTES.md", "src/.intentional.py", "docs/intent/README.md"]) assert.equal(pathReason(p), null, p);
   assert.equal(decodeText(Buffer.from("héllo")), "héllo");
   assert.equal(decodeText(Buffer.from([0x61, 0, 0x62])), null);
 });
