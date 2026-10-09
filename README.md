@@ -25,7 +25,7 @@ Turn it off with `/intent:off` in Claude Code (back on with `/intent:on`), or se
 
 ## Install (Claude Code)
 
-Install steps for every tool, interface (desktop app, CLI, VS Code) and OS are in [docs/install.json](docs/install.json), which the website's install picker uses. The two sections below are the CLI short form.
+Detailed steps for each tool, interface (desktop app, CLI, VS Code) and OS are in [docs/install.json](docs/install.json). The two sections below are the CLI short form.
 
 Requirements: Node.js 18+ on your `PATH` (get it at nodejs.org). The same goes for Codex.
 
@@ -38,8 +38,10 @@ In a Claude Code session, type:
 It asks you to confirm the source, then installs. Or, in a terminal:
 
 ```bash
-claude plugin marketplace add nlp-research-rosu/intent-check && claude plugin install intent@intentcomputing
+claude plugin install intent --marketplace nlp-research-rosu/intent-check
 ```
+
+This needs Claude Code 2.1.292 or newer. On an older version, run `claude plugin marketplace add nlp-research-rosu/intent-check` and then `claude plugin install intent@intentcomputing`.
 
 Then restart Claude Code or run `/reload-plugins`. Your first prompt shows a link to connect your account; once you approve it, checks start. The saved key lives in Claude Code's plugin data folder, which is removed when you uninstall the plugin.
 
@@ -65,8 +67,11 @@ Maintainers: in GitHub, open Actions, select release, choose Run workflow, pick 
 In a terminal:
 
 ```bash
-codex plugin marketplace add nlp-research-rosu/intent-check && codex plugin add intent@intentcomputing
+codex plugin marketplace add nlp-research-rosu/intent-check
+codex plugin add intent@intentcomputing
 ```
+
+The Codex IDE extension (VS Code) and the Codex desktop app load the same plugins. Run these commands in a terminal, then restart the extension or app.
 
 Then start `codex` and choose "Trust all and continue" when it says the plugin's hooks need review (or trust them in `/hooks`). Your first prompt shows the link to connect your account.
 
