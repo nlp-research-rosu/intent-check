@@ -10,7 +10,7 @@ import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
 import { QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT } from "./helpers/env.js";
 import { validateDeepscan } from "./helpers/schema.js";
 import { C } from "../lib/config.js";
-import { buildSnapshot, normaliseRemote, pathReason, byPriority, tierOf, decodeText, unstorable } from "../lib/snapshot.js";
+import { buildSnapshot, normaliseRemote, pathReason, isIntentOutput, byPriority, tierOf, decodeText, unstorable } from "../lib/snapshot.js";
 import { requestBinary } from "../lib/http.js";
 import { uploadTimeoutMs } from "../lib/api.js";
 import { takeDepth, DEPTHS, DEFAULT_DEPTH, DEPTH_TIMES, renderScan, countsLine, checkLateDeepscans, confirmDelivered, gcScans, validBudget, waitDeadline, WAIT_MAX_MS, runDeepscanWaiter } from "../lib/deepscan.js";
@@ -168,7 +168,7 @@ test("snapshot: a committed .intent/ folder is left out, except NOTES.md", async
     assert.ok(paths.includes("src/app.py") && paths.includes(".intent/NOTES.md"));
     assert.ok(!paths.some((p) => p.startsWith(".intent/") && p !== ".intent/NOTES.md"));
     for (const p of [".intent/src/app.py/SPEC.k", ".intent/src/app.py/VERIFICATION.k", ".intent/README.md"]) {
-      assert.deepEqual(r.meta.trimmed.find((t) => t.path === p), { path: p, reason: "generated" });
+      assert.equal(r.meta.trimmed.find((t) => t.path === p), undefined, p);
     }
   }
 });
@@ -189,8 +189,8 @@ test("snapshot: name rules and text decoding", () => {
   assert.equal(pathReason("a/vendor/x.go"), "vendored");
   assert.equal(pathReason("yarn.lock"), "lockfile");
   assert.equal(pathReason("src/a.py"), null);
-  for (const p of [".intent/x.py/SPEC.k", ".intent/README.md", ".intent/.sent.log"]) assert.equal(pathReason(p), "generated", p);
-  for (const p of [".intent/NOTES.md", "src/.intentional.py", "docs/intent/README.md"]) assert.equal(pathReason(p), null, p);
+  for (const p of [".intent/x.py/SPEC.k", ".intent/README.md", ".intent/.sent.log"]) assert.equal(isIntentOutput(p), true, p);
+  for (const p of [".intent/NOTES.md", "src/.intentional.py", "docs/intent/README.md", ".intentx/a.py"]) assert.equal(isIntentOutput(p), false, p);
   assert.equal(decodeText(Buffer.from("héllo")), "héllo");
   assert.equal(decodeText(Buffer.from([0x61, 0, 0x62])), null);
 });
