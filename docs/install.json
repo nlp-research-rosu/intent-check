@@ -152,14 +152,14 @@
     "codex": {
       "desktop": {
         "macos": {
-          "note": "Set it up with the Codex CLI steps.",
+          "note": "Run the Codex CLI commands in a terminal. The Codex desktop app loads the same plugins as the Codex CLI. Restart the app after installing.",
           "see": {
             "tool": "codex",
             "interface": "cli"
           }
         },
         "windows": {
-          "note": "Set it up with the Codex CLI steps.",
+          "note": "Run the Codex CLI commands in a terminal. The Codex desktop app loads the same plugins as the Codex CLI. Restart the app after installing.",
           "see": {
             "tool": "codex",
             "interface": "cli"
@@ -212,21 +212,21 @@
       },
       "vscode": {
         "macos": {
-          "note": "Codex's IDE extension doesn't load plugins; set it up with the Codex CLI.",
+          "note": "Run the Codex CLI commands in a terminal. The Codex IDE extension loads the same plugins as the Codex CLI. Restart VS Code after installing.",
           "see": {
             "tool": "codex",
             "interface": "cli"
           }
         },
         "windows": {
-          "note": "Codex's IDE extension doesn't load plugins; set it up with the Codex CLI.",
+          "note": "Run the Codex CLI commands in a terminal. The Codex IDE extension loads the same plugins as the Codex CLI. Restart VS Code after installing.",
           "see": {
             "tool": "codex",
             "interface": "cli"
           }
         },
         "linux": {
-          "note": "Codex's IDE extension doesn't load plugins; set it up with the Codex CLI.",
+          "note": "Run the Codex CLI commands in a terminal. The Codex IDE extension loads the same plugins as the Codex CLI. Restart VS Code after installing.",
           "see": {
             "tool": "codex",
             "interface": "cli"
