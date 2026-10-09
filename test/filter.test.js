@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { includeFile, classifyPath, languageOf, hasLogic } from "../lib/filter.js";
 
@@ -300,4 +301,50 @@ test("performance: a 1 MB file with many functions and unmatched braces classifi
     best = Math.min(best, Number(process.hrtime.bigint() - t0) / 1e6);
   }
   assert.ok(best < 200, `hasLogic took ${best}ms (best of 5)`);
+});
+
+// --- Small single-file apps (issue #53) ------------------------------------------------------
+
+// Real builds from Claude Code sessions: the key logic is Math.*, ternaries and comparisons,
+// with fewer than 3 if/for statements.
+for (const name of ["tally-counter", "tip-calculator", "tiny-bill-opus", "tiny-bill-sonnet"]) {
+  test(`small HTML app ${name}.html with real logic is checked`, () => {
+    const html = readFileSync(new URL(`./fixtures/html/${name}.html`, import.meta.url), "utf8");
+    assert.equal(hasLogic(html, ".html"), true);
+    assert.equal(includeFile(`${name}.html`, html), true);
+  });
+}
+
+const page = (body) => `<!doctype html>\n<html><body>\n<h1>Hi</h1>\n${body}\n</body></html>`;
+
+test("small HTML pages without computation stay skipped", () => {
+  const cases = {
+    "no script": page("<p>Just markup.</p>"),
+    "script src only": page('<script src="https://cdn.example.com/app.js"></script>'),
+    "analytics only": page(`<script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXX"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  gtag('js', new Date());
+  gtag('config', 'G-XXXX');
+</script>`),
+    "class toggle": page(`<script>
+  document.getElementById('menu').onclick = () => document.body.classList.toggle('open');
+</script>`),
+    "textContent from a constant": page(`<script>
+  const NAME = 'World';
+  document.getElementById('greeting').textContent = 'Hello, ' + NAME + '!';
+</script>`),
+  };
+  for (const [label, html] of Object.entries(cases)) {
+    assert.equal(hasLogic(html, ".html"), false, label);
+    assert.equal(includeFile("index.html", html), false, label);
+  }
+});
+
+test("computation signals only apply to script text, not JSX markup", () => {
+  const jsx = `export function Card({ a, b }) {
+  return <div><span>{a}</span><span>{b}</span><hr /><br /></div>;
+}`;
+  assert.equal(hasLogic(jsx, ".tsx"), false);
 });

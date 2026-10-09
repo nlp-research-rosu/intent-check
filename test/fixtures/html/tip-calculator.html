@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tip Calculator</title>
+<style>
+  :root { --bg:#f6f5f2; --card:#fff; --ink:#1c1c1a; --muted:#6b6b66; --accent:#1f6f50; --line:#dcdad4; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#161715; --card:#20211e; --ink:#f0efea; --muted:#9a9a93; --accent:#5fc79a; --line:#34352f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; padding:16px;
+         background:var(--bg); color:var(--ink); font:16px/1.4 system-ui, sans-serif; }
+  main { width:100%; max-width:360px; background:var(--card); border:1px solid var(--line);
+         border-radius:16px; padding:24px; }
+  h1 { font-size:1.1rem; margin:0 0 20px; }
+  label, legend { display:block; font-size:.85rem; color:var(--muted); margin-bottom:6px; padding:0; }
+  .money { position:relative; margin-bottom:20px; }
+  .money span { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--muted); }
+  input[type=number] { width:100%; font:inherit; font-size:1.4rem; padding:12px 14px 12px 28px;
+         background:transparent; color:inherit; border:1px solid var(--line); border-radius:10px; }
+  input:focus-visible, .pct input:focus-visible + span { outline:2px solid var(--accent); outline-offset:2px; }
+  fieldset { border:0; padding:0; margin:0 0 24px; }
+  .pct { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .pct label { margin:0; }
+  .pct input { position:absolute; opacity:0; }
+  .pct span { display:block; text-align:center; padding:10px 0; border:1px solid var(--line);
+         border-radius:10px; cursor:pointer; color:var(--ink); font-size:1rem; }
+  .pct input:checked + span { background:var(--accent); border-color:var(--accent); color:var(--card); }
+  dl { margin:0; border-top:1px solid var(--line); }
+  .row { display:flex; justify-content:space-between; align-items:baseline; padding:12px 0; }
+  dt { color:var(--muted); }
+  dd { margin:0; font-variant-numeric:tabular-nums; font-size:1.2rem; }
+  .total dd { font-size:1.8rem; font-weight:600; color:var(--accent); }
+  .note { font-size:.75rem; color:var(--muted); margin:8px 0 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Tip Calculator</h1>
+
+  <label for="bill">Bill</label>
+  <div class="money">
+    <span>$</span>
+    <input id="bill" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" autofocus>
+  </div>
+
+  <fieldset>
+    <legend>Tip</legend>
+    <div class="pct">
+      <label><input type="radio" name="pct" value="15"><span>15%</span></label>
+      <label><input type="radio" name="pct" value="18" checked><span>18%</span></label>
+      <label><input type="radio" name="pct" value="20"><span>20%</span></label>
+    </div>
+  </fieldset>
+
+  <dl aria-live="polite">
+    <div class="row"><dt>Tip</dt><dd id="tip">$0.00</dd></div>
+    <div class="row total"><dt>Total</dt><dd id="total">$0.00</dd></div>
+  </dl>
+  <p class="note">Tip is rounded up to the next whole dollar.</p>
+</main>
+
+<script>
+  const bill = document.getElementById('bill');
+  const tipEl = document.getElementById('tip');
+  const totalEl = document.getElementById('total');
+  const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+  function update() {
+    const cents = Math.max(0, Math.round((parseFloat(bill.value) || 0) * 100));
+    const pct = Number(document.querySelector('input[name=pct]:checked').value);
+    // Integer math: cents * pct / 10000 is the tip in dollars; ceil to whole dollars.
+    const tip = Math.ceil((cents * pct) / 10000);
+    tipEl.textContent = fmt.format(tip);
+    totalEl.textContent = fmt.format(cents / 100 + tip);
+  }
+
+  bill.addEventListener('input', update);
+  document.querySelectorAll('input[name=pct]').forEach(r => r.addEventListener('change', update));
+  update();
+</script>
+</body>
+</html>
