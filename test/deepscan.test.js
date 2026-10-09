@@ -10,7 +10,7 @@ import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
 import { QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT } from "./helpers/env.js";
 import { validateDeepscan } from "./helpers/schema.js";
 import { C } from "../lib/config.js";
-import { buildSnapshot, normaliseRemote, pathReason, byPriority, tierOf, decodeText, unstorable } from "../lib/snapshot.js";
+import { buildSnapshot, normaliseRemote, pathReason, isIntentOutput, byPriority, tierOf, decodeText, unstorable } from "../lib/snapshot.js";
 import { requestBinary } from "../lib/http.js";
 import { uploadTimeoutMs } from "../lib/api.js";
 import { takeDepth, DEPTHS, DEFAULT_DEPTH, DEPTH_TIMES, renderScan, countsLine, checkLateDeepscans, confirmDelivered, gcScans, validBudget, waitDeadline, WAIT_MAX_MS, runDeepscanWaiter } from "../lib/deepscan.js";
@@ -153,6 +153,26 @@ test("snapshot: over the file cap, source is kept before tests before docs; the 
   assert.deepEqual(["z/b/c.py", "a.py", "b.py"].sort(byPriority), ["a.py", "b.py", "z/b/c.py"]);
 });
 
+test("snapshot: a committed .intent/ folder is left out, except NOTES.md", async () => {
+  const { repo, git } = setup();
+  w(repo, "src/app.py", "def f():\n    return 1\n");
+  w(repo, ".intent/src/app.py/SPEC.k", "rule\n");
+  w(repo, ".intent/src/app.py/VERIFICATION.k", "claim\n");
+  w(repo, ".intent/README.md", "# .intent\n");
+  w(repo, ".intent/NOTES.md", "my notes\n");
+  commitAll(git);
+  for (const scope of [null, "."]) {
+    const r = await buildSnapshot({ cwd: repo, scope });
+    assert.equal(r.ok, true);
+    const paths = r.meta ? JSON.parse(zlib.gunzipSync(r.gz)).files.map((f) => f.path) : [];
+    assert.ok(paths.includes("src/app.py") && paths.includes(".intent/NOTES.md"));
+    assert.ok(!paths.some((p) => p.startsWith(".intent/") && p !== ".intent/NOTES.md"));
+    for (const p of [".intent/src/app.py/SPEC.k", ".intent/src/app.py/VERIFICATION.k", ".intent/README.md"]) {
+      assert.equal(r.meta.trimmed.find((t) => t.path === p), undefined, p);
+    }
+  }
+});
+
 test("snapshot: remote URLs are normalised and stripped of credentials", () => {
   assert.equal(normaliseRemote("git@github.com:org/repo.git"), "https://github.com/org/repo");
   assert.equal(normaliseRemote("https://user:tok@github.com/org/repo.git"), "https://github.com/org/repo");
@@ -169,6 +189,8 @@ test("snapshot: name rules and text decoding", () => {
   assert.equal(pathReason("a/vendor/x.go"), "vendored");
   assert.equal(pathReason("yarn.lock"), "lockfile");
   assert.equal(pathReason("src/a.py"), null);
+  for (const p of [".intent/x.py/SPEC.k", ".intent/README.md", ".intent/.sent.log"]) assert.equal(isIntentOutput(p), true, p);
+  for (const p of [".intent/NOTES.md", "src/.intentional.py", "docs/intent/README.md", ".intentx/a.py"]) assert.equal(isIntentOutput(p), false, p);
   assert.equal(decodeText(Buffer.from("héllo")), "héllo");
   assert.equal(decodeText(Buffer.from([0x61, 0, 0x62])), null);
 });

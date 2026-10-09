@@ -99,6 +99,7 @@ Ask the agent to check specific files ("check auth.py with Intent Check"); the `
     /intent:deepscan [fast|balanced|full] [--scope <folder>]
 
 - What is sent: a snapshot of the files git tracks plus untracked files that are not ignored, as one compressed upload. Left out: files git ignores, binary files, lockfiles, vendored and generated folders (node_modules, vendor, dist, build, ...), files over 512 KB, and anything that looks like a secrets file. Obvious secrets inside the files are masked first. The limits are 3000 files and 15 MB of text; when a repo is larger, the least relevant files are dropped first and the command says so. Use `--scope <folder>` to scan one part of a big repo.
+- DeepScan reads your code, not Intent Check's own `.intent/` results (except `.intent/NOTES.md`).
 - The upload is listed in `.intent/.sent.log` (paths and sizes, never contents). Intent Check must be on and connected; `INTENT_DISABLED=1` stops DeepScan too.
 - The command prints the report link and returns. When the scan finishes, a short summary with the top findings appears at your next message in that repo (also in a new session), once. The link shows the full report and live progress.
 - Findings are flagged, not reproduced. Ask the agent to reproduce the ones you care about.
