@@ -59,6 +59,8 @@ export interface JobRequest {
   units: UnitRequest[];
   changed_lines: number;
   truncated: boolean;
+  /** Optional: true when submitted right after a single tool edit (per-edit mode). A per_edit job supersedes nothing. Omitted means false. */
+  per_edit?: boolean;
 }
 
 export interface JobCreated {
@@ -209,14 +211,22 @@ export interface DeepscanFile {
 
 /** The document inside the gzip body of POST /v1/deepscans. */
 export interface DeepscanUpload {
+  /** Optional; a missing depth means "balanced". */
+  depth?: DeepscanDepth;
   meta: DeepscanMeta;
   files: DeepscanFile[];
 }
+
+/** fast: each property hunted once; balanced: both models hunt every property; full: adds a second attack on every property that held. */
+export type DeepscanDepth = "fast" | "balanced" | "full";
 
 export interface DeepscanCreated {
   job_id: string;
   url: string;
   status: "queued";
+  /** Wall-clock seconds the scan may run once started. */
+  budget_s: number;
+  depth: DeepscanDepth;
 }
 
 export interface DeepscanProgress {
@@ -231,6 +241,12 @@ export interface DeepscanCause {
   line: number;
 }
 
+/** One juror's vote on a finding; a third review (the tiebreak) is a further entry with the first reviewer's model. */
+export interface DeepscanVote {
+  model: string;
+  verdict: "keep" | "drop";
+}
+
 export interface DeepscanCard {
   id: string;
   criticality: Criticality;
@@ -239,6 +255,10 @@ export interface DeepscanCard {
   cause: DeepscanCause[];
   repro_sketch: string;
   control: string;
+  /** The models whose hunters found it (two-model scans). */
+  found_by?: string[];
+  /** How each juror voted (two-model scans). */
+  jury?: DeepscanVote[];
 }
 
 export interface DeepscanOneLiner {
@@ -246,6 +266,8 @@ export interface DeepscanOneLiner {
   title: string;
   path: string;
   line: number;
+  found_by?: string[];
+  jury?: DeepscanVote[];
 }
 
 /** Agent-facing result, at most 8 KB serialized. */
@@ -261,6 +283,8 @@ export interface DeepscanStatus {
   stage: string;
   progress: DeepscanProgress;
   url: string;
+  budget_s: number;
+  depth: DeepscanDepth;
   summary?: DeepscanSummary;
   error?: { code: string; message: string; reason?: string | null };
 }

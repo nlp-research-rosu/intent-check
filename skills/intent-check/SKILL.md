@@ -23,9 +23,9 @@ In Codex, run the same script by its path relative to this file: `node <folder o
 
 When the user asks for a deep scan, a security review, or a review of the whole repo, run it from the project root:
 
-    node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" deepscan --data "${CLAUDE_PLUGIN_DATA}" [--scope <folder>]
+    node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" deepscan --data "${CLAUDE_PLUGIN_DATA}" [--depth fast|balanced|full] [--scope <folder>]
 
-In Codex: `node <folder of this SKILL.md>/../../bin/intent.js deepscan [--scope <folder>]` (it needs network access and writes the plugin data folder, so it may need approval to run outside the sandbox). It uploads a redacted snapshot of the tracked source files, prints the report link, and returns. A scan takes about 15 minutes; do not wait or poll. The result arrives as a note at a later message. Tell the user the link in one line.
+In Codex: `node <folder of this SKILL.md>/../../bin/intent.js deepscan [--depth fast|balanced|full] [--scope <folder>]` (it needs network access and writes the plugin data folder, so it may need approval to run outside the sandbox). It uploads a redacted snapshot of the tracked source files, prints the report link, and returns. Pick the depth from the request: "quick" or "fast deep scan" is `--depth fast` (about 15-20 minutes), a plain deep scan is `--depth balanced` (30-35 minutes, the default), "full", "thorough" or "deepest" is `--depth full` (40-45 minutes). Do not wait or poll. The result arrives as a note at a later message. Tell the user the link in one line.
 
 ## Relaying a result
 
@@ -48,9 +48,14 @@ When the user answers a concern with "Intended" (or otherwise confirms the behav
 
 - Claude Code: `/intent:off` stops all uploads until `/intent:on`.
 - Codex has no plugin slash commands: when the user asks to turn Intent Check off (or on), run `node <folder of this SKILL.md>/../../bin/intent.js off` (or `on`). It writes Codex's plugin data folder, so it may need approval to run outside the sandbox.
+
+## Mode
+
+Intent Check has two modes: `classic` (one review per turn) and `per-edit` (every edit is checked as it happens, including files written by shell commands). Claude Code has `/intent:mode [classic|per-edit]`. In Codex, when the user asks to turn per-edit mode on or off (or to go back to classic mode), run `node <folder of this SKILL.md>/../../bin/intent.js mode per-edit` (on) or `node <folder of this SKILL.md>/../../bin/intent.js mode classic` (off), and with no argument `mode` shows the current one. It writes Codex's plugin data folder, so it may need approval to run outside the sandbox. `INTENT_MODE=classic` or `per-edit` in the environment overrides the saved choice.
+
 ## Account commands
 
-Claude Code has `/intent:status`, `/intent:connect` and `/intent:disconnect`. Codex has no plugin slash commands: when the user asks for the status, to connect, or to disconnect, run `node <folder of this SKILL.md>/../../bin/intent.js status` (or `connect`, `disconnect`) and tell the user its output word for word. `connect` gives a fresh link to open and approve; `disconnect` revokes this machine's key. They write Codex's plugin data folder, so they may need approval to run outside the sandbox.
+Claude Code has `/intent:status` (which also shows the mode), `/intent:connect` and `/intent:disconnect`. Codex has no plugin slash commands: when the user asks for the status, to connect, or to disconnect, run `node <folder of this SKILL.md>/../../bin/intent.js status` (or `connect`, `disconnect`) and tell the user its output word for word. `connect` gives a fresh link to open and approve; `disconnect` revokes this machine's key. They write Codex's plugin data folder, so they may need approval to run outside the sandbox.
 
 When a hook message tells you Intent Check is not connected, show the user the link, ask them to approve it, and wait for "done" or "skip" before doing their task.
 

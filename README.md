@@ -43,6 +43,17 @@ claude plugin marketplace add nlp-research-rosu/intent-check && claude plugin in
 
 Then restart Claude Code or run `/reload-plugins`. Your first prompt shows a link to connect your account; once you approve it, checks start. The saved key lives in Claude Code's plugin data folder, which is removed when you uninstall the plugin.
 
+## Modes
+
+Intent Check has two modes. Set one with `/intent:mode classic` or `/intent:mode per-edit` in Claude Code (`/intent:mode` alone shows the current one, and so does `/intent:status`). The choice is saved in the plugin's `config.json` as `mode`; `INTENT_MODE=classic` or `per-edit` in the environment overrides it. The default is classic.
+
+- **classic:** one review per turn. When your agent finishes a turn that changed code, the changes are sent together and the result arrives as a note.
+- **per-edit:** every edit is checked as it happens. Each Edit, Write, MultiEdit or Codex `apply_patch` is sent for review on its own and runs to completion. Files written through shell commands (`Bash`) are found by a background scan of the working tree against the start of the turn and checked the same way. Concerns reach the agent with its next edit or shell command, and anything still running at the end of the turn is picked up there. Shell-written files need a git repository.
+
+On Codex, ask the agent to switch ("turn per-edit mode on", "back to classic mode"); it runs the plugin's `intent.js mode per-edit` (or `classic`), which may need your approval to write outside the sandbox. Hooks run `node` directly (Node.js 18+ on your PATH).
+
+A setting from an earlier per-edit preview (`per_edit` in `config.json`) is read as `mode`: `true` is per-edit, `false` is classic.
+
 ## Updating
 
 Claude Code only updates a plugin when its version changes, and it does not auto-update third-party marketplaces unless you turn that on. To turn it on, open `/plugin`, go to Marketplaces, select `intentcomputing` and choose Enable auto-update. With auto-update on, a new version can take up to about 10 minutes to arrive after your first message. To update right now, open `/plugin`, go to Marketplaces, select `intentcomputing` and choose Update marketplace, then go to Installed, select `intent` and choose Update now. In a terminal, run `claude plugin marketplace update intentcomputing` and then `claude plugin update intent@intentcomputing`. A running session keeps the old version until you run `/reload-plugins` or restart Claude Code. `claude plugin list` shows the installed version in its Version column.
@@ -59,6 +70,8 @@ codex plugin marketplace add nlp-research-rosu/intent-check && codex plugin add 
 
 Then start `codex` and choose "Trust all and continue" when it says the plugin's hooks need review (or trust them in `/hooks`). Your first prompt shows the link to connect your account.
 
+Intent Check 0.2.0 updated its edit hook (it now also runs after `apply_patch` and shell commands in per-edit mode). If Codex lists it as Modified, approve it in `/hooks` (or the app's hook review); the first session after the update says so once.
+
 If you already had the plugin trusted, updating to the `node .../bin/intent.js` hook commands (they used to run through the `sh` launcher `bin/intent`) changes them, so Codex asks you to trust them again once. Codex hooks are plain command strings, so the same `node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" ...` line serves every OS;
 - Codex cannot wake an idle session, so concerns reach the agent with your next message (or at the end of the same turn, if the check already finished). Clean checks show one short "no concerns" line the next time you prompt.
 - Codex does not load plugin slash commands, so there is no `/intent:off`. To turn checks off, set `INTENT_DISABLED=1` when starting Codex, or ask the agent to turn Intent Check off (it runs the plugin's `intent.js off`, which may need your approval to write outside the sandbox).
@@ -70,9 +83,15 @@ Ask the agent to check specific files ("check auth.py with Intent Check"); the `
 
 ## DeepScan (whole repo)
 
-`/intent:deepscan` (Codex: ask the agent for a DeepScan, it runs `intent deepscan`) scans the whole repo for behaviour that breaks what the code is meant to do. It takes about 15 minutes and runs on the service, so it does not hold up your session.
+`/intent:deepscan` (Codex: ask the agent for a DeepScan, it runs `intent deepscan`) scans the whole repo for behaviour that breaks what the code is meant to do. It runs on the service, so it does not hold up your session. Pick a depth:
 
-    /intent:deepscan [--scope <folder>]
+| Depth | Takes | Best for |
+|---|---|---|
+| `fast` | about 15-20 min | a quick pass while you keep working |
+| `balanced` (default) | about 30-35 min | the everyday whole-repo scan |
+| `full` | about 40-45 min | the deepest pass, before a release or a handover |
+
+    /intent:deepscan [fast|balanced|full] [--scope <folder>]
 
 - What is sent: a snapshot of the files git tracks plus untracked files that are not ignored, as one compressed upload. Left out: files git ignores, binary files, lockfiles, vendored and generated folders (node_modules, vendor, dist, build, ...), files over 512 KB, and anything that looks like a secrets file. Obvious secrets inside the files are masked first. The limits are 3000 files and 15 MB of text; when a repo is larger, the least relevant files are dropped first and the command says so. Use `--scope <folder>` to scan one part of a big repo.
 - The upload is listed in `.intent/.sent.log` (paths and sizes, never contents). Intent Check must be on and connected; `INTENT_DISABLED=1` stops DeepScan too.

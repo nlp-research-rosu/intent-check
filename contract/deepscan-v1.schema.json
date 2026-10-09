@@ -63,19 +63,27 @@
       "additionalProperties": false,
       "required": ["meta", "files"],
       "properties": {
+        "depth": { "$ref": "#/$defs/DeepscanDepth" },
         "meta": { "$ref": "#/$defs/DeepscanMeta" },
         "files": { "type": "array", "minItems": 1, "maxItems": 3000, "items": { "$ref": "#/$defs/DeepscanFile" } }
       }
     },
 
+    "DeepscanDepth": {
+      "description": "How deep the scan goes: fast hunts each property once (about 15-20 minutes), balanced has both models hunt every property (about 30-35 minutes), full adds a second attack on every property that held (about 40-45 minutes). A missing depth means balanced.",
+      "enum": ["fast", "balanced", "full"]
+    },
+
     "DeepscanCreated": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["job_id", "url", "status"],
+      "required": ["job_id", "url", "status", "budget_s", "depth"],
       "properties": {
         "job_id": { "type": "string", "pattern": "^[A-Za-z0-9]{22}$" },
         "url": { "type": "string" },
-        "status": { "const": "queued" }
+        "status": { "const": "queued" },
+        "budget_s": { "description": "Wall-clock seconds the scan is allowed to run, from when it starts. A client waiting for the result waits at most this long, plus the queue time.", "type": "integer", "minimum": 1 },
+        "depth": { "$ref": "#/$defs/DeepscanDepth" }
       }
     },
 
@@ -101,6 +109,17 @@
       }
     },
 
+    "DeepscanVote": {
+      "description": "One juror's vote on a finding: the model that reviewed it and whether it kept the finding. A third review (the tiebreak) is a further entry with the same model as the first reviewer.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "verdict"],
+      "properties": {
+        "model": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "verdict": { "enum": ["keep", "drop"] }
+      }
+    },
+
     "DeepscanCard": {
       "type": "object",
       "additionalProperties": false,
@@ -112,7 +131,9 @@
         "property": { "description": "The property the code breaks, in checkable form.", "type": "string", "maxLength": 600 },
         "cause": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/DeepscanCause" } },
         "repro_sketch": { "description": "How the user's agent can reproduce the finding on the user's machine.", "type": "string", "maxLength": 1200 },
-        "control": { "description": "A nearby case that should not fail, to rule out a bad repro.", "type": "string", "maxLength": 600 }
+        "control": { "description": "A nearby case that should not fail, to rule out a bad repro.", "type": "string", "maxLength": 600 },
+        "found_by": { "description": "The models whose hunters found it (two-model scans).", "type": "array", "maxItems": 4, "items": { "type": "string", "minLength": 1, "maxLength": 120 } },
+        "jury": { "description": "How each juror voted (two-model scans).", "type": "array", "maxItems": 6, "items": { "$ref": "#/$defs/DeepscanVote" } }
       }
     },
 
@@ -124,7 +145,9 @@
         "criticality": { "$ref": "#/$defs/Criticality" },
         "title": { "type": "string", "maxLength": 200 },
         "path": { "$ref": "#/$defs/RepoPath" },
-        "line": { "type": "integer", "minimum": 1 }
+        "line": { "type": "integer", "minimum": 1 },
+        "found_by": { "description": "The models whose hunters found it (two-model scans).", "type": "array", "maxItems": 4, "items": { "type": "string", "minLength": 1, "maxLength": 120 } },
+        "jury": { "description": "How each juror voted (two-model scans).", "type": "array", "maxItems": 6, "items": { "$ref": "#/$defs/DeepscanVote" } }
       }
     },
 
@@ -167,13 +190,15 @@
       "description": "GET /v1/deepscans/{job_id}. Owner only (404 for anyone else and for check jobs). `summary` only when done, `error` only when failed.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["job_id", "status", "stage", "progress", "url"],
+      "required": ["job_id", "status", "stage", "progress", "url", "budget_s", "depth"],
       "properties": {
         "job_id": { "type": "string", "pattern": "^[A-Za-z0-9]{22}$" },
         "status": { "$ref": "#/$defs/DeepscanStatusValue" },
         "stage": { "type": "string", "maxLength": 40 },
         "progress": { "$ref": "#/$defs/DeepscanProgress" },
         "url": { "type": "string" },
+        "budget_s": { "description": "Wall-clock seconds the scan is allowed to run (as on DeepscanCreated).", "type": "integer", "minimum": 1 },
+        "depth": { "$ref": "#/$defs/DeepscanDepth" },
         "summary": { "$ref": "#/$defs/DeepscanSummary" },
         "error": { "$ref": "#/$defs/DeepscanError" }
       }

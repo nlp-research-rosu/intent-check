@@ -1,4 +1,5 @@
 {
+  "depth": "balanced",
   "meta": {
     "contract_version": "1",
     "host": "claude-code",

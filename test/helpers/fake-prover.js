@@ -119,6 +119,14 @@ export function createFakeProver(opts = {}) {
         let job_id = idem && st.idem.get(idem);
         if (!job_id) {
           job_id = id22();
+          // Server behavior: a job supersedes the session's unfinished jobs on overlapping
+          // paths, whatever their mode, unless it is a per-edit job (per_edit: true).
+          if (body && body.per_edit !== true && Array.isArray(body.units)) {
+            const paths = new Set(body.units.map((u) => u.path));
+            for (const j of st.jobs.values()) {
+              if (!j.superseded && j.request && j.request.session_id === body.session_id && j.request.units.some((u) => paths.has(u.path))) j.superseded = true;
+            }
+          }
           st.jobs.set(job_id, { request: body, polls: 0, created: Date.now() });
           if (idem) st.idem.set(idem, job_id);
         }
@@ -148,7 +156,7 @@ export function createFakeProver(opts = {}) {
           st.scans.set(job_id, { request: body, polls: 0 });
           if (idem) ds.idem.set(idem, job_id);
         }
-        return json(res, 202, { job_id, url: ds.urlOverride || `${base}/r/${job_id}`, status: "queued" });
+        return json(res, 202, { job_id, url: ds.urlOverride || `${base}/r/${job_id}`, status: "queued", ...(ds.budget_s === null ? {} : { budget_s: ds.budget_s ?? 900 }) });
       }
       const dm = url.pathname.match(/^\/v1\/deepscans\/([A-Za-z0-9]+)$/);
       if (req.method === "GET" && dm) {
@@ -159,7 +167,7 @@ export function createFakeProver(opts = {}) {
         const ds = st.deepscan || {};
         const seq = ds.statuses || ["done"];
         const status = seq[Math.min(scan.polls++, seq.length - 1)];
-        const out = { job_id: dm[1], status, stage: status, progress: { stage: status, hunters_done: 0, hunters_total: 14, elapsed_s: 1 }, url: `${base}/r/${dm[1]}` };
+        const out = { job_id: dm[1], status, stage: status, progress: { stage: status, hunters_done: 0, hunters_total: 14, elapsed_s: 1 }, url: `${base}/r/${dm[1]}`, ...(ds.getBudget_s === undefined ? { budget_s: ds.budget_s ?? 900 } : ds.getBudget_s === null ? {} : { budget_s: ds.getBudget_s }) };
         if (status === "done") out.summary = ds.summary || { counts: { CRITICAL: 0, HIGH: 1, MODERATE: 0, LOW: 0, MARGINAL: 0 }, cards: [{ id: "F1", criticality: "HIGH", title: "A discount above 100 percent makes the price negative", property: "Price is never negative.", cause: [{ path: "src/pricing.py", line: 3 }], repro_sketch: "Call apply_discount(1000, 150).", control: "apply_discount(1000, 100) returns 0." }], one_liners: [] };
         if (status === "failed") out.error = ds.error || { code: "budget_exceeded", message: "The scan ran out of time.", reason: "scan_budget" };
         return json(res, 200, out);
@@ -170,9 +178,11 @@ export function createFakeProver(opts = {}) {
         const job = st.jobs.get(jm[1]);
         if (!job) return json(res, 404, { error: { code: "not_found", message: "no job" } });
         const common = { job_id: jm[1], url: `${base}/r/${jm[1]}` };
+        if (job.superseded && !job.finished) return json(res, 200, { ...common, status: "superseded" });
         if (job.polls++ < st.pollsBeforeDone) return json(res, 200, { ...common, status: job.polls === 1 ? "queued" : "running" });
         if (st.scenario === "failed") return json(res, 200, { ...common, status: "failed", error: { code: "pipeline_error", message: "x", reason: null } });
         if (st.scenario === "superseded") return json(res, 200, { ...common, status: "superseded" });
+        job.finished = true;
         return json(res, 200, { ...common, status: "done", result: result(job) });
       }
       json(res, 404, { error: { code: "not_found", message: "no route" } });

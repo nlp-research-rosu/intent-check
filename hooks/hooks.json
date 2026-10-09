@@ -8,7 +8,7 @@
       { "hooks": [ { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/bin/intent.js", "prompt"], "timeout": 10 } ] }
     ],
     "PostToolUse": [
-      { "matcher": "Edit|Write|NotebookEdit|ExitPlanMode|TodoWrite",
+      { "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|ExitPlanMode|TodoWrite",
         "hooks": [ { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/bin/intent.js", "post-tool"], "timeout": 10 } ] }
     ],
     "Stop": [
