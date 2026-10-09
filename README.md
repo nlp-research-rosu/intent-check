@@ -107,11 +107,11 @@ Ask the agent to check specific files ("check auth.py with Intent Check"); the `
 
 ## Sample reports
 
-Reports from the staging service:
+Reports from https://check.intentcomputing.org:
 
-- [orders.ts: pagination](https://web-staging-7e1c.up.railway.app/r/XCIS3Vb88lln4Zj6Fa4pSX)
-- [dedupe.go: order of results](https://web-staging-7e1c.up.railway.app/r/R5gTYyfhQRfH6vnJKLKt7j)
-- [Proration rounding](https://web-staging-7e1c.up.railway.app/r/wQTp6MDv1EZ3PGelmcK2Kt)
+- [orders.ts: pagination](https://check.intentcomputing.org/r/Ri36hNtU302qOdWTVLCukw)
+- [dedupe.go: order of results](https://check.intentcomputing.org/r/rgAroTW9Bvv1333vlPRUwm)
+- [Proration rounding](https://check.intentcomputing.org/r/r1XfQRd9dhvI0LlcdttHHN)
 
 ## Development
 
