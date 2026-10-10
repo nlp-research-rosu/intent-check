@@ -304,8 +304,9 @@ test("a newer runner takes over the session's pending jobs; the old one exits qu
   }, { timeoutMs: 20000 }));
 });
 
-test("no git: diffs come from Claude Code's structuredPatch and the touched paths", async () => {
+test("no git, no shadow baseline: diffs come from Claude Code's structuredPatch and the touched paths", async () => {
   const ctx = setup({ git: false });
+  ctx.env.HOME = ctx.env.USERPROFILE = ctx.repo; // a project at the home directory is never snapshotted
   const abs = path.join(ctx.repo, "calc.py");
   fs.writeFileSync(abs, "def plus(a, b):\n    return a + b\n\ndef sub(a, b):\n    \"\"\"Return the difference of a and b.\"\"\"\n    return a - b\n");
   await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
