@@ -89,6 +89,10 @@ test("a done reply before approval asks the user to approve; after approval the 
   const notYet = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "done" }), ctx.env);
   assert.match(notYet.json.hookSpecificOutput.additionalContext, /does not see it yet/);
   fp.state.connectApproved = true;
+  // The usual order: the background poller saves the key before the user replies "done"; the
+  // gated agent must still be told to carry on.
+  const cfg = path.join(ctx.data, "config.json");
+  assert.ok(await waitFor(() => fs.existsSync(cfg) && (readJson(cfg).keys || {})[fp.url] === TEST_KEY, { timeoutMs: 10000 }));
   const ok = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "done" }), ctx.env);
   assert.match(ok.json.hookSpecificOutput.additionalContext, /Intent Check connected as tester/);
   assert.match(ok.json.hookSpecificOutput.additionalContext, /Carry on with their original request/);
