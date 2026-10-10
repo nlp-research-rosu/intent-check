@@ -143,3 +143,55 @@ test("shadow: a git repo with commits: a tracked file modified by a shell is fou
   assert.equal(ch.git, true);
   assert.deepEqual(ch.files.map((f) => f.rel), ["t.py"]);
 }));
+
+test("shadow: touched files the walk never records (dot-dirs, vendor-like dirs, nested repos) are still reviewed", withData(async () => {
+  const dir = makeRepo({ git: false }).dir;
+  put(dir, "keep.py", F(1));
+  fs.mkdirSync(path.join(dir, "sub", ".git"), { recursive: true });
+  const sh = await snap(dir);
+  const rels = [".github/scripts/ci.py", "out/gen.py", "sub/lib.py"];
+  for (const r of rels) put(dir, r, F(5));
+  const ch = await collectChanges({ baseline: { sha: null, shadow: sh }, touched: rels.map((r) => path.join(dir, r)), patches: {} }, dir);
+  assert.deepEqual(ch.files.map((f) => f.rel).sort(), rels.slice().sort());
+}));
+
+test("shadow: a failure is remembered, and stale temp files are swept", withData(async () => {
+  const dir = makeRepo({ git: false }).dir;
+  for (let i = 0; i < shadow.MAX_SHADOW_FILES + 1; i++) put(dir, `d${i % 20}/f${i}.py`, "x = 1\n");
+  assert.equal(await snap(dir), null);
+  assert.ok(fs.existsSync(path.join(shadow.shadowDirFor(dir), "fail")));
+  for (let i = 0; i < 30; i++) fs.unlinkSync(path.join(dir, `d${i % 20}/f${i}.py`)); // still over the cap, but...
+  const t0 = Date.now();
+  assert.equal(await snap(dir), null); // skipped by the marker without a walk
+  assert.ok(Date.now() - t0 < 200);
+  const sd = shadow.shadowDirFor(dir);
+  const old = path.join(sd, "index.123-dead");
+  fs.writeFileSync(old, "x");
+  const past = new Date(Date.now() - 2 * 3600 * 1000);
+  fs.utimesSync(old, past, past);
+  fs.rmSync(path.join(sd, "fail"));
+  await snap(dir);
+  assert.ok(!fs.existsSync(old));
+}));
+
+test("shadow: an unreadable file does not lose the snapshot", { skip: process.platform === "win32" || (process.getuid && process.getuid() === 0) }, withData(async () => {
+  const dir = makeRepo({ git: false }).dir;
+  put(dir, "ok.py", F(1));
+  put(dir, "locked.py", F(2));
+  fs.chmodSync(path.join(dir, "locked.py"), 0);
+  const sh = await snap(dir);
+  assert.ok(sh);
+}));
+
+test("shadow: clean filters from the user's git config and .gitattributes do not run", { skip: process.platform === "win32" }, withData(async () => {
+  const dir = makeRepo({ git: false }).dir;
+  const home = tmpdir("intent-shadow-home-");
+  const marker = path.join(home, "ran");
+  fs.writeFileSync(path.join(home, ".gitconfig"), `[filter "foo"]\n\tclean = touch ${marker}; cat\n`);
+  put(dir, ".gitattributes", "*.py filter=foo\n");
+  put(dir, "a.py", F(1));
+  const prev = [process.env.HOME, process.env.XDG_CONFIG_HOME];
+  process.env.HOME = home;
+  try { assert.ok(await snap(dir)); } finally { process.env.HOME = prev[0]; if (prev[1] === undefined) delete process.env.XDG_CONFIG_HOME; }
+  assert.ok(!fs.existsSync(marker));
+}));
