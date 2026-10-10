@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bill Splitter</title>
+<style>
+  body { font: 16px system-ui, sans-serif; max-width: 22rem; margin: 2rem auto; padding: 0 1rem; }
+  label { display: block; margin: .5rem 0; }
+  input { width: 100%; padding: .4rem; font: inherit; box-sizing: border-box; }
+  ol, p { font-variant-numeric: tabular-nums; }
+</style>
+<h1>Bill Splitter</h1>
+<label>Total <input id="total" type="number" min="0" step="0.01" placeholder="0.00"></label>
+<label>People <input id="people" type="number" min="1" max="1000" step="1" value="2"></label>
+<ol id="out"></ol>
+<p id="sum"></p>
+<script>
+  const $ = id => document.getElementById(id);
+  function split() {
+    const cents = Math.round(parseFloat($('total').value) * 100), n = parseInt($('people').value, 10);
+    if (!(cents >= 0) || !(n >= 1 && n <= 1000)) return $('out').innerHTML = $('sum').textContent = '';
+    const base = Math.floor(cents / n), extra = cents % n; // first `extra` people pay one cent more
+    const shares = Array.from({ length: n }, (_, i) => base + (i < extra ? 1 : 0));
+    $('out').innerHTML = shares.map(c => `<li>${(c / 100).toFixed(2)}</li>`).join('');
+    $('sum').textContent = `Sum: ${(shares.reduce((a, b) => a + b, 0) / 100).toFixed(2)}`;
+  }
+  $('total').oninput = $('people').oninput = split;
+</script>

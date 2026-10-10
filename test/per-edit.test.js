@@ -187,6 +187,9 @@ test("an expired unsettled per-edit entry neither covers a file nor survives Sto
   await edit(ctx, "pricing.py", V1, "toolu_1");
   assert.ok(await waitFor(() => editJobs(ctx).some((e) => e.settled)));
   const f = sessionFile(ctx);
+  // The edit child releases its slot (a session write) after settling: wait for it, or that
+  // write can land after ours and undo it.
+  assert.ok(await waitFor(() => Object.keys(JSON.parse(fs.readFileSync(f, "utf8")).edit_reserved || {}).length === 0));
   const s = JSON.parse(fs.readFileSync(f, "utf8"));
   for (const e of Object.values(s.edit_jobs)) { e.settled = false; e.submitted_at = Date.now() - 25 * 3600 * 1000; }
   fs.writeFileSync(f, JSON.stringify(s));

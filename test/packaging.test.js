@@ -43,7 +43,7 @@ test("hooks.json: shell form, four events, asyncRewake Stop with a 900 s timeout
     assert.deepEqual(cmd.args, ["${CLAUDE_PLUGIN_ROOT}/bin/intent.js", arg]);
     assert.equal("statusMessage" in cmd, false);
   }
-  assert.equal(h.PostToolUse[0].matcher, "Edit|Write|MultiEdit|NotebookEdit|Bash|ExitPlanMode|TodoWrite");
+  assert.equal(h.PostToolUse[0].matcher, "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|ExitPlanMode|TodoWrite");
   const stop = h.Stop[0].hooks[0];
   assert.equal(stop.asyncRewake, true);
   assert.equal(stop.timeout, 900);

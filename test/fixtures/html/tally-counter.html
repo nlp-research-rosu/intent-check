@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tally Counter</title>
+<style>
+  :root { --bg:#f5f5f4; --fg:#1c1917; --card:#fff; --btn:#e7e5e4; --accent:#2563eb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0c0a09; --fg:#fafaf9; --card:#1c1917; --btn:#292524; --accent:#60a5fa; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--fg);
+         font-family: system-ui, sans-serif; }
+  main { background:var(--card); padding:2rem; border-radius:1.5rem; width:min(92vw,22rem); text-align:center;
+         box-shadow:0 4px 24px rgba(0,0,0,.1); }
+  #count { font-size:6rem; font-weight:700; font-variant-numeric:tabular-nums; margin:.5rem 0 1.5rem; }
+  .row { display:flex; gap:.75rem; }
+  button { flex:1; font:inherit; font-size:2rem; padding:1rem 0; border:0; border-radius:1rem;
+           background:var(--btn); color:var(--fg); cursor:pointer; touch-action:manipulation; }
+  button:active:not(:disabled) { transform:scale(.96); }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  #inc { background:var(--accent); color:#fff; }
+  #undo { width:100%; margin-top:.75rem; font-size:1.1rem; padding:.8rem 0; }
+</style>
+</head>
+<body>
+<main>
+  <div id="count" aria-live="polite">0</div>
+  <div class="row">
+    <button id="dec" aria-label="Subtract one">−</button>
+    <button id="inc" aria-label="Add one">+</button>
+  </div>
+  <button id="undo">Undo</button>
+</main>
+<script>
+  let count = 0;
+  const history = []; // count before each tap, most recent last
+
+  const $ = id => document.getElementById(id);
+
+  function render() {
+    $("count").textContent = count;
+    $("dec").disabled = count === 0;
+    $("undo").disabled = history.length === 0;
+  }
+
+  function tap(delta) {
+    history.push(count);
+    count = Math.max(0, count + delta);
+    render();
+  }
+
+  $("inc").onclick = () => tap(1);
+  $("dec").onclick = () => tap(-1);
+  $("undo").onclick = () => {
+    if (history.length) { count = history.pop(); render(); }
+  };
+
+  render();
+</script>
+</body>
+</html>

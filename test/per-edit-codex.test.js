@@ -183,15 +183,56 @@ test("bash hook: classic mode returns at once and spawns nothing", async () => {
   assert.equal(jobsBefore(), n);
 });
 
-test("bash hook: outside git there is no baseline and no job", async () => {
+test("bash hook: outside git a shell-written file is checked against the shadow snapshot", async () => {
   const ctx = setup({ git: false });
+  fs.writeFileSync(path.join(ctx.repo, "old.py"), CODE(1)); // there before the prompt: not the agent's
   await prompt(ctx);
   const n = jobsBefore();
   fs.writeFileSync(path.join(ctx.repo, "shell.py"), CODE(7));
   const r = await bash(ctx);
   assert.equal(r.code, 0);
+  assert.ok(await waitFor(() => fp.jobRequests().length >= n + 1), "job");
+  await sleep(800);
+  const qs = fp.jobRequests().slice(n);
+  assert.deepEqual(qs.map((q) => q.units[0].path), ["shell.py"]);
+});
+
+test("bash hook: a shadow baseline is not used outside per-edit mode's home dir guard", async () => {
+  const ctx = setup({ git: false });
+  ctx.env.HOME = ctx.env.USERPROFILE = ctx.repo;
+  await prompt(ctx);
+  const n = jobsBefore();
+  fs.writeFileSync(path.join(ctx.repo, "shell.py"), CODE(7));
+  await bash(ctx);
   await sleep(800);
   assert.equal(jobsBefore(), n);
+});
+
+test("bash scan: a tracked file modified by a shell command is checked", async () => {
+  const ctx = setup({ git: false });
+  const { execFileSync } = await import("node:child_process");
+  const g = (...a) => execFileSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", ...a], { cwd: ctx.repo, stdio: "pipe" });
+  g("init", "-q");
+  fs.writeFileSync(path.join(ctx.repo, "tracked.py"), CODE(1));
+  g("add", "-A"); g("commit", "-qm", "init");
+  await prompt(ctx);
+  const n = jobsBefore();
+  fs.writeFileSync(path.join(ctx.repo, "tracked.py"), CODE(1) + "\ndef more(x):\n    y = x\n    return y\n"); // sed -i equivalent
+  await bash(ctx);
+  assert.ok(await waitFor(() => fp.jobRequests().length >= n + 1), "job");
+  assert.equal(fp.jobRequests()[n].units[0].path, "tracked.py");
+});
+
+test("PowerShell tool payloads are dispatched like Bash", async () => {
+  const ctx = setup();
+  await prompt(ctx);
+  const n = jobsBefore();
+  fs.writeFileSync(path.join(ctx.repo, "shell.py"), CODE(7));
+  const p = cfx("post-tool-bash", ctx.repo, ctx.transcript, { tool_use_id: "exec-ps", tool_name: "PowerShell" });
+  const r = await run("post-tool", p, ctx.env);
+  assert.equal(r.code, 0);
+  assert.ok(await waitFor(() => fp.jobRequests().length >= n + 1), "job");
+  assert.equal(fp.jobRequests()[n].units[0].path, "shell.py");
 });
 
 test("codex hook notice shows once per version, never on Claude Code", async () => {

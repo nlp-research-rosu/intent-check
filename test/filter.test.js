@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { includeFile, classifyPath, languageOf, hasLogic } from "../lib/filter.js";
 
@@ -300,4 +301,88 @@ test("performance: a 1 MB file with many functions and unmatched braces classifi
     best = Math.min(best, Number(process.hrtime.bigint() - t0) / 1e6);
   }
   assert.ok(best < 200, `hasLogic took ${best}ms (best of 5)`);
+});
+
+// --- Small single-file apps (issue #53) ------------------------------------------------------
+
+// Real builds from Claude Code sessions: the key logic is Math.*, ternaries and comparisons,
+// with fewer than 3 if/for statements.
+for (const name of ["tally-counter", "tip-calculator", "tiny-bill-opus", "tiny-bill-sonnet"]) {
+  test(`small HTML app ${name}.html with real logic is checked`, () => {
+    const html = readFileSync(new URL(`./fixtures/html/${name}.html`, import.meta.url), "utf8");
+    assert.equal(hasLogic(html, ".html"), true);
+    assert.equal(includeFile(`${name}.html`, html), true);
+  });
+}
+
+const page = (body) => `<!doctype html>\n<html><body>\n<h1>Hi</h1>\n${body}\n</body></html>`;
+
+test("small HTML pages without computation stay skipped", () => {
+  const cases = {
+    "no script": page("<p>Just markup.</p>"),
+    "script src only": page('<script src="https://cdn.example.com/app.js"></script>'),
+    "analytics only": page(`<script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXX"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  gtag('js', new Date());
+  gtag('config', 'G-XXXX');
+</script>`),
+    "class toggle": page(`<script>
+  document.getElementById('menu').onclick = () => document.body.classList.toggle('open');
+</script>`),
+    "textContent from a constant": page(`<script>
+  const NAME = 'World';
+  document.getElementById('greeting').textContent = 'Hello, ' + NAME + '!';
+</script>`),
+  };
+  for (const [label, html] of Object.entries(cases)) {
+    assert.equal(hasLogic(html, ".html"), false, label);
+    assert.equal(includeFile("index.html", html), false, label);
+  }
+});
+
+test("non-code <script> types are ignored, JavaScript and module types count", () => {
+  const body = "<div class=\"a\"><b>x</b></div><p>y</p><i>z</i>";
+  for (const type of ["text/template", "application/ld+json", "text/html", "TEXT/TEMPLATE"]) {
+    const html = page(`<script type="${type}">${body}</script>`);
+    assert.equal(hasLogic(html, ".html"), false, type);
+  }
+  const code = "const t = Math.round(a * 100) / 100; const u = b % 2;";
+  for (const attr of ['type="module"', "type='text/javascript'", "type=application/javascript", ""]) {
+    assert.equal(hasLogic(page(`<script ${attr}>${code}</script>`), ".html"), true, attr);
+  }
+});
+
+test("comparisons alone do not trigger the small-app rule", () => {
+  const theme = page(`<script>
+  const t = localStorage.getItem('theme');
+  if (t === 'dark' || t === 'light') { document.documentElement.dataset.theme = t; }
+</script>`);
+  const cookie = page(`<script>
+  if (document.cookie.indexOf('ok') !== -1 || localStorage.ok === '1') { banner.hidden = true; }
+</script>`);
+  assert.equal(hasLogic(theme, ".html"), false);
+  assert.equal(hasLogic(cookie, ".html"), false);
+});
+
+test("the small-app rule also covers .vue and skips a .svelte without arithmetic", () => {
+  const vue = `<template><p>{{ total }}</p></template>
+<script>
+export default { methods: { total() { return Math.round(this.a * this.b) / 100; } } };
+</script>`;
+  const svelte = `<script>
+  let open = false;
+  const toggle = () => { open = !open; };
+</script>
+<button on:click={toggle}>Menu</button>`;
+  assert.equal(hasLogic(vue, ".vue"), true);
+  assert.equal(hasLogic(svelte, ".svelte"), false);
+});
+
+test("computation signals only apply to script text, not JSX markup", () => {
+  const jsx = `export function Card({ a, b }) {
+  return <div><span>{a}</span><span>{b}</span><hr /><br /></div>;
+}`;
+  assert.equal(hasLogic(jsx, ".tsx"), false);
 });
