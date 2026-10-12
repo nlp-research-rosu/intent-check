@@ -108,6 +108,23 @@ test("failed job: one user note, /intent:status shows the error, last check not 
   assert.match(g.last_error.text, /^check failed on the service \(pipeline_error\), job \S+$/);
 });
 
+test("failed job: Codex shows the note too (it drops only quiet notes)", async () => {
+  fp.state.scenario = "failed";
+  const ctx = setup();
+  await turn(ctx, { "pricing.py": PRICING });
+  assert.ok(await waitFor(() => (readSessionFiles(ctx.data)[0] || { notes: [] }).notes.length > 0));
+  const { drainNotes } = await import("../lib/runner.js");
+  const keep = process.env.CLAUDE_PLUGIN_DATA;
+  process.env.CLAUDE_PLUGIN_DATA = ctx.data;
+  try {
+    const key = path.basename(fs.readdirSync(path.join(ctx.data, "sessions"))[0], ".json");
+    const out = drainNotes(key, { host: "codex" });
+    assert.match(out.user, /^Intent Check could not finish checking `pricing\.py`/);
+  } finally {
+    if (keep === undefined) delete process.env.CLAUDE_PLUGIN_DATA; else process.env.CLAUDE_PLUGIN_DATA = keep;
+  }
+});
+
 test("superseded job: no note and no recorded error", async () => {
   fp.state.scenario = "superseded";
   const ctx = setup();
