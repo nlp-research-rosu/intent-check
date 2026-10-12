@@ -53,6 +53,18 @@ test("UserPromptSubmit: ring buffer of the last 4 real prompts; task notificatio
   assert.equal(s.baseline.repo, repo);
 });
 
+test("UserPromptSubmit: harness-injected blocks are not prompts; text typed after them is kept", async () => {
+  const { data, repo, env } = setup();
+  const block = "<browser_instruction># Claude in Chrome browser automation\nUse the tools. ".repeat(1) + "x".repeat(4000) + "</browser_instruction>";
+  await runHook("prompt", fixture("prompt", repo, { prompt: block }), env);
+  assert.deepEqual(readSessionFiles(data)[0].prompts, []);
+  await runHook("prompt", fixture("prompt", repo, { prompt: `${block}\n\n<system-reminder>ctx</system-reminder>\nAdd a login form to the page` }), env);
+  await runHook("prompt", fixture("prompt", repo, { prompt: "a normal <b>prompt</b> about the form" }), env);
+  const [s] = readSessionFiles(data);
+  assert.deepEqual(s.prompts, ["Add a login form to the page", "a normal <b>prompt</b> about the form"]);
+  assert.equal(s.first_prompt, "Add a login form to the page");
+});
+
 test("UserPromptSubmit: git baseline is a stash commit when the tree is dirty, HEAD when clean", async () => {
   const { data, repo, env } = setup();
   await runHook("prompt", fixture("prompt", repo), env);
