@@ -72,7 +72,7 @@ test("first prompt of the install session: the request is created off the prompt
 test("a prompt that is a plugin command is not gated, and a skip reply carries on without the link", async () => {
   const ctx = setup();
   await runHook("session-start", fixture("session-start", ctx.repo), ctx.env);
-  const cmd = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "/intent:status" }), ctx.env);
+  const cmd = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "/intent:off" }), ctx.env);
   assert.equal(cmd.stdout, "");
   const first = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "please build the pricing module" }), ctx.env);
   assert.match(first.json.hookSpecificOutput.additionalContext, /"done" or "skip"/);

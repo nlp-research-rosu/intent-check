@@ -25,12 +25,12 @@ function setup() {
 }
 
 // Run the CLI the way an agent's shell would: no plugin env vars, cwd in the repo.
-// data: the plugin data dir, passed as --data like the /intent:check command does.
+// data: the plugin data dir, passed as --data like the /intent:deepscan command does.
 function cli(args, cwd, data) {
   return new Promise((resolve) => {
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("CLAUDE_") && !k.startsWith("INTENT_")));
     // HOME points at a throwaway dir so a failing run cannot log into the real plugin data dir.
-    const c = spawn(process.execPath, [BIN, "check", ...args, ...(data ? ["--data", data] : [])], { cwd, env: { ...env, HOME: tmpdir("intent-home-"), INTENT_API_URL: fp.url } });
+    const c = spawn(process.execPath, [BIN, "deepscan", ...args, ...(data ? ["--data", data] : [])], { cwd, env: { ...env, HOME: tmpdir("intent-home-"), INTENT_API_URL: fp.url } });
     let out = "";
     c.stdout.on("data", (d) => { out += d; });
     c.on("close", (code) => resolve({ code, out: out.trim() }));
@@ -41,7 +41,7 @@ const queueFiles = (repo) => {
   try { return fs.readdirSync(path.join(repo, ".intent", ".queue")); } catch { return []; }
 };
 
-test("intent check queues validated repo-relative paths, offline, and says so in one line", async () => {
+test("intent deepscan <files> queues validated repo-relative paths, offline, and says so in one line", async () => {
   const { repo, data } = setup();
   fs.mkdirSync(path.join(repo, "src", "auth"), { recursive: true });
   fs.writeFileSync(path.join(repo, "src", "auth", "login.py"), "def login(u, p):\n    return check(u, p)\n");
@@ -59,8 +59,11 @@ test("intent check queues validated repo-relative paths, offline, and says so in
   assert.equal(fp.state.requests.length, n, "the CLI never calls the service");
   // .queue is ignored by git.
   assert.equal(fs.readFileSync(path.join(repo, ".intent", ".gitignore"), "utf8"), ".sent.log\n.queue\n");
-  const none = await cli([], repo, data);
-  assert.match(none.out, /give the files to review/);
+  // A depth word is not a file, and says so; a flag is refused.
+  const deep = await cli(["src/auth/login.py", "full"], repo, data);
+  assert.match(deep.out, /queued a review of 1 file.*The depth only applies to a whole-repo or folder scan\./);
+  assert.match((await cli(["--scope", "src"], repo, data)).out, /--scope is not a DeepScan option/);
+  assert.match((await cli(["src", "src/auth/login.py"], repo, data)).out, /files or one folder, not both/);
 });
 
 test("S5: a queued request is submitted at the next Stop as a request job without a diff", async () => {
@@ -80,15 +83,6 @@ test("S5: a queued request is submitted at the next Stop as a request job withou
   assert.deepEqual(queueFiles(ctx.repo), []);
   const log = fs.readFileSync(path.join(ctx.repo, ".intent", ".sent.log"), "utf8").trim().split("\n").map(JSON.parse);
   assert.equal(log.at(-1).mode, "request");
-});
-
-test("check --repo is gone: one line points to DeepScan and nothing is queued", async () => {
-  const ctx = setup();
-  fs.writeFileSync(path.join(ctx.repo, "m.py"), "X = 1\n");
-  const q = await cli(["--repo", "m.py"], ctx.repo, ctx.data);
-  assert.match(q.out, /DeepScan/);
-  assert.match(q.out, /deepscan/);
-  assert.deepEqual(queueFiles(ctx.repo), []);
 });
 
 test("a file both edited and queued goes only into the request job", async () => {
@@ -133,7 +127,7 @@ test("renames move unit folders and deletions remove them; foreign files are lef
   assert.ok(fs.existsSync(path.join(d, "keep.py", "NOTES.txt")), "a folder with foreign files is not touched");
 });
 
-test("intent check inside a worktree-isolated subagent is queued in the main repo and reviewed under the repo path", async () => {
+test("intent deepscan <files> inside a worktree-isolated subagent is queued in the main repo and reviewed under the repo path", async () => {
   const ctx = setup();
   fs.writeFileSync(path.join(ctx.repo, "pricing.py"), "# todo\n");
   ctx.git("add", "-A"); ctx.git("commit", "-qm", "pricing");

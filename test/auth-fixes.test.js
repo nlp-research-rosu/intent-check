@@ -155,7 +155,7 @@ for (const [status, backed] of [[404, true], [400, true], [403, true], [408, fal
     const ctx = setup();
     fp.state.connectStartStatus = status;
     const s = await start(ctx);
-    assert.equal(s.json.systemMessage, `Intent Check could not create a connect link (${status}). Run /intent:connect to retry, or /intent:status for details.`);
+    assert.equal(s.json.systemMessage, `Intent Check could not create a connect link (${status}). Run /intent:doctor to retry.`);
     assert.equal(Boolean(readJson(path.join(ctx.data, "global.json")).backoff && readJson(path.join(ctx.data, "global.json")).backoff.connect), backed);
     const p = await prompt(ctx);
     assert.equal(p.stdout, "", "once per session");
@@ -241,28 +241,18 @@ test("handle: only [A-Za-z0-9_.@+-], at most 60", async () => {
 
 // ---- 8: state holes ------------------------------------------------------------------------------
 
-test("applyPoll does not save a key once the request is no longer pending (disconnected meanwhile)", async () => {
+test("applyPoll does not save a key once the request is no longer pending (replaced meanwhile)", async () => {
   const ctx = setup();
   await inProcess(ctx, async () => {
     const c = await import("../lib/connect.js");
     const rec = await c.ensureRequest();
-    c.markDisconnected();
+    c.updateConnect((x) => { x.status = "expired"; delete x.device_code; });
     const r = c.applyPoll({ ok: true, status: "approved", api_key: TEST_KEY, handle: "tester" }, rec.device_code);
     assert.equal(r, "gone");
     assert.equal(fs.existsSync(path.join(ctx.data, "config.json")), false, "no key saved");
-    assert.equal(readJson(cfileOf(ctx)).status, "disconnected");
+    assert.equal(readJson(cfileOf(ctx)).status, "expired");
   });
   killPoller(ctx);
-});
-
-test("markRevoked does not overwrite a disconnected record", async () => {
-  const ctx = setup();
-  await inProcess(ctx, async () => {
-    const c = await import("../lib/connect.js");
-    c.markDisconnected();
-    c.markRevoked({ spawn: false });
-    assert.equal(readJson(cfileOf(ctx)).status, "disconnected");
-  });
 });
 
 test("lost a race with ourselves: the connection is announced if nobody has announced it yet", async () => {
