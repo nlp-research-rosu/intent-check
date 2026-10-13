@@ -157,6 +157,16 @@ test("connect-wait exits quietly when the user skipped, and in headless runs", a
   assert.equal(h.stdout + h.stderr, "");
 });
 
+test("a connect reply after a host-injected block still counts", async () => {
+  const ctx = setup();
+  await start(ctx);
+  await prompt(ctx);
+  await prompt(ctx, "<browser_instruction>\n# Claude in Chrome browser automation\n</browser_instruction>\nskip");
+  const w = await runHook("connect-wait", fixture("stop", ctx.repo), ctx.env, { timeoutMs: 20000 });
+  assert.equal(w.code, 0);
+  assert.equal(w.stdout + w.stderr, "");
+});
+
 test("connect-wait exits quietly when the request is denied; the next prompt explains", async () => {
   const ctx = setup();
   await start(ctx);
