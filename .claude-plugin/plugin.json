@@ -1,6 +1,6 @@
 {
   "name": "intent",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "description": "Checks that the code your agent wrote does what you asked",
   "author": { "name": "Intent Computing" },
   "homepage": "https://check.intentcomputing.org/privacy",
