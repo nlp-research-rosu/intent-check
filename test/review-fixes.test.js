@@ -14,7 +14,7 @@ import { appendSentLog } from "../lib/intentdir.js";
 import { sanitize } from "../lib/render.js";
 import { clip, wellFormed } from "../lib/text.js";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { symlink, CAN_SYMLINK_FILES, SKIP_FILE_SYMLINKS, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN } from "./helpers/env.js";
+import { symlink, SKIP_FILE_SYMLINKS, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN } from "./helpers/env.js";
 
 let fp;
 before(async () => { fp = createFakeProver({ pollsBeforeDone: 0 }); await fp.listen(); });
@@ -60,7 +60,6 @@ test("2. prior artifacts: symlinks and oversized files are not read, contents ar
   fs.writeFileSync(secretFile, `aws_secret_access_key = ${SECRET}\n`);
   const dir = path.join(root, ".intent", "app.py");
   fs.mkdirSync(dir, { recursive: true });
-  if (CAN_SYMLINK_FILES) symlink(secretFile, path.join(dir, "INTENT.md"));
   fs.writeFileSync(path.join(dir, "SPEC.k"), "x".repeat(70 * 1024));
   fs.writeFileSync(path.join(dir, "SEMANTICS.k"), `token = "${SECRET}"\n`);
   const p = readPrior(root, "app.py");
@@ -71,6 +70,16 @@ test("2. prior artifacts: symlinks and oversized files are not read, contents ar
   const root2 = tmpdir();
   symlink(path.join(root, ".intent"), path.join(root2, ".intent"));
   assert.equal(readPrior(root2, "app.py"), null);
+});
+
+test("2. prior artifacts: a symlinked INTENT.md is not read", { skip: SKIP_FILE_SYMLINKS }, () => {
+  const root = tmpdir();
+  const secretFile = path.join(tmpdir("intent-home-"), "credentials");
+  fs.writeFileSync(secretFile, `aws_secret_access_key = ${SECRET}\n`);
+  const dir = path.join(root, ".intent", "app.py");
+  fs.mkdirSync(dir, { recursive: true });
+  symlink(secretFile, path.join(dir, "INTENT.md"));
+  assert.equal(readPrior(root, "app.py")?.intent_md ?? null, null);
 });
 
 test("3. baseline uses a temporary index: works with .git/index.lock present, leaves .git/index alone", async () => {

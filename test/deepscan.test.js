@@ -7,7 +7,7 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { symlink, CAN_SYMLINK_FILES, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT } from "./helpers/env.js";
+import { symlink, SKIP_FILE_SYMLINKS, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT } from "./helpers/env.js";
 import { validateDeepscan } from "./helpers/schema.js";
 import { C } from "../lib/config.js";
 import { buildSnapshot, normaliseRemote, pathReason, isIntentOutput, byPriority, tierOf, decodeText, unstorable } from "../lib/snapshot.js";
@@ -92,7 +92,6 @@ test("snapshot: filters, redaction (line-preserving), tracked and untracked, sch
   w(repo, ".gitignore", "*.log\n");
   commitAll(git);
   w(repo, "src/new.py", "NEW = 1\n"); // untracked, not ignored
-  if (CAN_SYMLINK_FILES) symlink("app.py", path.join(repo, "src", "link.py"));
   const r = await buildSnapshot({ cwd: repo });
   assert.equal(r.ok, true);
   const doc = unzip(r.gz);
@@ -109,7 +108,6 @@ test("snapshot: filters, redaction (line-preserving), tracked and untracked, sch
   assert.equal(why["bad.txt"], "binary");
   assert.equal(why["big.txt"], "too_large");
   assert.equal(why["gen/out.js"], "generated");
-  if (CAN_SYMLINK_FILES) assert.equal(why["src/link.py"], "symlink");
   assert.ok(!("ignored.log" in why) && !paths.includes("ignored.log"));
   assert.ok(!paths.includes("empty.py"));
   const sec = doc.files.find((f) => f.path === "src/secret.py").content;
@@ -119,6 +117,18 @@ test("snapshot: filters, redaction (line-preserving), tracked and untracked, sch
   assert.equal(doc.meta.dirty, true);
   assert.equal(doc.meta.scope, null);
   assert.match(doc.meta.head_sha, /^[0-9a-f]{40}$/);
+});
+
+test("snapshot: a symlinked file is trimmed as symlink", { skip: SKIP_FILE_SYMLINKS }, async () => {
+  const { repo, git } = setup();
+  w(repo, "src/app.py", "def f():\n    return 1\n");
+  commitAll(git);
+  symlink("app.py", path.join(repo, "src", "link.py"));
+  const r = await buildSnapshot({ cwd: repo });
+  assert.equal(r.ok, true);
+  const doc = unzip(r.gz);
+  assert.ok(!doc.files.some((f) => f.path === "src/link.py"));
+  assert.equal(Object.fromEntries(doc.meta.trimmed.map((t) => [t.path, t.reason]))["src/link.py"], "symlink");
 });
 
 test("snapshot: scope narrows; bad scope and non-git are one-line errors", async () => {
