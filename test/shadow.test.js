@@ -183,11 +183,11 @@ test("shadow: an unreadable file does not lose the snapshot", { skip: process.pl
   assert.ok(sh);
 }));
 
-test("shadow: clean filters from the user's git config and .gitattributes do not run", { skip: process.platform === "win32" }, withData(async () => {
+test("shadow: clean filters from the user's git config and .gitattributes do not run", withData(async () => {
   const dir = makeRepo({ git: false }).dir;
   const home = tmpdir("intent-shadow-home-");
   const marker = path.join(home, "ran");
-  fs.writeFileSync(path.join(home, ".gitconfig"), `[filter "foo"]\n\tclean = touch ${marker}; cat\n`);
+  fs.writeFileSync(path.join(home, ".gitconfig"), `[filter "foo"]\n\tclean = touch ${marker.split(path.sep).join("/")}; cat\n`); // git runs the filter with sh, on Windows too
   put(dir, ".gitattributes", "*.py filter=foo\n");
   put(dir, "a.py", F(1));
   const prev = [process.env.HOME, process.env.XDG_CONFIG_HOME];

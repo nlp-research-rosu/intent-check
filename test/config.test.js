@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { tmpdir, ROOT } from "./helpers/env.js";
 import { isInteractiveEntrypoint } from "../lib/config.js";
 
@@ -10,7 +11,7 @@ import { isInteractiveEntrypoint } from "../lib/config.js";
 function probe(env, files = {}) {
   const data = tmpdir("intent-cfg-");
   for (const [f, v] of Object.entries(files)) fs.writeFileSync(path.join(data, f), JSON.stringify(v));
-  const code = `import("${path.join(ROOT, "lib", "config.js")}").then((c) => console.log(JSON.stringify({ url: c.apiUrl(), key: c.apiKey(), off: c.disabledReason(), v: c.pluginVersion() })))`;
+  const code = `import(${JSON.stringify(pathToFileURL(path.join(ROOT, "lib", "config.js")).href)}).then((c) => console.log(JSON.stringify({ url: c.apiUrl(), key: c.apiKey(), off: c.disabledReason(), v: c.pluginVersion() })))`;
   const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("INTENT_") && k !== "DO_NOT_TRACK"));
   return JSON.parse(execFileSync(process.execPath, ["-e", code], { env: { ...clean, CLAUDE_PLUGIN_DATA: data, ...env } }).toString());
 }
@@ -61,7 +62,7 @@ test("live review: INTENT_LIVE, then INTENT_MODE, then config live, then a valid
   const live = (env, cfg) => {
     const data = tmpdir("intent-cfg-");
     if (cfg) fs.writeFileSync(path.join(data, "config.json"), JSON.stringify(cfg));
-    const code = `import("${path.join(ROOT, "lib", "config.js")}").then((c) => console.log(c.liveMode()))`;
+    const code = `import(${JSON.stringify(pathToFileURL(path.join(ROOT, "lib", "config.js")).href)}).then((c) => console.log(c.liveMode()))`;
     const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("INTENT_")));
     return execFileSync(process.execPath, ["-e", code], { env: { ...clean, CLAUDE_PLUGIN_DATA: data, ...env } }).toString().trim();
   };

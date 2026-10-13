@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { QUIET_GLOBAL, tmpdir, makeRepo, baseEnv, saveKey, waitFor, sleep, readSessionFiles, ROOT, BIN } from "./helpers/env.js";
+import { QUIET_GLOBAL, rewriteProjectDir, tmpdir, makeRepo, baseEnv, saveKey, waitFor, sleep, readSessionFiles, ROOT, BIN } from "./helpers/env.js";
 
 const FX = path.join(ROOT, "test", "fixtures", "codex");
 const CODE = (n) => Array.from({ length: 6 }, (_, i) => `def f${n}_${i}(x):\n    return x * ${i + 2}\n`).join("\n");
@@ -17,7 +17,7 @@ after(() => fp.close());
 beforeEach(() => Object.assign(fp.state, { scenario: "concerns", pollsBeforeDone: 0, submitStatus: null, concern: null, submitDelayMs: 0, idem: new Map() }));
 
 function cfx(name, dir, transcript, patch = {}) {
-  const raw = fs.readFileSync(path.join(FX, `${name}.json`), "utf8").split("/work/proj").join(dir);
+  const raw = rewriteProjectDir(fs.readFileSync(path.join(FX, `${name}.json`), "utf8"), dir);
   return { ...JSON.parse(raw), session_id: "01a0e925-b8c6-7ff3-ad68-a52ef7638565", transcript_path: transcript, ...patch };
 }
 
@@ -327,5 +327,5 @@ test("a scan child with 'again' set makes another pass and then clears its flag"
 test("apply_patch with CRLF line endings: the moved-from path is dropped, targets are clean", async () => {
   const { applyPatchPaths } = await import("../lib/codex.js");
   const cmd = "*** Begin Patch\r\n*** Update File: old.py\r\n*** Move to: new.py\r\n@@\r\n-a\r\n+b\r\n*** Add File: x.py\r\n+1\r\n*** End Patch";
-  assert.deepEqual(applyPatchPaths(cmd, "/w"), ["/w/new.py", "/w/x.py"]);
+  assert.deepEqual(applyPatchPaths(cmd, "/w"), [path.resolve("/w", "new.py"), path.resolve("/w", "x.py")]);
 });

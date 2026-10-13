@@ -6,7 +6,7 @@ import { buildRequest, unitContent, idempotencyKey, readPrior, readNotes } from 
 import { countChangedLines, hunkRanges, newFileDiff, patchesToDiff } from "../lib/changes.js";
 import { writeUnit } from "../lib/intentdir.js";
 import { validateDef } from "./helpers/schema.js";
-import { tmpdir, ROOT } from "./helpers/env.js";
+import { symlink, SKIP_FILE_SYMLINKS, tmpdir, ROOT } from "./helpers/env.js";
 
 const snap = {
   prompts: ["Add a helper that applies a percentage discount. It should never go below zero.", "also use key sk-proj-" + "Zq8".repeat(14)],
@@ -121,12 +121,12 @@ test("intent.notes: absent when .intent/NOTES.md is missing or empty", () => {
   assert.equal("notes" in b2.request.intent, false);
 });
 
-test("intent.notes: a symlinked NOTES.md is refused", () => {
+test("intent.notes: a symlinked NOTES.md is refused", { skip: SKIP_FILE_SYMLINKS }, () => {
   const root = tmpdir();
   const outside = tmpdir("intent-outside-");
   fs.writeFileSync(path.join(outside, "secret.md"), "- leaked\n");
   fs.mkdirSync(path.join(root, ".intent"), { recursive: true });
-  fs.symlinkSync(path.join(outside, "secret.md"), path.join(root, ".intent", "NOTES.md"));
+  symlink(path.join(outside, "secret.md"), path.join(root, ".intent", "NOTES.md"));
   assert.equal(readNotes(root), null);
   const f = file("pricing.py", "a\nb\nc\n");
   const b = buildRequest({ files: [f], root, snap, stop, sessionHash: "s", turnId: "t", host: "claude-code" });

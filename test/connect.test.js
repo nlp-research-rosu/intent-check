@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, waitFor } from "./helpers/env.js";
+import { QUIET_GLOBAL, assertOwnerOnly, fixture, tmpdir, makeRepo, baseEnv, runHook, waitFor } from "./helpers/env.js";
 import { validateDef } from "./helpers/schema.js";
 
 let fp;
@@ -18,7 +18,6 @@ function setup() {
   return { data, repo: makeRepo().dir, env: baseEnv(data, fp.url) };
 }
 
-const mode = (f) => fs.statSync(f).mode & 0o777;
 const readJson = (f) => JSON.parse(fs.readFileSync(f, "utf8"));
 const posts = () => fp.state.requests.filter((x) => x.method === "POST" && x.path === "/v1/connect").length;
 const LINK = /http:\/\/127\.0\.0\.1:\d+\/connect\/KDRT-MWQX/;
@@ -33,7 +32,7 @@ test("no key: SessionStart creates the request and shows the link; the prompt te
   assert.deepEqual(validateDef(start.body, "ConnectStart"), []);
   assert.equal(start.body.host, "claude-code");
   const cfile = path.join(ctx.data, "connect.json");
-  assert.equal(mode(cfile), 0o600);
+  assertOwnerOnly(cfile);
   const c = readJson(cfile);
   assert.equal(c.api_url, fp.url, "connect.json records the service");
   assert.ok(c.poller_pid > 0);
@@ -114,7 +113,7 @@ test("the background poller saves the key under the service URL (mode 600); the 
   fp.state.connectApproved = true;
   const cfg = path.join(ctx.data, "config.json");
   assert.ok(await waitFor(() => fs.existsSync(cfg) && (readJson(cfg).keys || {})[fp.url] === TEST_KEY, { timeoutMs: 10000 }));
-  assert.equal(mode(cfg), 0o600);
+  assertOwnerOnly(cfg);
   assert.equal(readJson(cfg).api_key, undefined, "new keys go under keys[api_url], not the legacy field");
   const r = await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
   assert.equal(r.json.systemMessage, "Intent Check connected as tester");

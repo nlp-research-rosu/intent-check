@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { fixture, tmpdir, makeRepo, baseEnv, runHook, readSessionFiles, saveKey, waitFor, QUIET_GLOBAL, ROOT, BIN } from "./helpers/env.js";
+import { fixture, rewriteProjectDir, tmpdir, makeRepo, baseEnv, runHook, readSessionFiles, saveKey, waitFor, QUIET_GLOBAL, ROOT, BIN } from "./helpers/env.js";
 
 const A = "turn-aaaa";
 const B = "turn-bbbb";
@@ -40,7 +40,7 @@ function setup(extra = {}) {
 const sendPrompt = (c, text, id) => runHook("prompt", fixture("prompt", c.repo, { prompt: text, prompt_id: id }), c.env);
 
 function codexPrompt(c, text, id) {
-  const raw = fs.readFileSync(path.join(ROOT, "test", "fixtures", "codex", "prompt.json"), "utf8").split("/work/proj").join(c.repo);
+  const raw = rewriteProjectDir(fs.readFileSync(path.join(ROOT, "test", "fixtures", "codex", "prompt.json"), "utf8"), c.repo);
   const payload = { ...JSON.parse(raw), prompt: text, turn_id: id };
   return new Promise((resolve) => {
     const ch = spawn(process.execPath, [BIN, "prompt", "--host", "codex"], { env: c.env, cwd: c.repo });
