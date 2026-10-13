@@ -406,7 +406,7 @@ test("/intent:on and /intent:live turn checks on, set live, and show the connect
 });
 
 test("hostUpdate: runs the host's two update commands and reports a newer installed version", async () => {
-  const { hostUpdate } = await import("../lib/commands.js");
+  const { hostUpdate, availableVersion, doctorCommand } = await import("../lib/commands.js");
   const dir = tmpdir("intent-cache-");
   fs.mkdirSync(path.join(dir, "0.2.3"));
   const info = { marketplace: "intentcomputing", plugin: "intent", version: "0.2.3", versionsDir: dir };
@@ -417,6 +417,36 @@ test("hostUpdate: runs the host's two update commands and reports a newer instal
   fs.mkdirSync(path.join(dir, "0.3.0"));
   assert.match(await hostUpdate({ info, exec }), /^Update: v0\.3\.0 is installed\. Run \/reload-plugins/);
   assert.match(await hostUpdate({ info, exec: async () => false }), /^Update: could not check from here .*To update by hand, open \/plugin/);
+  // The host's local copy of the marketplace names a newer version: no network needed to say so.
+  const home = tmpdir("intent-home-");
+  const vdir = path.join(home, "plugins", "cache", "intentcomputing", "intent");
+  fs.mkdirSync(path.join(vdir, "0.2.3"), { recursive: true });
+  const mdir = path.join(home, "plugins", "marketplaces", "intentcomputing", ".claude-plugin");
+  fs.mkdirSync(mdir, { recursive: true });
+  const listed = (v) => fs.writeFileSync(path.join(mdir, "marketplace.json"), JSON.stringify({ name: "intentcomputing", plugins: [{ name: "intent", source: "./", version: v }] }));
+  const inst = { ...info, versionsDir: vdir };
+  const noTags = async () => "";
+  fs.rmSync(path.dirname(mdir), { recursive: true });
+  assert.equal(await availableVersion(inst, async () => "x\trefs/tags/v9.9.9\n"), null, "no marketplace copy: the remote is not asked");
+  fs.mkdirSync(mdir, { recursive: true });
+  listed("0.2.3");
+  assert.equal(await availableVersion(inst, noTags), null, "not newer");
+  // The local copy is stale: the remote's release tags name the newest one. Prerelease tags do not count.
+  assert.equal(await availableVersion(inst, async () => ["a\trefs/tags/v0.2.3", "b\trefs/tags/v0.2.10", "c\trefs/tags/v0.4.0-per-edit.1", ""].join("\n")), "0.2.10");
+  listed("0.3.0");
+  assert.equal(await availableVersion(inst, noTags), "0.3.0");
+  assert.match(await hostUpdate({ info: inst, exec: async () => false }), /^Update: v0\.3\.0 is available, but it could not be installed from here /);
+  assert.match(await hostUpdate({ info: inst, exec }), /^Update: v0\.3\.0 is available but was not installed\./);
+  // In-process: point it at a throwaway data folder, switched off so it calls nothing.
+  const env = { CLAUDE_PLUGIN_DATA: tmpdir("intent-data-"), INTENT_API_URL: fp.url, INTENT_DISABLED: "1" };
+  const before = Object.fromEntries(Object.keys(env).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, env);
+  try {
+    const out = await doctorCommand({ update: async () => "Update: x", available: () => "0.3.0" });
+    assert.match(out, /^Intent Check v\S+ \(v0\.3\.0 available\): off \(INTENT_DISABLED=1\)\n/);
+  } finally {
+    for (const [k, v] of Object.entries(before)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
   assert.match(await hostUpdate({ info: null, exec }), /skipped/);
   assert.match(await hostUpdate({ host: "codex", info, exec }), /not checked on Codex/);
   assert.match(await hostUpdate({ info: { ...info, marketplace: "a;b" }, exec }), /could not check/);

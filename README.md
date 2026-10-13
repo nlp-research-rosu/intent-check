@@ -63,6 +63,7 @@ The choice is saved in the plugin's `config.json` as `live`. `INTENT_LIVE=1` or 
 
 - Not connected: it shows a fresh link to connect your account.
 - The service no longer accepts the saved key: it forgets the key and shows a fresh link.
+- A newer release: the first line names it ("v0.2.3 (v0.2.4 available)"). It reads the release tags of the marketplace the plugin was installed from, so it also works where the plugin cannot update itself.
 - An update: on Claude Code it runs `claude plugin marketplace update` and `claude plugin update` for you, and tells you to run `/reload-plugins` when a new version was installed. Where the `claude` command is not available (the desktop app, for example) it says how to update by hand.
 - Anything only you can fix (checks turned off, an environment variable, no network) is listed as a "To do" line.
 
