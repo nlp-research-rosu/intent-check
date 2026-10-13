@@ -201,11 +201,13 @@ test("legacy key: a 401 from /v1/me rejects it for this service", async () => {
 
 // ---- 6: SessionStart stays under the watchdog ----------------------------------------------------
 
-test("SessionStart with a legacy key and an unresponsive service finishes well under the 8 s watchdog, with its notices", async () => {
+test("SessionStart with a legacy key and an unresponsive service finishes well under the 8 s watchdog, with its notices", async (t) => {
   const sockets = [];
   const hang = http.createServer(() => { /* never answers */ });
   hang.on("connection", (s) => sockets.push(s));
   await new Promise((r) => hang.listen(0, "127.0.0.1", r));
+  // Closed even when an assertion below fails: an open server would keep this test file from ever exiting.
+  t.after(() => { for (const s of sockets) s.destroy(); hang.close(); });
   const url = `http://127.0.0.1:${hang.address().port}`;
   const data = tmpdir("intent-data-");
   saveKey(data, TEST_KEY);
@@ -214,8 +216,6 @@ test("SessionStart with a legacy key and an unresponsive service finishes well u
   assert.ok(r.ms < 6500, `took ${r.ms}`);
   assert.match(r.json.systemMessage, /Intent Check is on\./, "consent line delivered");
   assert.match(r.json.systemMessage, /Intent Check v\S+ ready/, "ready line delivered");
-  for (const s of sockets) s.destroy();
-  hang.close();
 });
 
 // ---- 7: server text limits -----------------------------------------------------------------------

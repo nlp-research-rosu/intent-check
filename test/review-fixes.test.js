@@ -145,11 +145,13 @@ test("5. a symlinked .sent.log is never followed", { skip: SKIP_FILE_SYMLINKS },
   assert.equal(fs.readFileSync(target, "utf8"), "# rc\n");
 });
 
-test("6. an unreachable service never slows a prompt: the request is created off the prompt path", async () => {
+test("6. an unreachable service never slows a prompt: the request is created off the prompt path", async (t) => {
   const sockets = [];
   const hang = http.createServer(() => { /* never answers */ });
   hang.on("connection", (s) => sockets.push(s));
   await new Promise((r) => hang.listen(0, "127.0.0.1", r));
+  // Closed even when an assertion below fails: an open server would keep this test file from ever exiting.
+  t.after(() => { for (const s of sockets) s.destroy(); hang.close(); });
   const url = `http://127.0.0.1:${hang.address().port}`;
   const data = tmpdir("intent-data-");
   fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
@@ -160,8 +162,6 @@ test("6. an unreachable service never slows a prompt: the request is created off
   const second = await runHook("prompt", fixture("prompt", repo), env);
   const third = await runHook("prompt", fixture("prompt", repo, { session_id: "new-session" }), env);
   assert.ok(second.ms < 600 && third.ms < 600, `${second.ms} ${third.ms}`);
-  for (const s of sockets) s.destroy();
-  hang.close();
 });
 
 test("7. sanitiser: invisible characters, tagged regions, lookalikes and social engineering", () => {

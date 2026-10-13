@@ -13,7 +13,7 @@ jobs:
     # branch protection rules that require them still match.
     name: ${{ matrix.os == 'ubuntu-latest' && format('test ({0})', matrix.node) || format('test ({0}, {1})', matrix.os, matrix.node) }}
     runs-on: ${{ matrix.os }}
-    # Windows spawns the hook processes several times slower than Linux.
+    # Windows runs the files one at a time (scripts/test.mjs) and starts each hook process more slowly.
     timeout-minutes: ${{ matrix.os == 'windows-latest' && 20 || 5 }}
     strategy:
       fail-fast: false
@@ -26,9 +26,8 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: node contract/hash.mjs
-      # bash on every OS: it expands the glob, which PowerShell and Node 18 do not.
-      - run: node --test test/*.test.js
-        shell: bash
+      # scripts/test.mjs lists the files itself and runs them one at a time on Windows.
+      - run: npm test
   # Decides whether the OS-matrix integration job runs, so the required unit job above never waits on it.
   # PRs run it when they touch hooks/, bin/, lib/, commands/, skills/, .claude-plugin/, .codex-plugin/,
   # .github/, test/integration|helpers|e2e/ or package.json; every other event runs it.
