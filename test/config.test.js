@@ -57,3 +57,22 @@ test("isInteractiveEntrypoint: only the SDKs, local-agent and mcp are non-intera
     assert.equal(isInteractiveEntrypoint(e), true, String(e));
   }
 });
+
+test("live review: INTENT_LIVE, then INTENT_MODE, then config live, then a valid mode over per_edit", () => {
+  const live = (env, cfg) => {
+    const data = tmpdir("intent-cfg-");
+    if (cfg) fs.writeFileSync(path.join(data, "config.json"), JSON.stringify(cfg));
+    const code = `import("${path.join(ROOT, "lib", "config.js")}").then((c) => console.log(c.liveMode()))`;
+    const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("INTENT_")));
+    return execFileSync(process.execPath, ["-e", code], { env: { ...clean, CLAUDE_PLUGIN_DATA: data, ...env } }).toString().trim();
+  };
+  assert.equal(live({}), "false");
+  assert.equal(live({ INTENT_MODE: "per-edit" }), "true");
+  assert.equal(live({ INTENT_MODE: "classic" }, { live: true }), "false");
+  assert.equal(live({ INTENT_MODE: "per-edit", INTENT_LIVE: "0" }), "false");
+  assert.equal(live({ INTENT_MODE: "bogus" }, { live: true }), "true");
+  assert.equal(live({}, { mode: "classic", per_edit: true }), "false");
+  assert.equal(live({}, { mode: "per-edit", per_edit: false }), "true");
+  assert.equal(live({}, { per_edit: true }), "true");
+  assert.equal(live({}, { live: false, mode: "per-edit" }), "false");
+});

@@ -178,7 +178,7 @@
             "Start `codex` and choose \"Trust all and continue\" when it says the plugin's hooks need review (or trust them in `/hooks`).",
             "Send your first prompt: it shows a link to connect your account. Open it and approve."
           ],
-          "verify": "Start `codex`, send a prompt, then ask the agent to run Intent Check status. Or ask it to change a function by 3+ lines: the check note arrives with your next message.",
+          "verify": "Start `codex`, send a prompt, then ask the agent to run the Intent Check doctor. Or ask it to change a function by 3+ lines: the check note arrives with your next message.",
           "update": "Run `codex plugin marketplace upgrade intentcomputing`, then restart `codex`. Codex may ask you to trust the plugin's hooks again after an update."
         },
         "windows": {
@@ -192,7 +192,7 @@
             "Start `codex` and choose \"Trust all and continue\" when it says the plugin's hooks need review (or trust them in `/hooks`).",
             "Send your first prompt: it shows a link to connect your account. Open it and approve."
           ],
-          "verify": "Start `codex`, send a prompt, then ask the agent to run Intent Check status. Or ask it to change a function by 3+ lines: the check note arrives with your next message.",
+          "verify": "Start `codex`, send a prompt, then ask the agent to run the Intent Check doctor. Or ask it to change a function by 3+ lines: the check note arrives with your next message.",
           "update": "Run `codex plugin marketplace upgrade intentcomputing`, then restart `codex`. Codex may ask you to trust the plugin's hooks again after an update."
         },
         "linux": {
@@ -206,7 +206,7 @@
             "Start `codex` and choose \"Trust all and continue\" when it says the plugin's hooks need review (or trust them in `/hooks`).",
             "Send your first prompt: it shows a link to connect your account. Open it and approve."
           ],
-          "verify": "Start `codex`, send a prompt, then ask the agent to run Intent Check status. Or ask it to change a function by 3+ lines: the check note arrives with your next message.",
+          "verify": "Start `codex`, send a prompt, then ask the agent to run the Intent Check doctor. Or ask it to change a function by 3+ lines: the check note arrives with your next message.",
           "update": "Run `codex plugin marketplace upgrade intentcomputing`, then restart `codex`. Codex may ask you to trust the plugin's hooks again after an update."
         }
       },

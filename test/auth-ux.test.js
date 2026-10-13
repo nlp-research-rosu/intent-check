@@ -406,7 +406,7 @@ test("/intent:on and /intent:live turn checks on, set live, and show the connect
 });
 
 test("hostUpdate: runs the host's two update commands and reports a newer installed version", async () => {
-  const { hostUpdate } = await import("../lib/commands.js");
+  const { hostUpdate, availableVersion, doctorCommand } = await import("../lib/commands.js");
   const dir = tmpdir("intent-cache-");
   fs.mkdirSync(path.join(dir, "0.2.3"));
   const info = { marketplace: "intentcomputing", plugin: "intent", version: "0.2.3", versionsDir: dir };
@@ -417,6 +417,36 @@ test("hostUpdate: runs the host's two update commands and reports a newer instal
   fs.mkdirSync(path.join(dir, "0.3.0"));
   assert.match(await hostUpdate({ info, exec }), /^Update: v0\.3\.0 is installed\. Run \/reload-plugins/);
   assert.match(await hostUpdate({ info, exec: async () => false }), /^Update: could not check from here .*To update by hand, open \/plugin/);
+  // The host's local copy of the marketplace names a newer version: no network needed to say so.
+  const home = tmpdir("intent-home-");
+  const vdir = path.join(home, "plugins", "cache", "intentcomputing", "intent");
+  fs.mkdirSync(path.join(vdir, "0.2.3"), { recursive: true });
+  const mdir = path.join(home, "plugins", "marketplaces", "intentcomputing", ".claude-plugin");
+  fs.mkdirSync(mdir, { recursive: true });
+  const listed = (v) => fs.writeFileSync(path.join(mdir, "marketplace.json"), JSON.stringify({ name: "intentcomputing", plugins: [{ name: "intent", source: "./", version: v }] }));
+  const inst = { ...info, versionsDir: vdir };
+  const noTags = async () => "";
+  fs.rmSync(path.dirname(mdir), { recursive: true });
+  assert.equal(await availableVersion(inst, async () => "x\trefs/tags/v9.9.9\n"), null, "no marketplace copy: the remote is not asked");
+  fs.mkdirSync(mdir, { recursive: true });
+  listed("0.2.3");
+  assert.equal(await availableVersion(inst, noTags), null, "not newer");
+  // The local copy is stale: the remote's release tags name the newest one. Prerelease tags do not count.
+  assert.equal(await availableVersion(inst, async () => ["a\trefs/tags/v0.2.3", "b\trefs/tags/v0.2.10", "c\trefs/tags/v0.4.0-per-edit.1", ""].join("\n")), "0.2.10");
+  listed("0.3.0");
+  assert.equal(await availableVersion(inst, noTags), "0.3.0");
+  assert.match(await hostUpdate({ info: inst, exec: async () => false }), /^Update: v0\.3\.0 is available, but it could not be installed from here /);
+  assert.match(await hostUpdate({ info: inst, exec }), /^Update: v0\.3\.0 is available but was not installed\./);
+  // In-process: point it at a throwaway data folder, switched off so it calls nothing.
+  const env = { CLAUDE_PLUGIN_DATA: tmpdir("intent-data-"), INTENT_API_URL: fp.url, INTENT_DISABLED: "1" };
+  const before = Object.fromEntries(Object.keys(env).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, env);
+  try {
+    const out = await doctorCommand({ update: async () => "Update: x", available: () => "0.3.0" });
+    assert.match(out, /^Intent Check v\S+ \(v0\.3\.0 available\): off \(INTENT_DISABLED=1\)\n/);
+  } finally {
+    for (const [k, v] of Object.entries(before)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
   assert.match(await hostUpdate({ info: null, exec }), /skipped/);
   assert.match(await hostUpdate({ host: "codex", info, exec }), /not checked on Codex/);
   assert.match(await hostUpdate({ info: { ...info, marketplace: "a;b" }, exec }), /could not check/);
@@ -543,4 +573,52 @@ test("an env-key 401 notes INTENT_API_KEY, pauses that key and leaves it alone",
     assert.ok(pausedFor(ENV));
   });
   assert.equal(readJson(path.join(ctx.data, "config.json")).keys[fp.url], TEST_KEY, "saved key untouched");
+});
+
+test("/intent:on after /intent:live says live review is now off; INTENT_MODE is the older env override", async () => {
+  const ctx = setup();
+  delete ctx.env.INTENT_LIVE;
+  saveKey(ctx.data, TEST_KEY, fp.url);
+  assert.doesNotMatch((await slash("on", ctx)).stdout, /Live review is now off/);
+  await slash("live", ctx);
+  assert.equal((await slash("on", ctx)).stdout, "Intent Check is on. Changes are checked at the end of each turn. Live review is now off; /intent:live turns it back on.\n");
+  assert.doesNotMatch((await slash("on", ctx)).stdout, /Live review is now off/);
+  assert.match((await slash("doctor", ctx, { ...ctx.env, INTENT_MODE: "per-edit" })).stdout, /: on \(live\)\n/);
+  const forced = (await slash("on", ctx, { ...ctx.env, INTENT_MODE: "per-edit" })).stdout;
+  assert.match(forced, /INTENT_MODE=per-edit is set in the environment and takes precedence\./);
+  assert.doesNotMatch(forced, /undefined/);
+});
+
+test("removed subcommands print one line instead of nothing", async () => {
+  const ctx = setup();
+  for (const name of ["check", "status", "connect", "disconnect", "mode"]) {
+    const r = await slash(name, ctx);
+    assert.equal(r.code, 0);
+    assert.match(r.stdout, /^Intent Check: that command was replaced\. Use \/intent:doctor to see the status or connect, or \/intent:deepscan <files> to review files\.\n$/);
+  }
+  const codex = await slash("status", ctx, { ...ctx.env, PLUGIN_ROOT: ROOT });
+  assert.match(codex.stdout, /^Intent Check: that command was replaced\. Ask for the Intent Check doctor/);
+  assert.doesNotMatch(codex.stdout, /\/intent:/);
+});
+
+test("doctor skips the host update while checks are off, and looks up the newest version once", async () => {
+  const { doctorCommand } = await import("../lib/commands.js");
+  const env = { CLAUDE_PLUGIN_DATA: tmpdir("intent-data-"), INTENT_API_URL: fp.url };
+  const before = Object.fromEntries(Object.keys(env).concat("INTENT_DISABLED").map((k) => [k, process.env[k]]));
+  Object.assign(process.env, env);
+  try {
+    let updates = 0;
+    let lookups = 0;
+    const update = async ({ available }) => { updates++; await available(); await available(); return "Update: x"; };
+    const available = () => { lookups++; return "0.3.0"; };
+    process.env.INTENT_DISABLED = "1";
+    const off = await doctorCommand({ update, available });
+    assert.deepEqual([updates, lookups, /Update:/.test(off)], [0, 1, false]);
+    delete process.env.INTENT_DISABLED;
+    updates = lookups = 0;
+    assert.match(await doctorCommand({ update, available }), /\nUpdate: x\n/);
+    assert.deepEqual([updates, lookups], [1, 1]);
+  } finally {
+    for (const [k, v] of Object.entries(before)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
 });
