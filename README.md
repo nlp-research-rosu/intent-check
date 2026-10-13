@@ -94,7 +94,7 @@ Then start `codex` and choose "Trust all and continue" when it says the plugin's
 
 Intent Check 0.2.0 updated its edit hook (it now also runs after `apply_patch` and shell commands in live mode). If Codex lists it as Modified, approve it in `/hooks` (or the app's hook review); the first session after the update says so once.
 
-If you already had the plugin trusted, updating to the `node .../bin/intent.js` hook commands (they used to run through the `sh` launcher `bin/intent`) changes them, so Codex asks you to trust them again once. Codex hooks are plain command strings, so the same `node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" ...` line serves every OS;
+Codex hooks are plain command strings, so the same `node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" ...` line serves every OS;
 - Codex cannot wake an idle session, so concerns reach the agent with your next message (or at the end of the same turn, if the check already finished). Clean checks show one short "no concerns" line the next time you prompt.
 - Codex does not load plugin slash commands. Ask the agent instead ("turn Intent Check off", "turn live mode on", "run the Intent Check doctor"); it runs the plugin's `intent.js off`, `live` or `doctor`, which may need your approval to write outside the sandbox. `INTENT_DISABLED=1` when starting Codex also turns checks off.
 - To ask for a review, ask the agent to check specific files ("check auth.py with Intent Check"), or for a whole-repo scan, ask for a DeepScan.

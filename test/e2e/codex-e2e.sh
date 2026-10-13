@@ -89,7 +89,7 @@ wait_for 20 test -f "$DATA/connect.json" || true
 USER_CODE="$(node -e 'try{console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).user_code||"")}catch{console.log("")}' "$DATA/connect.json")"
 [ -n "$USER_CODE" ] && ok "connect started ($USER_CODE)" || bad "no connect request"
 approve "$USER_CODE" || bad "approve failed"
-if wait_for 60 grep -q '"api_key"' "$DATA/config.json" 2>/dev/null; then ok "key saved"; else bad "key not saved"; fi
+if wait_for 60 grep -q '"keys"' "$DATA/config.json" 2>/dev/null; then ok "key saved"; else bad "key not saved"; fi
 
 # 2. Seeded bug: Stop must return quickly; the detached poller writes .intent/.
 T0=$SECONDS

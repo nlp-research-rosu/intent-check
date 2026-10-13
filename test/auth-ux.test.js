@@ -28,6 +28,26 @@ const prompt = (ctx, text = "please build the pricing module", extra = {}) => ru
 const start = (ctx, extra = {}) => runHook("session-start", fixture("session-start", ctx.repo, extra), ctx.env);
 const slash = (name, ctx, env = ctx.env) => runHook(name, undefined, env);
 
+// ---- item 1: keys per service ----------------------------------------------------------------
+
+test("keys are per service: a key saved for another URL is not used", async () => {
+  const ctx = setup();
+  saveKey(ctx.data, TEST_KEY, "http://127.0.0.1:1");
+  const r = await start(ctx);
+  assert.match(r.json.systemMessage, /connect your account/);
+  assert.equal(readJson(cfileOf(ctx)).api_url, fp.url);
+  const st = await slash("doctor", ctx);
+  assert.match(st.stdout, /Key source: none/);
+});
+
+test("INTENT_API_KEY wins over a saved key, and doctor shows where the key comes from", async () => {
+  const ctx = setup();
+  saveKey(ctx.data, "ic_" + "Y".repeat(38), fp.url);
+  const env = await slash("doctor", ctx, { ...ctx.env, INTENT_API_KEY: TEST_KEY });
+  assert.match(env.stdout, /Key source: INTENT_API_KEY \(environment\)/);
+  assert.match(env.stdout, /Account: tester/, "the env key is the one asked");
+});
+
 // ---- item 3: connect creation off the prompt path, backoff -------------------------------------
 
 test("429 from the service backs off for 30 s, then tries again", async () => {

@@ -24,6 +24,7 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 - `/intent:status` and `/intent:connect`: use `/intent:doctor`.
 - `/intent:disconnect`: revoke a machine's key from your account page on the service.
 - The `--depth` and `--scope` flags of `/intent:deepscan`: name the depth and the folder as plain arguments.
+- Settings saved by early versions are no longer read: the top-level `api_key` (the next prompt shows a connect link), `mode` and `per_edit` (run `/intent:live` again), and the `INTENT_MODE` variable (use `INTENT_LIVE`).
 
 ## [0.2.4] - 2026-10-13
 
