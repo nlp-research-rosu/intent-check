@@ -166,11 +166,14 @@ test("6. an unreachable service never slows a prompt: the request is created off
   fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   const env = baseEnv(data, url);
   const repo = makeRepo().dir;
+  // A prompt that waited on the connect request would take its 1.5 s timeout plus process start-up;
+  // Windows starts a node process more slowly, so its bound is looser but still below that.
+  const FAST = process.platform === "win32" ? 1400 : 600;
   const first = await runHook("prompt", fixture("prompt", repo), env);
-  assert.ok(first.ms < 600, `first took ${first.ms}`);
+  assert.ok(first.ms < FAST, `first took ${first.ms}`);
   const second = await runHook("prompt", fixture("prompt", repo), env);
   const third = await runHook("prompt", fixture("prompt", repo, { session_id: "new-session" }), env);
-  assert.ok(second.ms < 600 && third.ms < 600, `${second.ms} ${third.ms}`);
+  assert.ok(second.ms < FAST && third.ms < FAST, `${second.ms} ${third.ms}`);
 });
 
 test("7. sanitiser: invisible characters, tagged regions, lookalikes and social engineering", () => {

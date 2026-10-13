@@ -62,7 +62,7 @@ test("live review: INTENT_LIVE, then INTENT_MODE, then config live, then a valid
   const live = (env, cfg) => {
     const data = tmpdir("intent-cfg-");
     if (cfg) fs.writeFileSync(path.join(data, "config.json"), JSON.stringify(cfg));
-    const code = `import("${path.join(ROOT, "lib", "config.js")}").then((c) => console.log(c.liveMode()))`;
+    const code = `import(${JSON.stringify(pathToFileURL(path.join(ROOT, "lib", "config.js")).href)}).then((c) => console.log(c.liveMode()))`;
     const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("INTENT_")));
     return execFileSync(process.execPath, ["-e", code], { env: { ...clean, CLAUDE_PLUGIN_DATA: data, ...env } }).toString().trim();
   };
