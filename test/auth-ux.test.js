@@ -28,37 +28,7 @@ const prompt = (ctx, text = "please build the pricing module", extra = {}) => ru
 const start = (ctx, extra = {}) => runHook("session-start", fixture("session-start", ctx.repo, extra), ctx.env);
 const slash = (name, ctx, env = ctx.env) => runHook(name, undefined, env);
 
-// ---- item 1: keys per service, legacy migration -------------------------------------------------
-
-test("a legacy top-level api_key is moved under the current URL once /v1/me says 200, and stays readable", async () => {
-  const ctx = setup();
-  saveKey(ctx.data, TEST_KEY);
-  const n = meCalls();
-  const r = await start(ctx);
-  assert.equal(r.stdout, "", "connected: nothing to show");
-  assert.equal(meCalls(), n + 1);
-  const cfg = readJson(path.join(ctx.data, "config.json"));
-  assert.equal(cfg.keys[fp.url], TEST_KEY);
-  assert.equal(cfg.api_key, undefined, "the old field is removed once its key lives under keys[url]");
-  assert.equal(cfg.legacy_for, fp.url);
-  assert.equal(fs.existsSync(cfileOf(ctx)), false);
-  // Already under keys[url]: no second /v1/me.
-  await prompt(ctx);
-  assert.equal(meCalls(), n + 1);
-});
-
-test("a legacy key the service rejects is not migrated; the user gets a new link with the reason", async () => {
-  const ctx = setup();
-  saveKey(ctx.data, "ic_" + "Z".repeat(38));
-  const r = await start(ctx);
-  assert.match(r.json.systemMessage, /^Intent Check: Your saved key is no longer accepted \(revoked or expired\)\.\nIntent Check: connect your account → http/);
-  const cfg = readJson(path.join(ctx.data, "config.json"));
-  assert.equal(cfg.keys, undefined);
-  assert.deepEqual(cfg.legacy_rejected, [fp.url]);
-  const m = meCalls();
-  await prompt(ctx, "another prompt that is long enough", { session_id: "s2" });
-  assert.equal(meCalls(), m, "not asked again");
-});
+// ---- item 1: keys per service ----------------------------------------------------------------
 
 test("keys are per service: a key saved for another URL is not used", async () => {
   const ctx = setup();
@@ -66,16 +36,14 @@ test("keys are per service: a key saved for another URL is not used", async () =
   const r = await start(ctx);
   assert.match(r.json.systemMessage, /connect your account/);
   assert.equal(readJson(cfileOf(ctx)).api_url, fp.url);
-  const st = await slash("status", ctx);
+  const st = await slash("doctor", ctx);
   assert.match(st.stdout, /Key source: none/);
 });
 
-test("INTENT_API_KEY wins over a saved key, and status shows where the key comes from", async () => {
+test("INTENT_API_KEY wins over a saved key, and doctor shows where the key comes from", async () => {
   const ctx = setup();
   saveKey(ctx.data, "ic_" + "Y".repeat(38), fp.url);
-  const saved = await slash("status", ctx);
-  assert.match(saved.stdout, /Key source: saved by Intent Check for this service/);
-  const env = await slash("status", ctx, { ...ctx.env, INTENT_API_KEY: TEST_KEY });
+  const env = await slash("doctor", ctx, { ...ctx.env, INTENT_API_KEY: TEST_KEY });
   assert.match(env.stdout, /Key source: INTENT_API_KEY \(environment\)/);
   assert.match(env.stdout, /Account: tester/, "the env key is the one asked");
 });
@@ -86,7 +54,7 @@ test("429 from the service backs off for 30 s, then tries again", async () => {
   const ctx = setup();
   fp.state.connectStartStatus = 429;
   const r = await start(ctx);
-  assert.match(r.json.systemMessage, /^Intent Check could not create a connect link \(429\)\. Run \/intent:connect to retry, or \/intent:status for details\.$/);
+  assert.match(r.json.systemMessage, /^Intent Check could not create a connect link \(429\)\. Run \/intent:doctor to retry\.$/);
   const g = () => readJson(path.join(ctx.data, "global.json"));
   assert.ok(g().backoff.connect > Date.now() - 5000);
   assert.match(g().last_error.text, /could not start a connect request \(429\)/);
@@ -302,10 +270,10 @@ test("the key is saved before anything is acknowledged: a failed save is never r
 
 // ---- item 6: commands ---------------------------------------------------------------------------
 
-test("/intent:status: version, service, account, state, last check, last error, key source", async () => {
+test("/intent:doctor: version, service, account, state, last check, last error, key source, update", async () => {
   const ctx = setup();
   saveKey(ctx.data, TEST_KEY, fp.url);
-  const r = await slash("status", ctx);
+  const r = await slash("doctor", ctx);
   assert.equal(r.code, 0);
   const lines = r.stdout.trim().split("\n");
   assert.equal(lines[0], `Intent Check v${PLUGIN_VERSION}: on`);
@@ -315,40 +283,47 @@ test("/intent:status: version, service, account, state, last check, last error, 
   assert.equal(lines[4], "Key source: saved by Intent Check for this service");
   assert.equal(lines[5], "Last check: none yet");
   assert.equal(lines[6], "Last error: none");
-  assert.match(lines[7], /^Nothing is being sent because no turn has changed source files/);
+  assert.match(lines[7], /^Local state: /);
+  assert.equal(lines[8], "Update: skipped (this copy does not run from the plugin cache).");
+  assert.match(lines[9], /^Nothing is being sent because no turn has changed source files/);
+  assert.equal(lines.length, 10, "connected: no link, nothing to do");
   assert.doesNotMatch(r.stdout, new RegExp(TEST_KEY));
 });
 
-test("/intent:status explains why nothing was sent: not connected, off, paused, and records the last check", async () => {
+test("/intent:doctor explains why nothing was sent: not connected (with a link), off, and records the last check", async () => {
   const ctx = setup();
-  const none = await slash("status", ctx);
-  assert.match(none.stdout, /State: not connected/);
+  const none = await slash("doctor", ctx);
+  assert.match(none.stdout, /State: waiting for approval at http/);
+  assert.match(none.stdout, /\nIntent Check: connect your account → http/);
   assert.match(none.stdout, /Account: none/);
   assert.match(none.stdout, /Nothing is being sent because this machine is not connected to an account yet\./);
-  const off = await slash("status", ctx, { ...ctx.env, INTENT_DISABLED: "1" });
+  const off = await slash("doctor", ctx, { ...ctx.env, INTENT_DISABLED: "1" });
   assert.match(off.stdout, /Nothing is being sent because checks are off \(INTENT_DISABLED=1\)\./);
+  assert.match(off.stdout, /To do: INTENT_DISABLED=1 is set in the environment/);
+  assert.doesNotMatch(off.stdout, /connect your account/, "off: nothing to connect");
 
   // After a real submit the last check is recorded.
   saveKey(ctx.data, TEST_KEY, fp.url);
   await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
   fs.writeFileSync(path.join(ctx.repo, "pricing.py"), "def a(x):\n    y = x\n    return y\n");
   await runHook("stop", fixture("stop", ctx.repo), ctx.env);
-  const sent = await slash("status", ctx);
+  const sent = await slash("doctor", ctx);
   assert.match(sent.stdout, /Last check: \S+, sent/);
   assert.doesNotMatch(sent.stdout, /Nothing is being sent/);
+  assert.match(sent.stdout, /\nEverything is working\.\n$/);
 });
 
-test("/intent:connect gives a fresh link even after one was shown, and the next prompt does not repeat it", async () => {
+test("/intent:doctor gives a fresh link even after one was shown, and the next prompt does not repeat it", async () => {
   const ctx = setup();
   const s = await start(ctx);
   assert.match(s.json.systemMessage, /connect your account/);
   const before = posts();
-  const c = await slash("connect", ctx);
+  const c = await slash("doctor", ctx);
   assert.equal(c.code, 0);
-  assert.match(c.stdout, /^Intent Check: connect your account → http:\/\/127\.0\.0\.1:\d+\/connect\/KDRT-MWQX\n/);
+  assert.match(c.stdout, /\nIntent Check: connect your account → http:\/\/127\.0\.0\.1:\d+\/connect\/KDRT-MWQX\n/);
   assert.equal(posts(), before + 1, "a fresh request");
   // The prompt that ran the command is what marks this session as the one that saw the link.
-  await prompt(ctx, "/intent:connect");
+  await prompt(ctx, "/intent:doctor");
   const p = await prompt(ctx);
   assert.equal(p.stdout, "");
   // Another session did not see it: it still gets the line and the gate.
@@ -357,48 +332,94 @@ test("/intent:connect gives a fresh link even after one was shown, and the next 
   assert.match(other.json.hookSpecificOutput.additionalContext, /"done" or "skip"/);
 });
 
-test("/intent:connect when already connected says so", async () => {
+test("/intent:doctor when connected makes no connect request", async () => {
   const ctx = setup();
   saveKey(ctx.data, TEST_KEY, fp.url);
-  const c = await slash("connect", ctx);
-  assert.match(c.stdout, /already connected/);
+  const before = posts();
+  const c = await slash("doctor", ctx);
+  assert.match(c.stdout, /State: connected/);
+  assert.doesNotMatch(c.stdout, /connect your account/);
+  assert.equal(posts(), before);
 });
 
-test("/intent:disconnect revokes the key at the service, forgets it locally and stops nagging until /intent:connect", async () => {
+test("/intent:doctor forgets a saved key the service rejects and shows a new link; an INTENT_API_KEY is left alone", async () => {
   const ctx = setup();
   saveKey(ctx.data, TEST_KEY, fp.url);
-  const d = await slash("disconnect", ctx);
+  fp.state.keyRevoked = true;
+  const d = await slash("doctor", ctx);
   assert.equal(d.code, 0);
-  assert.match(d.stdout, /disconnected: the key was revoked and removed from this machine/);
-  assert.ok(fp.state.requests.some((x) => x.method === "DELETE" && x.path === "/v1/me/key" && x.headers.authorization === `Bearer ${TEST_KEY}`));
-  const cfg = readJson(path.join(ctx.data, "config.json"));
-  assert.equal((cfg.keys || {})[fp.url], undefined);
-  assert.equal(cfg.api_key, undefined);
-  const r = await start(ctx);
-  assert.equal(r.stdout, "", "the user chose to disconnect");
-  const st = await slash("status", ctx);
-  assert.match(st.stdout, /State: disconnected/);
-  assert.match(st.stdout, /you disconnected this machine/);
-  const c = await slash("connect", ctx);
-  assert.match(c.stdout, /connect your account → http/);
+  assert.match(d.stdout, /Account: the service did not accept the key/);
+  assert.match(d.stdout, /Key source: none/);
+  assert.match(d.stdout, /\nIntent Check: connect your account → http/);
+  assert.equal((readJson(path.join(ctx.data, "config.json")).keys || {})[fp.url], undefined);
+  const env = await slash("doctor", ctx, { ...ctx.env, INTENT_API_KEY: TEST_KEY });
+  assert.match(env.stdout, /To do: The key in INTENT_API_KEY is not accepted/);
 });
 
-test("/intent:disconnect also removes a legacy copy of the key", async () => {
+test("/intent:on and /intent:live turn checks on, set live, and show the connect link when there is no key", async () => {
   const ctx = setup();
-  saveKey(ctx.data, TEST_KEY);
-  await start(ctx); // migrates
-  await slash("disconnect", ctx);
-  const cfg = readJson(path.join(ctx.data, "config.json"));
-  assert.equal(cfg.api_key, undefined);
-  assert.equal((cfg.keys || {})[fp.url], undefined);
+  delete ctx.env.INTENT_LIVE;
+  const cfg = () => readJson(path.join(ctx.data, "config.json"));
+  await slash("off", ctx);
+  assert.equal(cfg().disabled, true);
+  const live = await slash("live", ctx);
+  assert.match(live.stdout, /^Intent Check is on \(live\)\. Every edit is checked as it happens, and each turn at its end\.\nIntent Check: connect your account → http/);
+  assert.deepEqual([cfg().disabled, cfg().live], [undefined, true]);
+  assert.match((await slash("doctor", ctx)).stdout, /^Intent Check v\S+: on \(live\)\n/);
+  saveKey(ctx.data, TEST_KEY, fp.url);
+  const on = await slash("on", ctx);
+  assert.equal(on.stdout, "Intent Check is on. Changes are checked at the end of each turn.\n");
+  assert.equal(cfg().live, false);
+  // The env var wins, and the command says so.
+  const forced = await slash("on", ctx, { ...ctx.env, INTENT_LIVE: "1" });
+  assert.match(forced.stdout, /INTENT_LIVE=1 is set in the environment and takes precedence\./);
 });
 
-test("/intent:disconnect cannot remove an INTENT_API_KEY", async () => {
-  const ctx = setup();
-  const n = fp.state.requests.filter((x) => x.method === "DELETE").length;
-  const d = await slash("disconnect", ctx, { ...ctx.env, INTENT_API_KEY: TEST_KEY });
-  assert.match(d.stdout, /INTENT_API_KEY/);
-  assert.equal(fp.state.requests.filter((x) => x.method === "DELETE").length, n);
+test("hostUpdate: runs the host's two update commands and reports a newer installed version", async () => {
+  const { hostUpdate, availableVersion, doctorCommand } = await import("../lib/commands.js");
+  const dir = tmpdir("intent-cache-");
+  fs.mkdirSync(path.join(dir, "0.2.3"));
+  const info = { marketplace: "intentcomputing", plugin: "intent", version: "0.2.3", versionsDir: dir };
+  const calls = [];
+  const exec = async (file, args) => { calls.push([file, ...args].join(" ")); return true; };
+  assert.equal(await hostUpdate({ info, exec }), "Update: up to date.");
+  assert.deepEqual(calls, ["claude plugin marketplace update intentcomputing", "claude plugin update intent@intentcomputing"]);
+  fs.mkdirSync(path.join(dir, "0.3.0"));
+  assert.match(await hostUpdate({ info, exec }), /^Update: v0\.3\.0 is installed\. Run \/reload-plugins/);
+  assert.match(await hostUpdate({ info, exec: async () => false }), /^Update: could not check from here .*To update by hand, open \/plugin/);
+  // The host's local copy of the marketplace names a newer version: no network needed to say so.
+  const home = tmpdir("intent-home-");
+  const vdir = path.join(home, "plugins", "cache", "intentcomputing", "intent");
+  fs.mkdirSync(path.join(vdir, "0.2.3"), { recursive: true });
+  const mdir = path.join(home, "plugins", "marketplaces", "intentcomputing", ".claude-plugin");
+  fs.mkdirSync(mdir, { recursive: true });
+  const listed = (v) => fs.writeFileSync(path.join(mdir, "marketplace.json"), JSON.stringify({ name: "intentcomputing", plugins: [{ name: "intent", source: "./", version: v }] }));
+  const inst = { ...info, versionsDir: vdir };
+  const noTags = async () => "";
+  fs.rmSync(path.dirname(mdir), { recursive: true });
+  assert.equal(await availableVersion(inst, async () => "x\trefs/tags/v9.9.9\n"), null, "no marketplace copy: the remote is not asked");
+  fs.mkdirSync(mdir, { recursive: true });
+  listed("0.2.3");
+  assert.equal(await availableVersion(inst, noTags), null, "not newer");
+  // The local copy is stale: the remote's release tags name the newest one. Prerelease tags do not count.
+  assert.equal(await availableVersion(inst, async () => ["a\trefs/tags/v0.2.3", "b\trefs/tags/v0.2.10", "c\trefs/tags/v0.4.0-per-edit.1", ""].join("\n")), "0.2.10");
+  listed("0.3.0");
+  assert.equal(await availableVersion(inst, noTags), "0.3.0");
+  assert.match(await hostUpdate({ info: inst, exec: async () => false }), /^Update: v0\.3\.0 is available, but it could not be installed from here /);
+  assert.match(await hostUpdate({ info: inst, exec }), /^Update: v0\.3\.0 is available but was not installed\./);
+  // In-process: point it at a throwaway data folder, switched off so it calls nothing.
+  const env = { CLAUDE_PLUGIN_DATA: tmpdir("intent-data-"), INTENT_API_URL: fp.url, INTENT_DISABLED: "1" };
+  const before = Object.fromEntries(Object.keys(env).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, env);
+  try {
+    const out = await doctorCommand({ update: async () => "Update: x", available: () => "0.3.0" });
+    assert.match(out, /^Intent Check v\S+ \(v0\.3\.0 available\): off \(INTENT_DISABLED=1\)\n/);
+  } finally {
+    for (const [k, v] of Object.entries(before)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
+  assert.match(await hostUpdate({ info: null, exec }), /skipped/);
+  assert.match(await hostUpdate({ host: "codex", info, exec }), /not checked on Codex/);
+  assert.match(await hostUpdate({ info: { ...info, marketplace: "a;b" }, exec }), /could not check/);
 });
 
 // ---- item 7: no silent failures ---------------------------------------------------------------
@@ -417,17 +438,17 @@ test("the first run after install or update says Intent Check vX ready, once per
   assert.equal(c.json.systemMessage, `Intent Check v${PLUGIN_VERSION} ready`);
 });
 
-test("a hook that throws prints one user-visible line per session, and status shows why", async () => {
+test("a hook that throws prints one user-visible line per session, and doctor shows why", async () => {
   const ctx = setup();
   fs.mkdirSync(path.join(ctx.data, "connect.json", "x"), { recursive: true }); // the request cannot be saved
   const a = await start(ctx, { session_id: "boom" });
   assert.equal(a.code, 0);
-  assert.match(a.json.systemMessage, /^Intent Check hit an error \(\w+\) and may not be checking your changes\. Run \/intent:status for details\.$/);
+  assert.match(a.json.systemMessage, /^Intent Check hit an error \(\w+\) and may not be checking your changes\. Run \/intent:doctor to check and repair it\.$/);
   const b = await start(ctx, { session_id: "boom" });
   assert.equal(b.stdout, "", "once per session");
   const other = await start(ctx, { session_id: "another" });
   assert.match(other.json.systemMessage, /hit an error/);
-  const st = await slash("status", ctx);
+  const st = await slash("doctor", ctx);
   assert.match(st.stdout, /Last error: session-start: /);
 });
 
@@ -522,4 +543,40 @@ test("an env-key 401 notes INTENT_API_KEY, pauses that key and leaves it alone",
     assert.ok(pausedFor(ENV));
   });
   assert.equal(readJson(path.join(ctx.data, "config.json")).keys[fp.url], TEST_KEY, "saved key untouched");
+});
+
+test("/intent:on after /intent:live says live review is now off, and INTENT_LIVE in the environment takes precedence", async () => {
+  const ctx = setup();
+  delete ctx.env.INTENT_LIVE;
+  saveKey(ctx.data, TEST_KEY, fp.url);
+  assert.doesNotMatch((await slash("on", ctx)).stdout, /Live review is now off/);
+  await slash("live", ctx);
+  assert.equal((await slash("on", ctx)).stdout, "Intent Check is on. Changes are checked at the end of each turn. Live review is now off; /intent:live turns it back on.\n");
+  assert.doesNotMatch((await slash("on", ctx)).stdout, /Live review is now off/);
+  assert.match((await slash("doctor", ctx, { ...ctx.env, INTENT_LIVE: "1" })).stdout, /: on \(live\)\n/);
+  const forced = (await slash("on", ctx, { ...ctx.env, INTENT_LIVE: "1" })).stdout;
+  assert.match(forced, /INTENT_LIVE=1 is set in the environment and takes precedence\./);
+  assert.doesNotMatch(forced, /undefined/);
+});
+
+test("doctor skips the host update while checks are off, and looks up the newest version once", async () => {
+  const { doctorCommand } = await import("../lib/commands.js");
+  const env = { CLAUDE_PLUGIN_DATA: tmpdir("intent-data-"), INTENT_API_URL: fp.url };
+  const before = Object.fromEntries(Object.keys(env).concat("INTENT_DISABLED").map((k) => [k, process.env[k]]));
+  Object.assign(process.env, env);
+  try {
+    let updates = 0;
+    let lookups = 0;
+    const update = async ({ available }) => { updates++; await available(); await available(); return "Update: x"; };
+    const available = () => { lookups++; return "0.3.0"; };
+    process.env.INTENT_DISABLED = "1";
+    const off = await doctorCommand({ update, available });
+    assert.deepEqual([updates, lookups, /Update:/.test(off)], [0, 1, false]);
+    delete process.env.INTENT_DISABLED;
+    updates = lookups = 0;
+    assert.match(await doctorCommand({ update, available }), /\nUpdate: x\n/);
+    assert.deepEqual([updates, lookups], [1, 1]);
+  } finally {
+    for (const [k, v] of Object.entries(before)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
 });

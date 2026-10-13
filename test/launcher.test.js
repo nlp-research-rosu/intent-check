@@ -7,9 +7,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isExecutable } from "./helpers/env.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const LAUNCHER = path.join(ROOT, "bin", "intent");
+// The launcher is a /bin/sh script for machines without Node; Windows has no /bin/sh and no hook or command runs it there.
+const NO_SH = process.platform === "win32" ? "bin/intent is a POSIX sh script; Windows has no /bin/sh" : false;
 
 const NO_NODE_MSG = "Intent Check needs Node.js 18 or newer to run. Install it from nodejs.org, then run /reload-plugins.";
 const NO_NODE_MSG_CODEX = "Intent Check needs Node.js 18 or newer to run. Install it from nodejs.org, then restart Codex.";
@@ -41,11 +44,10 @@ function isolatedEnv(fakeBin, extra = {}) {
 }
 
 test("bin/intent is executable", () => {
-  const mode = fs.statSync(LAUNCHER).mode;
-  assert.ok(mode & 0o111, "bin/intent must have the executable bit set");
+  assert.ok(isExecutable(LAUNCHER), "bin/intent must have the executable bit set");
 });
 
-test("no Node on PATH: session-start prints exactly one JSON line with the systemMessage", () => {
+test("no Node on PATH: session-start prints exactly one JSON line with the systemMessage", { skip: NO_SH }, () => {
   const fakeBin = fakeBinDir();
   const { env } = isolatedEnv(fakeBin);
   const r = run(["session-start"], { env, input: JSON.stringify({ session_id: "s1" }) });
@@ -54,7 +56,7 @@ test("no Node on PATH: session-start prints exactly one JSON line with the syste
   assert.equal(r.stderr, "");
 });
 
-test("no Node on PATH: session-start --host codex uses hookSpecificOutput.additionalContext and 'restart Codex'", () => {
+test("no Node on PATH: session-start --host codex uses hookSpecificOutput.additionalContext and 'restart Codex'", { skip: NO_SH }, () => {
   const fakeBin = fakeBinDir();
   const { env } = isolatedEnv(fakeBin);
   const r = run(["session-start", "--host", "codex"], { env, input: JSON.stringify({ session_id: "s1" }) });
@@ -64,7 +66,7 @@ test("no Node on PATH: session-start --host codex uses hookSpecificOutput.additi
   assert.equal(out.hookSpecificOutput.additionalContext, NO_NODE_MSG_CODEX);
 });
 
-test("no Node on PATH: prompt shows the message once per session, then stays silent", () => {
+test("no Node on PATH: prompt shows the message once per session, then stays silent", { skip: NO_SH }, () => {
   const fakeBin = fakeBinDir();
   const { env } = isolatedEnv(fakeBin);
   const payload = JSON.stringify({ session_id: "same-session" });
@@ -76,7 +78,7 @@ test("no Node on PATH: prompt shows the message once per session, then stays sil
   assert.equal(r2.stdout, "");
 });
 
-test("no Node on PATH: prompt in a different session prints again", () => {
+test("no Node on PATH: prompt in a different session prints again", { skip: NO_SH }, () => {
   const fakeBin = fakeBinDir();
   const { env } = isolatedEnv(fakeBin);
   const r1 = run(["prompt"], { env, input: JSON.stringify({ session_id: "sess-a" }) });
@@ -85,7 +87,7 @@ test("no Node on PATH: prompt in a different session prints again", () => {
   assert.notEqual(r2.stdout, "");
 });
 
-test("no Node on PATH: post-tool and stop exit 0 silently", () => {
+test("no Node on PATH: post-tool and stop exit 0 silently", { skip: NO_SH }, () => {
   const fakeBin = fakeBinDir();
   const { env } = isolatedEnv(fakeBin);
   for (const sub of ["post-tool", "stop", "some-future-subcommand"]) {
@@ -96,15 +98,15 @@ test("no Node on PATH: post-tool and stop exit 0 silently", () => {
   }
 });
 
-test("no Node on PATH: check prints the plain line to stdout and exits 0", () => {
+test("no Node on PATH: deepscan prints the plain line to stdout and exits 0", { skip: NO_SH }, () => {
   const fakeBin = fakeBinDir();
   const { env } = isolatedEnv(fakeBin);
-  const r = run(["check", "src/foo.py"], { env, input: "" });
+  const r = run(["deepscan", "src/foo.py"], { env, input: "" });
   assert.equal(r.code, 0);
   assert.equal(r.stdout, NO_NODE_MSG + "\n");
 });
 
-test("marker safety: a session id with path separators or .. collapses to the shared safe key", () => {
+test("marker safety: a session id with path separators or .. collapses to the shared safe key", { skip: NO_SH }, () => {
   const fakeBin = fakeBinDir();
   const { env, tmp } = isolatedEnv(fakeBin);
   const evil = "../../../../tmp/evil-escape";
@@ -116,7 +118,7 @@ test("marker safety: a session id with path separators or .. collapses to the sh
   assert.equal(fs.existsSync("/tmp/evil-escape"), false);
 });
 
-test("marker safety: a pre-existing symlink at the marker path is not followed, and its target is untouched", () => {
+test("marker safety: a pre-existing symlink at the marker path is not followed, and its target is untouched", { skip: NO_SH }, () => {
   const fakeBin = fakeBinDir();
   const { env, tmp } = isolatedEnv(fakeBin);
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "intent-launcher-evil-target-"));
@@ -133,7 +135,7 @@ test("marker safety: a pre-existing symlink at the marker path is not followed, 
   assert.ok(fs.lstatSync(markerPath).isSymbolicLink(), "the marker symlink itself must be left alone");
 });
 
-test("Node present but older than 18: treated the same as no Node", () => {
+test("Node present but older than 18: treated the same as no Node", { skip: NO_SH }, () => {
   const fakeBin = fakeBinDir({ nodeStub: "#!/bin/sh\necho 16.20.1\n" });
   const { env } = isolatedEnv(fakeBin);
   const r = run(["session-start"], { env, input: JSON.stringify({ session_id: "old-node" }) });
@@ -141,7 +143,7 @@ test("Node present but older than 18: treated the same as no Node", () => {
   assert.equal(r.stdout, JSON.stringify({ systemMessage: NO_NODE_MSG }) + "\n");
 });
 
-test("Node >=18 present: exec passthrough of args, stdin and a non-zero exit code with stderr", () => {
+test("Node >=18 present: exec passthrough of args, stdin and a non-zero exit code with stderr", { skip: NO_SH }, () => {
   // Isolated temp dir with its own bin/intent (the real launcher) next to a stub intent.js, so
   // `exec node "$dir/intent.js" "$@"` resolves to a script we control instead of the real app.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "intent-launcher-passthrough-"));
@@ -167,10 +169,10 @@ test("Node >=18 present: exec passthrough of args, stdin and a non-zero exit cod
   assert.equal(r.stderr, 'ARGS:["stop","--flag"] STDIN:hello from stdin');
 });
 
-test("Node >=18 present: the real bin/intent.js still answers through the launcher", () => {
-  // No args: lib/queue.js's checkCommand tells the user what to pass, same whichever entry point.
-  const out = execFileSync("/bin/sh", [LAUNCHER, "check"], { encoding: "utf8" });
-  assert.match(out, /Intent Check: give the files to review/);
+test("Node >=18 present: the real bin/intent.js still answers through the launcher", { skip: NO_SH }, () => {
+  // A flag is refused before anything is read or sent, same whichever entry point.
+  const out = execFileSync("/bin/sh", [LAUNCHER, "deepscan", "--nope"], { encoding: "utf8" });
+  assert.match(out, /--nope is not a DeepScan option/);
 });
 
 test("exec-form hooks from hooks.json spawn node directly and exit 0", () => {

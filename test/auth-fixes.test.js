@@ -1,5 +1,5 @@
-// Fix round for the auth UX: legacy key scope, concurrent creation, heartbeats, visible creation
-// failures, migrate on 401 only, SessionStart budget, server text limits, state holes, headless.
+// Fix round for the auth UX: concurrent creation, heartbeats, visible creation
+// failures, SessionStart budget, server text limits, state holes, headless.
 import { test, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -39,27 +39,6 @@ async function inProcess(ctx, fn, extraEnv = {}) {
   }
 }
 const killPoller = (ctx) => { try { process.kill(readJson(cfileOf(ctx)).poller_pid, "SIGKILL"); } catch { /* gone */ } };
-
-// ---- 1: a legacy key never leaks to another service ---------------------------------------------
-
-test("legacy key: migrated under service A it is removed from the old field and is not offered to service B", async () => {
-  const ctx = setup();
-  saveKey(ctx.data, TEST_KEY);
-  await inProcess(ctx, async () => {
-    const c = await import("../lib/connect.js");
-    const cfg = await import("../lib/config.js");
-    assert.equal(await c.migrateLegacyKey(), "migrated");
-    const saved = readJson(path.join(ctx.data, "config.json"));
-    assert.equal(saved.api_key, undefined);
-    assert.equal(saved.keys[fp.url], TEST_KEY);
-    assert.equal(saved.legacy_for, fp.url);
-    const n = meCalls();
-    process.env.INTENT_API_URL = "http://127.0.0.1:1";
-    assert.deepEqual(cfg.apiKey(), { key: null, source: null });
-    assert.equal(await c.migrateLegacyKey(), "none", "nothing left to try against B");
-    assert.equal(meCalls(), n, "no /v1/me with A's key anywhere else");
-  });
-});
 
 // ---- 2: one request, even when two callers race --------------------------------------------------
 
@@ -155,7 +134,7 @@ for (const [status, backed] of [[404, true], [400, true], [403, true], [408, fal
     const ctx = setup();
     fp.state.connectStartStatus = status;
     const s = await start(ctx);
-    assert.equal(s.json.systemMessage, `Intent Check could not create a connect link (${status}). Run /intent:connect to retry, or /intent:status for details.`);
+    assert.equal(s.json.systemMessage, `Intent Check could not create a connect link (${status}). Run /intent:doctor to retry.`);
     assert.equal(Boolean(readJson(path.join(ctx.data, "global.json")).backoff && readJson(path.join(ctx.data, "global.json")).backoff.connect), backed);
     const p = await prompt(ctx);
     assert.equal(p.stdout, "", "once per session");
@@ -168,54 +147,23 @@ for (const [status, backed] of [[404, true], [400, true], [403, true], [408, fal
   });
 }
 
-// ---- 5: migrate rejects only on 401 --------------------------------------------------------------
-
-for (const status of [403, 404, 500]) {
-  test(`legacy key: /v1/me ${status} is unreachable (kept, backed off), not rejected`, async () => {
-    const ctx = setup();
-    saveKey(ctx.data, TEST_KEY);
-    fp.state.meStatus = status;
-    await inProcess(ctx, async () => {
-      const c = await import("../lib/connect.js");
-      assert.equal(await c.migrateLegacyKey(), "unreachable");
-      const cfg = readJson(path.join(ctx.data, "config.json"));
-      assert.equal(cfg.api_key, TEST_KEY);
-      assert.equal(cfg.legacy_rejected, undefined);
-      assert.ok(readJson(path.join(ctx.data, "global.json")).backoff.migrate > Date.now() - 5000);
-      const n = meCalls();
-      assert.equal(await c.migrateLegacyKey(), "unreachable");
-      assert.equal(meCalls(), n, "backed off");
-    });
-  });
-}
-
-test("legacy key: a 401 from /v1/me rejects it for this service", async () => {
-  const ctx = setup();
-  saveKey(ctx.data, "ic_" + "Z".repeat(38));
-  await inProcess(ctx, async () => {
-    const c = await import("../lib/connect.js");
-    assert.equal(await c.migrateLegacyKey(), "rejected");
-    assert.deepEqual(readJson(path.join(ctx.data, "config.json")).legacy_rejected, [fp.url]);
-  });
-});
-
 // ---- 6: SessionStart stays under the watchdog ----------------------------------------------------
 
-test("SessionStart with a legacy key and an unresponsive service finishes well under the 8 s watchdog, with its notices", async () => {
+test("SessionStart with a saved key and an unresponsive service finishes well under the 8 s watchdog, with its notices", async (t) => {
   const sockets = [];
   const hang = http.createServer(() => { /* never answers */ });
   hang.on("connection", (s) => sockets.push(s));
   await new Promise((r) => hang.listen(0, "127.0.0.1", r));
+  // Closed even when an assertion below fails: an open server would keep this test file from ever exiting.
+  t.after(() => { for (const s of sockets) s.destroy(); hang.close(); });
   const url = `http://127.0.0.1:${hang.address().port}`;
   const data = tmpdir("intent-data-");
-  saveKey(data, TEST_KEY);
+  saveKey(data, TEST_KEY, fp.url);
   const repo = makeRepo().dir;
   const r = await runHook("session-start", fixture("session-start", repo), baseEnv(data, url));
   assert.ok(r.ms < 6500, `took ${r.ms}`);
   assert.match(r.json.systemMessage, /Intent Check is on\./, "consent line delivered");
   assert.match(r.json.systemMessage, /Intent Check v\S+ ready/, "ready line delivered");
-  for (const s of sockets) s.destroy();
-  hang.close();
 });
 
 // ---- 7: server text limits -----------------------------------------------------------------------
@@ -241,28 +189,18 @@ test("handle: only [A-Za-z0-9_.@+-], at most 60", async () => {
 
 // ---- 8: state holes ------------------------------------------------------------------------------
 
-test("applyPoll does not save a key once the request is no longer pending (disconnected meanwhile)", async () => {
+test("applyPoll does not save a key once the request is no longer pending (replaced meanwhile)", async () => {
   const ctx = setup();
   await inProcess(ctx, async () => {
     const c = await import("../lib/connect.js");
     const rec = await c.ensureRequest();
-    c.markDisconnected();
+    c.updateConnect((x) => { x.status = "expired"; delete x.device_code; });
     const r = c.applyPoll({ ok: true, status: "approved", api_key: TEST_KEY, handle: "tester" }, rec.device_code);
     assert.equal(r, "gone");
     assert.equal(fs.existsSync(path.join(ctx.data, "config.json")), false, "no key saved");
-    assert.equal(readJson(cfileOf(ctx)).status, "disconnected");
+    assert.equal(readJson(cfileOf(ctx)).status, "expired");
   });
   killPoller(ctx);
-});
-
-test("markRevoked does not overwrite a disconnected record", async () => {
-  const ctx = setup();
-  await inProcess(ctx, async () => {
-    const c = await import("../lib/connect.js");
-    c.markDisconnected();
-    c.markRevoked({ spawn: false });
-    assert.equal(readJson(cfileOf(ctx)).status, "disconnected");
-  });
 });
 
 test("lost a race with ourselves: the connection is announced if nobody has announced it yet", async () => {

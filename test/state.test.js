@@ -2,7 +2,8 @@ import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { tmpdir, ROOT } from "./helpers/env.js";
+import { pathToFileURL } from "node:url";
+import { tmpdir, assertOwnerOnly, ROOT } from "./helpers/env.js";
 
 let st;
 let data;
@@ -18,7 +19,7 @@ test("session files are keyed by a hash of the session id, mode 600", () => {
   assert.notEqual(key, st.sessionKey("abd"));
   st.withSession(key, (s) => { s.touched.push("/x/a.py"); });
   const f = path.join(data, "sessions", `${key}.json`);
-  assert.equal(fs.statSync(f).mode & 0o777, 0o600);
+  assertOwnerOnly(f);
   assert.deepEqual(st.loadSession(key).touched, ["/x/a.py"]);
   assert.equal(fs.existsSync(path.join(data, "sessions", `${key}.lock`)), false, "lock released");
 });
@@ -47,7 +48,7 @@ test("a stale lock left by a crashed process is broken", () => {
 test("concurrent writers do not lose updates", async () => {
   const { spawn } = await import("node:child_process");
   const key = st.sessionKey("race");
-  const script = `import("${path.join(ROOT, "lib", "state.js")}").then((st) => { for (let i = 0; i < 20; i++) st.withSession("${key}", (s) => { s.touched.push(process.pid + ":" + i); }); })`;
+  const script = `import(${JSON.stringify(pathToFileURL(path.join(ROOT, "lib", "state.js")).href)}).then((st) => { for (let i = 0; i < 20; i++) st.withSession("${key}", (s) => { s.touched.push(process.pid + ":" + i); }); })`;
   await Promise.all([1, 2, 3, 4].map(() => new Promise((resolve) => {
     spawn(process.execPath, ["-e", script], { env: { ...process.env, CLAUDE_PLUGIN_DATA: data } }).on("close", resolve);
   })));

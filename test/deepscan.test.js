@@ -7,7 +7,7 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT } from "./helpers/env.js";
+import { symlink, SKIP_FILE_SYMLINKS, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT } from "./helpers/env.js";
 import { validateDeepscan } from "./helpers/schema.js";
 import { C } from "../lib/config.js";
 import { buildSnapshot, normaliseRemote, pathReason, isIntentOutput, byPriority, tierOf, decodeText, unstorable } from "../lib/snapshot.js";
@@ -33,7 +33,7 @@ const unzip = (gz) => JSON.parse(zlib.gunzipSync(gz).toString("utf8"));
 
 function setup({ key = true } = {}) {
   const data = tmpdir("intent-data-");
-  if (key) saveKey(data, TEST_KEY);
+  if (key) saveKey(data, TEST_KEY, fp.url);
   fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   const { dir, git } = makeRepo();
   return { data, repo: dir, git, env: baseEnv(data, fp.url, { INTENT_DEEPSCAN_POLL_MS: "50", INTENT_DEEPSCAN_BUSY_MS: "20" }) };
@@ -92,7 +92,6 @@ test("snapshot: filters, redaction (line-preserving), tracked and untracked, sch
   w(repo, ".gitignore", "*.log\n");
   commitAll(git);
   w(repo, "src/new.py", "NEW = 1\n"); // untracked, not ignored
-  fs.symlinkSync("app.py", path.join(repo, "src", "link.py"));
   const r = await buildSnapshot({ cwd: repo });
   assert.equal(r.ok, true);
   const doc = unzip(r.gz);
@@ -109,7 +108,6 @@ test("snapshot: filters, redaction (line-preserving), tracked and untracked, sch
   assert.equal(why["bad.txt"], "binary");
   assert.equal(why["big.txt"], "too_large");
   assert.equal(why["gen/out.js"], "generated");
-  assert.equal(why["src/link.py"], "symlink");
   assert.ok(!("ignored.log" in why) && !paths.includes("ignored.log"));
   assert.ok(!paths.includes("empty.py"));
   const sec = doc.files.find((f) => f.path === "src/secret.py").content;
@@ -121,6 +119,18 @@ test("snapshot: filters, redaction (line-preserving), tracked and untracked, sch
   assert.match(doc.meta.head_sha, /^[0-9a-f]{40}$/);
 });
 
+test("snapshot: a symlinked file is trimmed as symlink", { skip: SKIP_FILE_SYMLINKS }, async () => {
+  const { repo, git } = setup();
+  w(repo, "src/app.py", "def f():\n    return 1\n");
+  commitAll(git);
+  symlink("app.py", path.join(repo, "src", "link.py"));
+  const r = await buildSnapshot({ cwd: repo });
+  assert.equal(r.ok, true);
+  const doc = unzip(r.gz);
+  assert.ok(!doc.files.some((f) => f.path === "src/link.py"));
+  assert.equal(Object.fromEntries(doc.meta.trimmed.map((t) => [t.path, t.reason]))["src/link.py"], "symlink");
+});
+
 test("snapshot: scope narrows; bad scope and non-git are one-line errors", async () => {
   const { repo, git } = setup();
   w(repo, "a/one.py", "1\n"); w(repo, "b/two.py", "2\n");
@@ -129,7 +139,7 @@ test("snapshot: scope narrows; bad scope and non-git are one-line errors", async
   assert.deepEqual(unzip(r.gz).files.map((f) => f.path), ["a/one.py"]);
   assert.equal(unzip(r.gz).meta.scope, "a");
   assert.match((await buildSnapshot({ cwd: repo, scope: "nope" })).error, /not found/);
-  assert.match((await buildSnapshot({ cwd: repo, scope: "/etc" })).error, /outside the repo/);
+  assert.match((await buildSnapshot({ cwd: repo, scope: tmpdir("intent-outside-") })).error, /outside the repo/); // an absolute path that exists on every platform
   const plain = tmpdir("intent-plain-");
   assert.match((await buildSnapshot({ cwd: plain })).error, /git repository/);
 });
@@ -225,7 +235,7 @@ test("deepscan: uploads a gzip snapshot, prints the link, writes the scan record
   fp.state.deepscan.statuses = ["queued", "running", "done"];
   const r = await cli([], ctx);
   assert.equal(r.code, 0);
-  assert.match(r.out, /DeepScan \(fast, about 15–20 min\) started on 2 files/);
+  assert.match(r.out, /DeepScan \(fast, about 15 to 20 min\) started on 2 files/);
   assert.match(r.out, /Report: http:\/\/127\.0\.0\.1:\d+\/r\/[A-Za-z0-9]{22}/);
   assert.equal(r.out.split("\n").filter(Boolean).length <= 3, true);
   const id = idOf(r.out);
@@ -268,11 +278,11 @@ test("deepscan: command errors are one line and nothing is recorded", async () =
   assert.match((await cli([], plain)).out, /git repository/);
 
   const c3 = setup();
-  assert.match((await cli(["--scope", "missing"], c3)).out, /not found/);
+  assert.match((await cli(["missing"], c3)).out, /not found/);
 
   for (const [fail, re] of [
     [{ status: 404, code: "not_found" }, /not enabled/],
-    [{ status: 413, code: "payload_too_large" }, /too large.*--scope/],
+    [{ status: 413, code: "payload_too_large" }, /too large.*one folder/],
     [{ status: 429, code: "spend_cap", reason: "daily" }, /daily limit/],
     [{ status: 429, code: "rate_limited" }, /Too many/],
     [{ status: 400, code: "invalid_request", message: "A file has odd text." }, /did not accept the snapshot: A file has odd text\./],
@@ -289,7 +299,7 @@ test("deepscan: a busy 429 is retried once; twice busy prints one line", async (
   const ctx = setup();
   fp.state.deepscan.submit = [{ status: 429, code: "rate_limited", reason: "deepscan_ingest_busy", retryAfter: 5 }];
   const ok = await cli([], ctx);
-  assert.match(ok.out, /DeepScan \(fast, about 15–20 min\) started/);
+  assert.match(ok.out, /DeepScan \(fast, about 15 to 20 min\) started/);
   assert.equal(fp.deepscanUploads().length, 2);
   const keys = fp.state.requests.filter((x) => x.path === "/v1/deepscans" && x.method === "POST").map((x) => x.headers["idempotency-key"]);
   assert.equal(keys[0], keys[1]);
@@ -300,16 +310,6 @@ test("deepscan: a busy 429 is retried once; twice busy prints one line", async (
   assert.match(busy.out, /busy.*try again in a moment/);
   assert.equal(busy.out.split("\n").length, 1);
   assert.equal(fp.deepscanUploads().length, 2); // one retry, no more
-});
-
-test("check --repo prints the DeepScan pointer", async () => {
-  const ctx = setup();
-  const out = await new Promise((resolve) => {
-    const c = spawn(process.execPath, [BIN, "check", "--repo", "a.py", "--data", ctx.data], { cwd: ctx.repo, env: { ...process.env, INTENT_API_URL: fp.url } });
-    let o = ""; c.stdout.on("data", (d) => { o += d; }); c.on("close", () => resolve(o.trim()));
-  });
-  assert.match(out, /DeepScan/);
-  assert.ok(!fs.existsSync(path.join(ctx.repo, ".intent", ".queue")));
 });
 
 // ---- delivery ----
@@ -412,7 +412,7 @@ test("packaging: command file, skill mapping and README are in place; repo mode 
   assert.ok(!/check --repo/.test(skill));
   assert.match(fs.readFileSync(path.join(ROOT, "README.md"), "utf8"), /## DeepScan/);
   for (const f of ["lib/queue.js", "lib/payload.js"]) assert.ok(!/mode === "repo"|"repo"/.test(fs.readFileSync(path.join(ROOT, f), "utf8")), f);
-  assert.ok(!/--repo/.test(fs.readFileSync(path.join(ROOT, "commands", "check.md"), "utf8")));
+  assert.ok(!fs.existsSync(path.join(ROOT, "commands", "check.md")), "check is part of deepscan");
 });
 
 // ---- review fixes ----
@@ -463,7 +463,7 @@ test("never-upload names for DeepScan", () => {
   assert.equal(pathReason("src/secret_santa.py"), null);
 });
 
-test("scope is a literal pathspec; --scope without a value is an error; a symlinked parent cannot leak outside files", async () => {
+test("scope is a literal pathspec; a flag is an error; a symlinked parent cannot leak outside files", async () => {
   const { repo, git } = setup();
   w(repo, "a[1]/one.py", "1\n"); w(repo, "a1/two.py", "2\n"); w(repo, "d/x.txt", "inside\n");
   commitAll(git);
@@ -471,13 +471,13 @@ test("scope is a literal pathspec; --scope without a value is an error; a symlin
   const outside = tmpdir("intent-outside-");
   fs.writeFileSync(path.join(outside, "x.txt"), "OUTSIDE SECRET\n");
   fs.rmSync(path.join(repo, "d"), { recursive: true });
-  fs.symlinkSync(outside, path.join(repo, "d"));
+  symlink(outside, path.join(repo, "d"));
   const doc = unzip((await buildSnapshot({ cwd: repo })).gz);
   assert.ok(!doc.files.some((f) => f.content.includes("OUTSIDE SECRET")));
   assert.ok(doc.meta.trimmed.some((t) => t.path === "d/x.txt"));
   const ctx = setup();
   const r = await cli(["--scope"], ctx);
-  assert.match(r.out, /--scope needs a folder/);
+  assert.match(r.out, /--scope is not a DeepScan option/);
   assert.deepEqual(fp.deepscanUploads(), []);
 });
 
@@ -488,7 +488,7 @@ test("upload: the timeout grows with the body; a network failure is retried once
   const ctx = setup();
   fp.state.deepscan.submit = [{ drop: true }];
   const r = await cli([], ctx);
-  assert.match(r.out, /DeepScan \(fast, about 15–20 min\) started/);
+  assert.match(r.out, /DeepScan \(fast, about 15 to 20 min\) started/);
   const posts = fp.state.requests.filter((x) => x.method === "POST" && x.path === "/v1/deepscans");
   assert.equal(posts.length, 2);
   assert.equal(posts[0].headers["idempotency-key"], posts[1].headers["idempotency-key"]);
@@ -719,40 +719,14 @@ test("the waiter survives a check runner taking over the session, and scan-file 
 
 // ---- depth ----
 
-test("depth: arguments parse as --depth <d> or a bare word; the default is fast; anything else is an error", () => {
-  assert.deepEqual(DEPTHS, ["fast", "balanced", "full"]);
-  assert.equal(DEFAULT_DEPTH, "fast");
-  assert.deepEqual(takeDepth([]), { depth: "fast" });
-  assert.deepEqual(takeDepth(["fast"]), { depth: "fast" });
-  assert.deepEqual(takeDepth(["--depth", "full"]), { depth: "full" });
-  assert.deepEqual(takeDepth(["FULL"]), { depth: "full" });
-  const rest = ["--scope", "src", "fast"];
-  assert.deepEqual(takeDepth(rest), { depth: "fast" });
-  assert.deepEqual(rest, ["--scope", "src"]);
-  assert.match(takeDepth(["--depth"]).error, /needs one of fast, balanced, full/);
-  assert.match(takeDepth(["--depth", "deep"]).error, /not a DeepScan depth/);
-  assert.deepEqual(DEPTH_TIMES, { fast: "15–20 min", balanced: "30–35 min", full: "40–45 min" });
-});
-
-test("depth: --depth=fast works; any other --depth* token and more than one depth word are one-line errors", () => {
-  assert.deepEqual(takeDepth(["--depth=fast"]), { depth: "fast" });
-  assert.deepEqual(takeDepth(["--depth=FULL"]), { depth: "full" });
-  const rest = ["--scope", "src", "--depth=full"];
-  assert.deepEqual(takeDepth(rest), { depth: "full" });
-  assert.deepEqual(rest, ["--scope", "src"]);
-  assert.match(takeDepth(["--depth="]).error, /needs one of fast, balanced, full/);
-  assert.match(takeDepth(["--depth=deep"]).error, /not a DeepScan depth/);
-  for (const bad of [["--depthfast"], ["--depths", "fast"], ["--depth-fast"]]) {
-    const e = takeDepth(bad).error;
-    assert.match(e, /is not a DeepScan option/);
-    assert.equal(e.includes("\n"), false);
-  }
-  for (const bad of [["fast", "full"], ["fast", "fast"], ["--depth", "fast", "full"], ["--depth=fast", "full"]]) {
-    const e = takeDepth(bad).error;
-    assert.match(e, /one depth, not several/);
-    assert.equal(e.includes("\n"), false);
-  }
-  assert.match(takeDepth(["--depth", "fast", "--depth=full"]).error, /once/);
+test("depth: one bare word anywhere in the arguments; the default is fast; several are an error", () => {
+  assert.deepEqual(takeDepth([]), { depth: "fast", given: false });
+  assert.deepEqual(takeDepth(["fast"]), { depth: "fast", given: true });
+  assert.deepEqual(takeDepth(["FULL"]), { depth: "full", given: true });
+  const rest = ["src", "balanced"];
+  assert.deepEqual(takeDepth(rest), { depth: "balanced", given: true });
+  assert.deepEqual(rest, ["src"]);
+  for (const bad of [["fast", "full"], ["fast", "fast"]]) assert.match(takeDepth(bad).error, /one depth, not several/);
 });
 
 test("depth: the upload carries it at the top level (fast when none is named), the start message and scan file name it", async () => {
@@ -760,18 +734,26 @@ test("depth: the upload carries it at the top level (fast when none is named), t
   w(ctx.repo, "src/a.py", "def f(x):\n    return x + 1\n");
   commitAll(ctx.git);
   const r0 = await cli([], ctx);
-  assert.match(r0.out, /DeepScan \(fast, about 15–20 min\) started/);
-  const r1 = await cli(["--depth", "balanced"], ctx);
-  assert.match(r1.out, /DeepScan \(balanced, about 30–35 min\) started/);
+  assert.match(r0.out, /DeepScan \(fast, about 15 to 20 min\) started/);
+  const r1 = await cli(["balanced"], ctx);
+  assert.match(r1.out, /DeepScan \(balanced, about 30 to 35 min\) started/);
   const r2 = await cli(["full"], ctx);
-  assert.match(r2.out, /DeepScan \(full, about 40–45 min\) started/);
+  assert.match(r2.out, /DeepScan \(full, about 40 to 45 min\) started/);
   const ups = fp.deepscanUploads();
   assert.deepEqual(ups.map((u) => u.depth), ["fast", "balanced", "full"]);
   for (const u of ups) assert.deepEqual(validateDeepscan(u, "DeepscanUpload"), []);
   assert.equal(readScanFile(ctx.data, idOf(r1.out)).depth, "balanced");
-  const bad = await cli(["--depth", "deep"], ctx);
-  assert.match(bad.out, /not a DeepScan depth/);
-  assert.equal(fp.deepscanUploads().length, 3);
+  const bad = await cli(["--depth", "full"], ctx);
+  assert.match(bad.out, /--depth is not a DeepScan option/);
+  // A folder narrows the scan; the depth still applies.
+  const r3 = await cli(["src", "full"], ctx);
+  assert.match(r3.out, /DeepScan \(full, about 40 to 45 min\) started on 1 file in src\./);
+  assert.equal(fp.deepscanUploads().length, 4);
+  // A file is not a scan: it is queued for the fast check, with no upload.
+  const r4 = await cli(["src/a.py"], ctx);
+  assert.match(r4.out, /queued a review of 1 file/);
+  fs.rmSync(path.join(ctx.repo, ".intent", ".queue"), { recursive: true, force: true });
+  assert.equal(fp.deepscanUploads().length, 4);
 });
 
 test("depth: buildSnapshot leaves depth out unless given", async () => {

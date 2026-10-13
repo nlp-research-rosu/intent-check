@@ -6,7 +6,7 @@
 # - Node >=18 on PATH: exec bin/intent.js, replacing this process so stdin, stdout, stderr and
 #   the exit code (including the asyncRewake exit 2 + stderr) pass through unchanged.
 # - Otherwise: print a short, host-aware message for the subcommands a person can see
-#   (session-start, prompt, check) and exit 0 silently for everything else.
+#   (session-start, prompt, deepscan, doctor) and exit 0 silently for everything else.
 set -eu
 
 dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -90,7 +90,7 @@ case "$sub" in
     fi
     exit 0
     ;;
-  check)
+  deepscan | doctor)
     printf '%s\n' "$msg"
     exit 0
     ;;

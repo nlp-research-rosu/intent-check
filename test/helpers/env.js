@@ -9,14 +9,21 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 export const BIN = path.join(ROOT, "bin", "intent.js");
 export const FIXTURES = path.join(ROOT, "test", "fixtures", "claude");
 
+// Raw fixture JSON with its project dir rewritten to `dir`, escaped because a Windows path has backslashes.
+export function rewriteProjectDir(raw, dir) {
+  return raw.split("/work/proj").join(JSON.stringify(dir).slice(1, -1));
+}
+
 // A captured payload with its project dir rewritten to `dir`.
 export function fixture(name, dir = "/work/proj", patch = {}) {
-  const raw = fs.readFileSync(path.join(FIXTURES, `${name}.json`), "utf8").split("/work/proj").join(dir);
+  const raw = rewriteProjectDir(fs.readFileSync(path.join(FIXTURES, `${name}.json`), "utf8"), dir);
   return { ...JSON.parse(raw), ...patch };
 }
 
+// realpathSync.native: on Windows the temp dir can be a short name (C:\Users\RUNNER~1\...), which only
+// the native call expands to the long form git and the plugin report.
 export function tmpdir(prefix = "intent-test-") {
-  return fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
+  return fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
 }
 
 export function makeRepo({ git = true, commit = true } = {}) {
@@ -39,7 +46,7 @@ export function baseEnv(dataDir, apiUrl, extra = {}) {
   for (const k of Object.keys(env)) {
     if (k.startsWith("INTENT_") || k.startsWith("CLAUDE_") || k === "DO_NOT_TRACK") delete env[k];
   }
-  return { ...env, CLAUDE_PLUGIN_DATA: dataDir, INTENT_API_URL: apiUrl, CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PLUGIN_ROOT: ROOT, INTENT_MODE: "classic", ...extra };
+  return { ...env, CLAUDE_PLUGIN_DATA: dataDir, INTENT_API_URL: apiUrl, CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PLUGIN_ROOT: ROOT, INTENT_LIVE: "0", ...extra };
 }
 
 // Run one hook like Claude Code: JSON on stdin, capture stdout/stderr/exit code.
@@ -91,10 +98,10 @@ export async function waitFor(fn, { timeoutMs = 15000, stepMs = 100 } = {}) {
   return null;
 }
 
-// Without a url: the old top-level api_key. With one: keys[url], the current format.
-export function saveKey(dataDir, key, url = null) {
+// Saves the key for one service URL (config.json keys[url]).
+export function saveKey(dataDir, key, url) {
   fs.mkdirSync(dataDir, { recursive: true });
-  const cfg = url ? { keys: { [url]: key } } : { api_key: key };
+  const cfg = { keys: { [url]: key } };
   fs.writeFileSync(path.join(dataDir, "config.json"), JSON.stringify(cfg), { mode: 0o600 });
 }
 
@@ -109,4 +116,46 @@ export function seedGlobal(dataDir, obj) {
   let cur = {};
   try { cur = JSON.parse(fs.readFileSync(f, "utf8")); } catch { /* none yet */ }
   fs.writeFileSync(f, JSON.stringify({ ...cur, ...obj }), { mode: 0o600 });
+}
+
+// fs.symlinkSync that also works on Windows without the symlink privilege where it can: a link to a
+// folder becomes a junction there (no privilege needed; lstat still reports a symbolic link).
+export function symlink(target, linkPath) {
+  let type;
+  if (process.platform === "win32") {
+    try { if (fs.statSync(path.resolve(path.dirname(linkPath), target)).isDirectory()) type = "junction"; } catch { /* a dangling link */ }
+  }
+  fs.symlinkSync(target, linkPath, type);
+}
+
+// False on Windows without Developer Mode or an elevated shell: a link to a file needs the privilege.
+export const CAN_SYMLINK_FILES = (() => {
+  if (process.platform !== "win32") return true;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "intent-symlink-probe-"));
+  try {
+    fs.writeFileSync(path.join(dir, "target"), "");
+    fs.symlinkSync(path.join(dir, "target"), path.join(dir, "link"));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+})();
+export const SKIP_FILE_SYMLINKS = CAN_SYMLINK_FILES ? false : "a symlink to a file needs Developer Mode or an elevated shell on Windows";
+
+// Files holding keys or session data are written owner-only (mode 600). Windows has no permission bits
+// (Node reports 666 for any writable file; the user profile's ACL does that job), so nothing to check there.
+export function assertOwnerOnly(file) {
+  if (process.platform === "win32") return;
+  const mode = fs.statSync(file).mode & 0o777;
+  if (mode !== 0o600) throw new Error(`${file} has mode ${mode.toString(8)}, expected 600`);
+}
+
+// Whether a checked-in file is executable. Windows has no executable bit on disk, so there the mode
+// git recorded for the file is read instead (what a POSIX checkout will get).
+export function isExecutable(file) {
+  if (process.platform !== "win32") return (fs.statSync(file).mode & 0o111) !== 0;
+  const out = execFileSync("git", ["ls-files", "-s", "--", path.basename(file)], { cwd: path.dirname(file), encoding: "utf8" });
+  return out.startsWith("100755 ");
 }

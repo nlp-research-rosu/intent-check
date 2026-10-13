@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { tmpdir, ROOT } from "./helpers/env.js";
 import { isInteractiveEntrypoint } from "../lib/config.js";
 
@@ -10,7 +11,7 @@ import { isInteractiveEntrypoint } from "../lib/config.js";
 function probe(env, files = {}) {
   const data = tmpdir("intent-cfg-");
   for (const [f, v] of Object.entries(files)) fs.writeFileSync(path.join(data, f), JSON.stringify(v));
-  const code = `import("${path.join(ROOT, "lib", "config.js")}").then((c) => console.log(JSON.stringify({ url: c.apiUrl(), key: c.apiKey(), off: c.disabledReason(), v: c.pluginVersion() })))`;
+  const code = `import(${JSON.stringify(pathToFileURL(path.join(ROOT, "lib", "config.js")).href)}).then((c) => console.log(JSON.stringify({ url: c.apiUrl(), key: c.apiKey(), off: c.disabledReason(), v: c.pluginVersion() })))`;
   const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("INTENT_") && k !== "DO_NOT_TRACK"));
   return JSON.parse(execFileSync(process.execPath, ["-e", code], { env: { ...clean, CLAUDE_PLUGIN_DATA: data, ...env } }).toString());
 }
@@ -21,23 +22,18 @@ test("API base: INTENT_API_URL, then config.json api_url, then the compiled defa
   assert.equal(probe({ INTENT_API_URL: "http://127.0.0.1:1" }, { "config.json": { api_url: "https://cfg.example" } }).url, "http://127.0.0.1:1");
 });
 
-test("API key: INTENT_API_KEY, then config.json api_key", () => {
+test("API key: INTENT_API_KEY, then config.json keys", () => {
   assert.deepEqual(probe({}).key, { key: null, source: null });
-  assert.deepEqual(probe({}, { "config.json": { api_key: "ic_cfg" } }).key, { key: "ic_cfg", source: "config" });
-  assert.deepEqual(probe({ INTENT_API_KEY: "ic_env" }, { "config.json": { api_key: "ic_cfg" } }).key, { key: "ic_env", source: "env" });
+  assert.deepEqual(probe({ INTENT_API_KEY: "ic_env" }).key, { key: "ic_env", source: "env" });
 });
 
-test("API key is per service: keys[api_url], env still wins, the legacy field counts until rejected for that URL", () => {
+test("API key is per service: keys[api_url], env still wins", () => {
   const u = "http://127.0.0.1:1";
   const files = { "config.json": { keys: { [u]: "ic_one", "http://other": "ic_two" } } };
   assert.deepEqual(probe({ INTENT_API_URL: u }, files).key, { key: "ic_one", source: "config" });
   assert.deepEqual(probe({ INTENT_API_URL: "http://other" }, files).key, { key: "ic_two", source: "config" });
   assert.deepEqual(probe({ INTENT_API_URL: "http://third" }, files).key, { key: null, source: null });
   assert.deepEqual(probe({ INTENT_API_URL: u, INTENT_API_KEY: "ic_env" }, files).key, { key: "ic_env", source: "env" });
-  // keys[url] beats the legacy field; a rejected legacy key is not offered for that URL.
-  assert.equal(probe({ INTENT_API_URL: u }, { "config.json": { api_key: "ic_old", keys: { [u]: "ic_new" } } }).key.key, "ic_new");
-  assert.deepEqual(probe({ INTENT_API_URL: u }, { "config.json": { api_key: "ic_old", legacy_rejected: [u] } }).key, { key: null, source: null });
-  assert.equal(probe({ INTENT_API_URL: "http://other" }, { "config.json": { api_key: "ic_old", legacy_rejected: [u] } }).key.key, "ic_old");
 });
 
 test("off switches and plugin version", () => {
@@ -55,4 +51,20 @@ test("isInteractiveEntrypoint: only the SDKs, local-agent and mcp are non-intera
   for (const e of ["cli", "claude-vscode", "claude-desktop", "claude-jetbrains", "", undefined, "anything-else"]) {
     assert.equal(isInteractiveEntrypoint(e), true, String(e));
   }
+});
+
+test("live review: INTENT_LIVE, then config live", () => {
+  const live = (env, cfg) => {
+    const data = tmpdir("intent-cfg-");
+    if (cfg) fs.writeFileSync(path.join(data, "config.json"), JSON.stringify(cfg));
+    const code = `import(${JSON.stringify(pathToFileURL(path.join(ROOT, "lib", "config.js")).href)}).then((c) => console.log(c.liveMode()))`;
+    const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("INTENT_")));
+    return execFileSync(process.execPath, ["-e", code], { env: { ...clean, CLAUDE_PLUGIN_DATA: data, ...env } }).toString().trim();
+  };
+  assert.equal(live({}), "false");
+  assert.equal(live({ INTENT_LIVE: "1" }), "true");
+  assert.equal(live({ INTENT_LIVE: "0" }, { live: true }), "false");
+  assert.equal(live({ INTENT_LIVE: "bogus" }, { live: true }), "true");
+  assert.equal(live({}, { live: true }), "true");
+  assert.equal(live({}, { live: false }), "false");
 });

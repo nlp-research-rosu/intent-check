@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { ROOT } from "./helpers/env.js";
+import { ROOT, isExecutable } from "./helpers/env.js";
 
 const read = (p) => JSON.parse(fs.readFileSync(path.join(ROOT, p), "utf8"));
 
@@ -73,9 +73,9 @@ test("skill and commands exist and reference the plugin root, run with node dire
   assert.match(skill, /^---\nname: intent-check\ndescription: /);
   assert.match(skill, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent\.js"/);
   assert.doesNotMatch(skill, /\bsh\b.*bin\/intent\b/);
-  for (const w of ["status", "connect", "disconnect"]) assert.match(skill, new RegExp(`/intent:${w}|bin/intent status|\`${w}\``), `skill maps ${w}`);
-  assert.ok(!fs.existsSync(path.join(ROOT, "commands", "per-edit.md")), "per-edit.md is replaced by mode.md");
-  for (const c of ["off", "on", "check", "mode", "deepscan", "status", "connect", "disconnect"]) {
+  for (const w of ["on", "live", "off", "doctor", "deepscan"]) assert.match(skill, new RegExp(`/intent:${w}\\b`), `skill maps ${w}`);
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "commands")).sort(), ["deepscan.md", "doctor.md", "live.md", "off.md", "on.md"]);
+  for (const c of ["off", "on", "live", "deepscan", "doctor"]) {
     const md = fs.readFileSync(path.join(ROOT, "commands", `${c}.md`), "utf8");
     assert.match(md, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent\.js"/);
     // Claude Code matches the rule's prefix against the command text, quotes included: a rule without
@@ -95,8 +95,7 @@ test("bin/intent: the legacy sh launcher (no hook or command uses it any more) s
   const src = fs.readFileSync(p, "utf8");
   assert.match(src, /^#!\/bin\/sh/);
   assert.match(src, /intent\.js/);
-  const mode = fs.statSync(p).mode;
-  assert.ok(mode & 0o111, "bin/intent must be executable");
+  assert.ok(isExecutable(p), "bin/intent must be executable");
 });
 
 test("zero runtime dependencies", () => {

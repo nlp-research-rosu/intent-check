@@ -1,0 +1,3 @@
+# Keep LF in every checkout: tests and the POSIX launcher (bin/intent) read these files byte for byte,
+# and a CRLF checkout (core.autocrlf=true, the Git for Windows default) breaks both.
+* text=auto eol=lf

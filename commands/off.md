@@ -1,5 +1,5 @@
 ---
-description: Turn Intent Check off (nothing is sent until /intent:on)
+description: Turn Intent Check off (nothing is sent until /intent:on or /intent:live)
 allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js":*)
 ---
 

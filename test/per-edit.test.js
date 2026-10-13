@@ -18,10 +18,10 @@ beforeEach(() => Object.assign(fp.state, { scenario: "concerns", pollsBeforeDone
 
 function setup({ mode = "per-edit" } = {}) {
   const data = tmpdir("intent-data-");
-  saveKey(data, TEST_KEY);
+  saveKey(data, TEST_KEY, fp.url);
   const repo = makeRepo();
   fs.writeFileSync(path.join(data, "global.json"), JSON.stringify({ consent_shown_at: "2026-09-28T00:00:00Z" }));
-  return { data, repo: repo.dir, env: baseEnv(data, fp.url, { INTENT_MODE: mode }) };
+  return { data, repo: repo.dir, env: baseEnv(data, fp.url, { INTENT_LIVE: mode === "per-edit" ? "1" : "0" }) };
 }
 
 async function prompt(ctx) {
@@ -137,26 +137,18 @@ test("classic mode: no check at the edit, the normal Stop check", async () => {
   assert.equal("per_edit" in fp.jobRequests()[n], false, "the end-of-turn body has no per_edit key");
 });
 
-test("mode command, status, and the legacy per_edit migration", async () => {
+test("on and live commands and doctor", async () => {
   const ctx = setup({ mode: "" });
-  delete ctx.env.INTENT_MODE;
+  delete ctx.env.INTENT_LIVE;
   const run = (...a) => import("node:child_process").then(({ spawnSync }) => spawnSync(process.execPath, [path.join(ROOT, "bin", "intent.js"), ...a], { env: ctx.env, encoding: "utf8" }));
-  assert.match((await run("status")).stdout, /Mode: classic/);
-  assert.match((await run("mode", "per-edit")).stdout, /Mode: per-edit/);
-  assert.match((await run("status")).stdout, /Mode: per-edit/);
-  assert.match((await run("mode", "classic")).stdout, /Mode: classic/);
-  assert.match((await run("mode", "bogus")).stdout, /Usage: \/intent:mode classic\|per-edit/);
-  assert.match((await run("mode")).stdout, /Mode: classic/);
-  // Legacy boolean from the preview branch.
-  const cfg = path.join(ctx.data, "config.json");
-  fs.writeFileSync(cfg, JSON.stringify({ per_edit: true }));
-  assert.match((await run("status")).stdout, /Mode: per-edit/);
-  fs.writeFileSync(cfg, JSON.stringify({ per_edit: false }));
-  assert.match((await run("status")).stdout, /Mode: classic/);
-  await run("mode", "per-edit");
-  assert.equal(JSON.parse(fs.readFileSync(cfg, "utf8")).per_edit, undefined);
+  const first = (r) => r.stdout.split("\n")[0];
+  assert.match(first(await run("doctor")), /: on$/);
+  assert.match(first(await run("live")), /^Intent Check is on \(live\)\./);
+  assert.match(first(await run("doctor")), /: on \(live\)$/);
+  assert.match(first(await run("on")), /^Intent Check is on\. Changes are checked at the end of each turn\. Live review is now off; \/intent:live turns it back on\.$/);
+  assert.match(first(await run("doctor")), /: on$/);
   // The env var wins.
-  assert.match((await import("node:child_process")).spawnSync(process.execPath, [path.join(ROOT, "bin", "intent.js"), "status"], { env: { ...ctx.env, INTENT_MODE: "classic" }, encoding: "utf8" }).stdout, /Mode: classic/);
+  assert.match(first((await import("node:child_process")).spawnSync(process.execPath, [path.join(ROOT, "bin", "intent.js"), "doctor"], { env: { ...ctx.env, INTENT_LIVE: "0" }, encoding: "utf8" })), /: on$/);
 });
 
 const sessionFile = (ctx) => { const d = path.join(ctx.data, "sessions"); return path.join(d, fs.readdirSync(d).find((f) => f.endsWith(".json"))); };
@@ -282,18 +274,18 @@ test("an env-key 401 from a per-edit check adds the env note, pauses, and keeps 
   const g = readJson(path.join(ctx.data, "global.json"));
   assert.equal(g.paused.code, 401);
   assert.equal(g.paused.source, "env");
-  assert.equal(readJson(path.join(ctx.data, "config.json")).api_key, TEST_KEY);
+  assert.equal(readJson(path.join(ctx.data, "config.json")).keys[fp.url], TEST_KEY);
 });
 
 test("a successful per-edit submit records the last check", async () => {
   fp.state.scenario = "no_concerns";
   const ctx = setup();
   await prompt(ctx);
-  const out0 = await runHook("status", undefined, ctx.env);
+  const out0 = await runHook("doctor", undefined, ctx.env);
   assert.match(out0.stdout, /Last check: none yet/);
   await edit(ctx, "pricing.py", V1, "toolu_1");
   assert.ok(await waitFor(() => { try { return readJson(path.join(ctx.data, "global.json")).last_check?.ok === true; } catch { return false; } }));
-  const out = await runHook("status", undefined, ctx.env);
+  const out = await runHook("doctor", undefined, ctx.env);
   assert.doesNotMatch(out.stdout, /Last check: none yet/);
 });
 
@@ -304,14 +296,6 @@ test("no per-edit job is spawned for a paused key", async () => {
   await prompt(ctx);
   const { pause } = await import("../lib/pause.js");
   await inProcess(ctx, async () => pause(TEST_KEY, 401));
-  const n = fp.jobRequests().length;
-  await edit(ctx, "pricing.py", V1, "toolu_1");
-  await sleep(800);
-  assert.equal(fp.jobRequests().length, n);
-});
-
-test("no per-edit job is spawned for an unverified legacy key", async () => {
-  const ctx = setup(); // legacy api_key that no prompt or SessionStart has promoted yet
   const n = fp.jobRequests().length;
   await edit(ctx, "pricing.py", V1, "toolu_1");
   await sleep(800);
@@ -341,9 +325,9 @@ test("spawned-but-unregistered checks count toward the in-flight cap, and reserv
   assert.ok(await waitFor(() => fp.jobRequests().length > n, { timeoutMs: 8000 }), "expired reservations free the slots");
 });
 
-test("no INTENT_MODE and no config is classic: the Bash hook does nothing and the Stop body has no per_edit", async () => {
+test("no INTENT_LIVE and no config is not live: the Bash hook does nothing and the Stop body has no per_edit", async () => {
   const ctx = setup();
-  delete ctx.env.INTENT_MODE;
+  delete ctx.env.INTENT_LIVE;
   await prompt(ctx);
   const n = fp.jobRequests().length;
   fs.writeFileSync(path.join(ctx.repo, "pricing.py"), V1);
@@ -360,11 +344,11 @@ test("no INTENT_MODE and no config is classic: the Bash hook does nothing and th
   assert.equal("per_edit" in reqs[0], false);
 });
 
-test("INTENT_MODE is case-insensitive and an unknown value is reported by status", async () => {
+test("an INTENT_LIVE value other than 1 or 0 is ignored and reported by doctor", async () => {
   const ctx = setup({ mode: "" });
   const run = (extra, ...a) => import("node:child_process").then(({ spawnSync }) => spawnSync(process.execPath, [path.join(ROOT, "bin", "intent.js"), ...a], { env: { ...ctx.env, ...extra }, encoding: "utf8" }));
-  assert.match((await run({ INTENT_MODE: "Per-Edit" }, "status")).stdout, /Mode: per-edit/);
-  const bad = (await run({ INTENT_MODE: "foo" }, "status")).stdout;
-  assert.match(bad, /Mode: classic/);
-  assert.match(bad, /INTENT_MODE=foo ignored/);
+  assert.match((await run({ INTENT_LIVE: "1" }, "doctor")).stdout, /: on \(live\)\n/);
+  const bad = (await run({ INTENT_LIVE: "yes" }, "doctor")).stdout;
+  assert.match(bad, /: on\n/);
+  assert.match(bad, /INTENT_LIVE=yes ignored \(use 1 or 0\)/);
 });

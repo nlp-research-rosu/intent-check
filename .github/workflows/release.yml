@@ -1,5 +1,6 @@
 name: release
-# Run from the Actions tab and pick a branch. On main this cuts a release (vX.Y.Z); on any other branch it cuts a
+# Run from the Actions tab and pick a branch. On main this cuts a release (vX.Y.Z), whose notes are the Unreleased
+# section of CHANGELOG.md; on any other branch it cuts a
 # prerelease (vX.Y.Z-<branch>.N) and commits the bump to that branch, because users install from the branch head.
 # Pushes made with GITHUB_TOKEN do not trigger ci.yml; that is fine because the test job below runs first.
 on:
@@ -55,11 +56,13 @@ jobs:
       - name: Bump, commit, tag, push
         run: |
           CURRENT=$(node -p 'require("./package.json").version')
-          if ! git rev-parse -q --verify "refs/tags/v$CURRENT" >/dev/null && [ "$(git log -1 --format=%s)" = "release: v$CURRENT" ]; then
-            # a previous run committed the bump but did not finish: tag and release it
+          if [ "$(git log -1 --format=%s)" = "release: v$CURRENT" ]; then
+            # the last commit is already this release's bump (a rerun after a partial failure): do not bump again, only tag if missing
             V=$CURRENT
-            git tag "v$V"
-            git push origin "v$V"
+            if ! git rev-parse -q --verify "refs/tags/v$V" >/dev/null; then
+              git tag "v$V"
+              git push origin "v$V"
+            fi
           else
             if [ "$BRANCH" = main ]; then
               V=$(node scripts/bump-version.mjs "$BUMP")
@@ -82,7 +85,13 @@ jobs:
           if gh release view "v$V" >/dev/null 2>&1; then
             echo "release v$V already exists"
           elif [ "$BRANCH" = main ]; then
-            gh release create "v$V" --generate-notes --target "$(git rev-parse HEAD)"
+            # The release notes are this version's CHANGELOG.md section; generated notes when it is empty or cannot be read.
+            node scripts/bump-version.mjs --notes "$V" > "$RUNNER_TEMP/notes.md" || : > "$RUNNER_TEMP/notes.md"
+            if [ -s "$RUNNER_TEMP/notes.md" ]; then
+              gh release create "v$V" --notes-file "$RUNNER_TEMP/notes.md" --target "$(git rev-parse HEAD)"
+            else
+              gh release create "v$V" --generate-notes --target "$(git rev-parse HEAD)"
+            fi
           else
             gh release create "v$V" --generate-notes --prerelease
           fi

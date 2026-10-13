@@ -12,7 +12,7 @@ after(() => fp.close());
 
 function setup({ key = true, git = true } = {}) {
   const data = tmpdir("intent-data-");
-  if (key) saveKey(data, TEST_KEY);
+  if (key) saveKey(data, TEST_KEY, fp.url);
   const repo = makeRepo({ git });
   return { data, repo: repo.dir, env: baseEnv(data, fp.url) };
 }
@@ -123,7 +123,8 @@ test("sync hooks stay fast", async () => {
     times["post-tool"].push((await runHook("post-tool", fixture("post-tool-edit", repo), env)).ms);
   }
   const best = (a) => Math.min(...a);
-  // Includes Node start-up (~50 ms); the budget for the hook's own work is 200 ms.
-  assert.ok(best(times.prompt) < 600, JSON.stringify(times));
+  // Includes Node start-up (~50 ms); the budget for the hook's own work is 200 ms. Windows starts node
+  // and git processes several times more slowly (a CI runner's best prompt run is about 700 ms).
+  assert.ok(best(times.prompt) < (process.platform === "win32" ? 1200 : 600), JSON.stringify(times));
   assert.ok(best(times["post-tool"]) < 400, JSON.stringify(times));
 });
