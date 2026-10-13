@@ -92,14 +92,14 @@ test("no concerns: silent at Stop; the model and the user each get a line at the
   assert.equal(again.stdout, "");
 });
 
-test("failed job: one user note, /intent:status shows the error, last check not ok", async () => {
+test("failed job: one user note, /intent:doctor shows the error, last check not ok", async () => {
   fp.state.scenario = "failed";
   const ctx = setup();
   const r = await turn(ctx, { "pricing.py": PRICING });
   assert.equal(r.code, 0);
   assert.ok(await waitFor(() => (readSessionFiles(ctx.data)[0] || { notes: [] }).notes.length > 0));
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "thanks" }), ctx.env);
-  assert.match(next.json.systemMessage, /^Intent Check could not finish checking `pricing\.py`, so there is no report for it\. Run \/intent:check to try again\. · http:\/\/127\.0\.0\.1:\d+\/r\/\w{22}$/);
+  assert.match(next.json.systemMessage, /^Intent Check could not finish checking `pricing\.py`, so there is no report for it\. Run \/intent:deepscan with the files to try again\. · http:\/\/127\.0\.0\.1:\d+\/r\/\w{22}$/);
   assert.doesNotMatch(next.json.systemMessage, /[\u2013\u2014]/);
   const again = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "and again" }), ctx.env);
   assert.equal(again.stdout, "");

@@ -140,7 +140,7 @@ test("old session files without prompt_ids still work", async () => {
 });
 
 test("per-edit job snapshot respects the job's prompt_id", async () => {
-  const c = setup({ INTENT_MODE: "per-edit" });
+  const c = setup({ INTENT_LIVE: "1" });
   await sendPrompt(c, PA, A);
   await sendPrompt(c, PB, B);
   const abs = path.join(c.repo, "pricing.py");

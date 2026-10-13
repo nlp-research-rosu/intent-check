@@ -96,10 +96,10 @@ test("no Node on PATH: post-tool and stop exit 0 silently", () => {
   }
 });
 
-test("no Node on PATH: check prints the plain line to stdout and exits 0", () => {
+test("no Node on PATH: deepscan prints the plain line to stdout and exits 0", () => {
   const fakeBin = fakeBinDir();
   const { env } = isolatedEnv(fakeBin);
-  const r = run(["check", "src/foo.py"], { env, input: "" });
+  const r = run(["deepscan", "src/foo.py"], { env, input: "" });
   assert.equal(r.code, 0);
   assert.equal(r.stdout, NO_NODE_MSG + "\n");
 });
@@ -168,9 +168,9 @@ test("Node >=18 present: exec passthrough of args, stdin and a non-zero exit cod
 });
 
 test("Node >=18 present: the real bin/intent.js still answers through the launcher", () => {
-  // No args: lib/queue.js's checkCommand tells the user what to pass, same whichever entry point.
-  const out = execFileSync("/bin/sh", [LAUNCHER, "check"], { encoding: "utf8" });
-  assert.match(out, /Intent Check: give the files to review/);
+  // A flag is refused before anything is read or sent, same whichever entry point.
+  const out = execFileSync("/bin/sh", [LAUNCHER, "deepscan", "--nope"], { encoding: "utf8" });
+  assert.match(out, /--nope is not a DeepScan option/);
 });
 
 test("exec-form hooks from hooks.json spawn node directly and exit 0", () => {

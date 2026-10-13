@@ -11,7 +11,7 @@ export const FIXTURES = path.join(ROOT, "test", "fixtures", "claude");
 
 // A captured payload with its project dir rewritten to `dir`.
 export function fixture(name, dir = "/work/proj", patch = {}) {
-  const raw = fs.readFileSync(path.join(FIXTURES, `${name}.json`), "utf8").split("/work/proj").join(dir);
+  const raw = fs.readFileSync(path.join(FIXTURES, `${name}.json`), "utf8").split("/work/proj").join(JSON.stringify(dir).slice(1, -1)); // a Windows path has backslashes
   return { ...JSON.parse(raw), ...patch };
 }
 
@@ -39,7 +39,7 @@ export function baseEnv(dataDir, apiUrl, extra = {}) {
   for (const k of Object.keys(env)) {
     if (k.startsWith("INTENT_") || k.startsWith("CLAUDE_") || k === "DO_NOT_TRACK") delete env[k];
   }
-  return { ...env, CLAUDE_PLUGIN_DATA: dataDir, INTENT_API_URL: apiUrl, CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PLUGIN_ROOT: ROOT, INTENT_MODE: "classic", ...extra };
+  return { ...env, CLAUDE_PLUGIN_DATA: dataDir, INTENT_API_URL: apiUrl, CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PLUGIN_ROOT: ROOT, INTENT_LIVE: "0", ...extra };
 }
 
 // Run one hook like Claude Code: JSON on stdin, capture stdout/stderr/exit code.

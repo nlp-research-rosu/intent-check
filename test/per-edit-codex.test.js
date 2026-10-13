@@ -48,7 +48,7 @@ function setup({ mode = "per-edit", git = true, notice = false } = {}) {
   saveKey(data, TEST_KEY);
   fs.writeFileSync(path.join(data, "global.json"), notice ? JSON.stringify({ consent_shown_at: "2026-09-28T00:00:00Z" }) : QUIET_GLOBAL);
   const repo = makeRepo({ git }).dir;
-  const env = baseEnv(data, fp.url, { INTENT_MODE: mode, PLUGIN_ROOT: ROOT, PLUGIN_DATA: data });
+  const env = baseEnv(data, fp.url, { INTENT_LIVE: mode === "per-edit" ? "1" : "0", PLUGIN_ROOT: ROOT, PLUGIN_DATA: data });
   return { data, repo, env, transcript: rollout(tmpdir("intent-pec-home-")) };
 }
 
