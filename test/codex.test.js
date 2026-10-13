@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { QUIET_GLOBAL, tmpdir, makeRepo, baseEnv, saveKey, waitFor, ROOT, BIN } from "./helpers/env.js";
+import { QUIET_GLOBAL, rewriteProjectDir, tmpdir, makeRepo, baseEnv, saveKey, waitFor, ROOT, BIN } from "./helpers/env.js";
 import { spawn } from "node:child_process";
 import { validateDef } from "./helpers/schema.js";
 import { applyPatchPaths, readTurnContext, codexModes, fixModeFor } from "../lib/codex.js";
@@ -19,7 +19,7 @@ after(() => fp.close());
 beforeEach(() => Object.assign(fp.state, { scenario: "concerns", pollsBeforeDone: 0, submitStatus: null, concern: null, submitDelayMs: 0, idem: new Map() }));
 
 function cfx(name, dir, transcript, patch = {}) {
-  const raw = fs.readFileSync(path.join(FX, `${name}.json`), "utf8").split("/work/proj").join(dir);
+  const raw = rewriteProjectDir(fs.readFileSync(path.join(FX, `${name}.json`), "utf8"), dir);
   const o = { ...JSON.parse(raw), ...patch };
   if (transcript) o.transcript_path = transcript;
   return o;
@@ -72,7 +72,8 @@ async function turn(ctx, files, stopPatch = {}) {
 
 test("apply_patch paths: add, update and move targets, relative or absolute; not deleted or moved-from", () => {
   const p = JSON.parse(fs.readFileSync(path.join(FX, "post-tool-apply-patch.json"), "utf8"));
-  assert.deepEqual(applyPatchPaths(p.tool_input.command, "/work/proj"), ["/work/proj/calc.py", "/work/proj/util.py", "/work/proj/new_name.py"]);
+  // Relative paths are resolved with the platform's path rules (a drive letter and backslashes on Windows).
+  assert.deepEqual(applyPatchPaths(p.tool_input.command, "/work/proj"), [path.resolve("/work/proj", "calc.py"), "/work/proj/util.py", path.resolve("/work/proj", "new_name.py")]);
   assert.deepEqual(applyPatchPaths(undefined, "/x"), []);
 });
 

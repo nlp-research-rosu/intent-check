@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT } from "./helpers/env.js";
+import { symlink, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT } from "./helpers/env.js";
 import { validateDef } from "./helpers/schema.js";
 import { writeUnit } from "../lib/intentdir.js";
 
@@ -47,7 +47,9 @@ test("intent deepscan <files> queues validated repo-relative paths, offline, and
   fs.writeFileSync(path.join(repo, "src", "auth", "login.py"), "def login(u, p):\n    return check(u, p)\n");
   fs.writeFileSync(path.join(repo, ".env"), "KEY=1\n");
   const n = fp.state.requests.length;
-  const r = await cli(["login.py", "../../.env", "missing.py", "/etc/passwd"], path.join(repo, "src", "auth"), data);
+  const outside = path.join(tmpdir("intent-outside-"), "passwd"); // an absolute path that exists on every platform
+  fs.writeFileSync(outside, "root:x:0:0\n");
+  const r = await cli(["login.py", "../../.env", "missing.py", outside], path.join(repo, "src", "auth"), data);
   assert.equal(r.code, 0);
   assert.match(r.out, /^Intent Check: queued a review of 1 file; it runs in the background/);
   assert.match(r.out, /secrets file/);
@@ -102,7 +104,7 @@ test("a symlinked queue folder or queue file is refused", async () => {
   fs.writeFileSync(path.join(repo, "a.py"), "A = 1\n");
   const outside = tmpdir("intent-outside-");
   fs.mkdirSync(path.join(repo, ".intent"));
-  fs.symlinkSync(outside, path.join(repo, ".intent", ".queue"));
+  symlink(outside, path.join(repo, ".intent", ".queue"));
   const r = await cli(["a.py"], repo, data);
   assert.match(r.out, /could not queue/);
   assert.deepEqual(fs.readdirSync(outside), []);
@@ -154,8 +156,10 @@ test("intent deepscan <files> inside a worktree-isolated subagent is queued in t
 
 test("a queued item naming a folder outside the repo's worktrees is dropped", async () => {
   const ctx = setup();
+  const outside = tmpdir("intent-outside-");
+  fs.writeFileSync(path.join(outside, "passwd"), "root:x:0:0\n");
   fs.mkdirSync(path.join(ctx.repo, ".intent", ".queue"), { recursive: true });
-  fs.writeFileSync(path.join(ctx.repo, ".intent", ".queue", "1-deadbeef.json"), JSON.stringify({ mode: "request", paths: ["passwd"], worktree: "/etc" }));
+  fs.writeFileSync(path.join(ctx.repo, ".intent", ".queue", "1-deadbeef.json"), JSON.stringify({ mode: "request", paths: ["passwd"], worktree: outside }));
   const { takeQueue } = await import("../lib/queue.js");
   assert.deepEqual(takeQueue(ctx.repo), []);
 });

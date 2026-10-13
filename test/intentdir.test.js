@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { writeUnit, unitDir, ensureScaffold, appendSentLog, removeUnit, moveUnit, syncUnits, README } from "../lib/intentdir.js";
-import { tmpdir, makeRepo, ROOT } from "./helpers/env.js";
+import { symlink, tmpdir, makeRepo, ROOT } from "./helpers/env.js";
 
 const example = JSON.parse(fs.readFileSync(path.join(ROOT, "contract", "examples", "status-done-concerns.json"), "utf8"));
 // REASONING.md + VERIFICATION.k, SEMANTICS.k as the stub (contract 2026-10-01).
@@ -110,7 +110,7 @@ test("a symlink planted in .intent/ cannot redirect writes outside it", () => {
   const root = tmpdir();
   const outside = tmpdir("intent-outside-");
   fs.mkdirSync(path.join(root, ".intent"), { recursive: true });
-  fs.symlinkSync(outside, path.join(root, ".intent", "src"));
+  symlink(outside, path.join(root, ".intent", "src"));
   const ok = writeUnit(root, { ...example.result.units[0], path: "src/pricing.py" }, { job_id: "j", url: "u" }, example.result);
   assert.equal(ok, false);
   assert.deepEqual(fs.readdirSync(outside), []);
@@ -247,7 +247,7 @@ test("syncUnits, removeUnit and moveUnit never touch .intent/NOTES.md", () => {
 test("a .intent symlink is refused", () => {
   const root = tmpdir();
   const outside = tmpdir("intent-outside-");
-  fs.symlinkSync(outside, path.join(root, ".intent"));
+  symlink(outside, path.join(root, ".intent"));
   assert.throws(() => writeUnit(root, example.result.units[0], { job_id: "j", url: "u" }, example.result));
   appendSentLog(root, { time: "t" });
   assert.deepEqual(fs.readdirSync(outside), []);

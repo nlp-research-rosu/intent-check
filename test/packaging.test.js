@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { ROOT } from "./helpers/env.js";
+import { ROOT, isExecutable } from "./helpers/env.js";
 
 const read = (p) => JSON.parse(fs.readFileSync(path.join(ROOT, p), "utf8"));
 
@@ -95,8 +95,7 @@ test("bin/intent: the legacy sh launcher (no hook or command uses it any more) s
   const src = fs.readFileSync(p, "utf8");
   assert.match(src, /^#!\/bin\/sh/);
   assert.match(src, /intent\.js/);
-  const mode = fs.statSync(p).mode;
-  assert.ok(mode & 0o111, "bin/intent must be executable");
+  assert.ok(isExecutable(p), "bin/intent must be executable");
 });
 
 test("zero runtime dependencies", () => {

@@ -281,7 +281,9 @@ for (const [name, env, off] of [["INTENT_DISABLED=1", { INTENT_DISABLED: "1" }, 
   });
 }
 
-test("SIGTERM (hook timeout or quit): a detached finisher keeps polling and writes .intent/", async () => {
+// Windows has no signals: kill() ends the process outright and no handler runs. The job is then picked
+// up by "late result: a job whose runner died is delivered at the next prompt", which runs everywhere.
+test("SIGTERM (hook timeout or quit): a detached finisher keeps polling and writes .intent/", { skip: process.platform === "win32" ? "a Node process cannot catch SIGTERM on Windows" : false }, async () => {
   fp.state.pollsBeforeDone = 1000;
   const ctx = setup();
   await turn(ctx, { "pricing.py": PRICING }, { run: false });
