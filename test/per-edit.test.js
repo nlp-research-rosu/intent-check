@@ -145,7 +145,7 @@ test("on and live commands, doctor, and settings saved by earlier versions", asy
   assert.match(first(await run("doctor")), /: on$/);
   assert.match(first(await run("live")), /^Intent Check is on \(live\)\./);
   assert.match(first(await run("doctor")), /: on \(live\)$/);
-  assert.match(first(await run("on")), /^Intent Check is on\. Changes are checked at the end of each turn\.$/);
+  assert.match(first(await run("on")), /^Intent Check is on\. Changes are checked at the end of each turn\. Live review is now off; \/intent:live turns it back on\.$/);
   assert.match(first(await run("doctor")), /: on$/);
   // Settings from earlier versions: the per_edit boolean and mode "per-edit".
   const cfg = path.join(ctx.data, "config.json");

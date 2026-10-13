@@ -574,3 +574,51 @@ test("an env-key 401 notes INTENT_API_KEY, pauses that key and leaves it alone",
   });
   assert.equal(readJson(path.join(ctx.data, "config.json")).keys[fp.url], TEST_KEY, "saved key untouched");
 });
+
+test("/intent:on after /intent:live says live review is now off; INTENT_MODE is the older env override", async () => {
+  const ctx = setup();
+  delete ctx.env.INTENT_LIVE;
+  saveKey(ctx.data, TEST_KEY, fp.url);
+  assert.doesNotMatch((await slash("on", ctx)).stdout, /Live review is now off/);
+  await slash("live", ctx);
+  assert.equal((await slash("on", ctx)).stdout, "Intent Check is on. Changes are checked at the end of each turn. Live review is now off; /intent:live turns it back on.\n");
+  assert.doesNotMatch((await slash("on", ctx)).stdout, /Live review is now off/);
+  assert.match((await slash("doctor", ctx, { ...ctx.env, INTENT_MODE: "per-edit" })).stdout, /: on \(live\)\n/);
+  const forced = (await slash("on", ctx, { ...ctx.env, INTENT_MODE: "per-edit" })).stdout;
+  assert.match(forced, /INTENT_MODE=per-edit is set in the environment and takes precedence\./);
+  assert.doesNotMatch(forced, /undefined/);
+});
+
+test("removed subcommands print one line instead of nothing", async () => {
+  const ctx = setup();
+  for (const name of ["check", "status", "connect", "disconnect", "mode"]) {
+    const r = await slash(name, ctx);
+    assert.equal(r.code, 0);
+    assert.match(r.stdout, /^Intent Check: that command was replaced\. Use \/intent:doctor to see the status or connect, or \/intent:deepscan <files> to review files\.\n$/);
+  }
+  const codex = await slash("status", ctx, { ...ctx.env, PLUGIN_ROOT: ROOT });
+  assert.match(codex.stdout, /^Intent Check: that command was replaced\. Ask for the Intent Check doctor/);
+  assert.doesNotMatch(codex.stdout, /\/intent:/);
+});
+
+test("doctor skips the host update while checks are off, and looks up the newest version once", async () => {
+  const { doctorCommand } = await import("../lib/commands.js");
+  const env = { CLAUDE_PLUGIN_DATA: tmpdir("intent-data-"), INTENT_API_URL: fp.url };
+  const before = Object.fromEntries(Object.keys(env).concat("INTENT_DISABLED").map((k) => [k, process.env[k]]));
+  Object.assign(process.env, env);
+  try {
+    let updates = 0;
+    let lookups = 0;
+    const update = async ({ available }) => { updates++; await available(); await available(); return "Update: x"; };
+    const available = () => { lookups++; return "0.3.0"; };
+    process.env.INTENT_DISABLED = "1";
+    const off = await doctorCommand({ update, available });
+    assert.deepEqual([updates, lookups, /Update:/.test(off)], [0, 1, false]);
+    delete process.env.INTENT_DISABLED;
+    updates = lookups = 0;
+    assert.match(await doctorCommand({ update, available }), /\nUpdate: x\n/);
+    assert.deepEqual([updates, lookups], [1, 1]);
+  } finally {
+    for (const [k, v] of Object.entries(before)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
+});
