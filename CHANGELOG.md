@@ -14,6 +14,10 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 - `INTENT_LIVE=1` or `0` sets live mode from the environment. `INTENT_MODE=per-edit` or `classic` is still read when `INTENT_LIVE` is not set, and a saved per-edit setting carries over as live mode.
 - A removed command run from a script or an older skill prints a one-line pointer to its replacement.
 
+### Fixed
+
+- Windows: a state file another hook has just released no longer fails the check, repository paths from git match the rest of the plugin's paths, and the shadow snapshot runs without the user's git config there too.
+
 ### Removed
 
 - `/intent:check`: use `/intent:deepscan <files>`.
