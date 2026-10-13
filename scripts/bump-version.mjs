@@ -1,4 +1,5 @@
 // node scripts/bump-version.mjs <patch|minor|major|X.Y.Z[-pre]> [--pre <id>]
+// node scripts/bump-version.mjs --notes <X.Y.Z>   prints that version's CHANGELOG.md section (the release notes)
 // patch/minor/major bump the base (prerelease stripped). With --pre <id> the result is <base>-<id>.<N>, N = 1 + the highest
 // tag v<base>-<id>.*; base = the current base if the current version is already a prerelease with that id, else the bumped base.
 import fs from "node:fs";
@@ -11,6 +12,9 @@ export const FILES = ["package.json", ".claude-plugin/plugin.json", ".claude-plu
 // The install picker shows this version and test/install-json.test.js pins it to package.json, so plain releases bump it too.
 // Prerelease bumps leave it alone: the per-edit branch requires install.json to stay plain semver.
 export const INSTALL_JSON = "docs/install.json";
+// A plain release also turns the changelog's Unreleased section into the section for that version.
+export const CHANGELOG = "CHANGELOG.md";
+const UNRELEASED = "## [Unreleased]";
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 const VERSION_FIELD = /("version":\s*")([^"]*)(")/g;
 
@@ -36,6 +40,22 @@ export function nextVersion(current, arg, pre, listTags = gitTags) {
   return `${base.join(".")}-${pre}.${Math.max(0, ...used) + 1}`;
 }
 
+// The body of one changelog section ("Unreleased" or X.Y.Z), trimmed. "" when there is none.
+export function changelogSection(text, name) {
+  const lines = text.split(/\r?\n/);
+  const start = lines.findIndex((l) => l.startsWith(`## [${name}]`));
+  if (start === -1) return "";
+  const next = lines.findIndex((l, i) => i > start && l.startsWith("## ["));
+  return lines.slice(start + 1, next === -1 ? lines.length : next).join("\n").trim();
+}
+
+// What was under Unreleased becomes the section for v, and Unreleased starts empty.
+export function rollChangelog(text, v, date) {
+  if (!text.includes(UNRELEASED)) throw new Error(`${CHANGELOG}: no "${UNRELEASED}" section`);
+  if (text.includes(`## [${v}]`)) throw new Error(`${CHANGELOG}: already has a section for ${v}`);
+  return text.replace(UNRELEASED, `${UNRELEASED}\n\n## [${v}] - ${date}`);
+}
+
 export function readVersions(root = ROOT, files = FILES) {
   return files.map((f) => {
     const found = [...fs.readFileSync(path.join(root, f), "utf8").matchAll(VERSION_FIELD)];
@@ -44,21 +64,30 @@ export function readVersions(root = ROOT, files = FILES) {
   });
 }
 
-export function writeVersion(v, root = ROOT) {
+export function writeVersion(v, root = ROOT, date = new Date().toISOString().slice(0, 10)) {
   const vs = readVersions(root);
   for (const [f, cur] of vs) if (cur !== vs[0][1]) throw new Error(`versions disagree: ${f} has ${cur}, ${vs[0][0]} has ${vs[0][1]}`);
   const plain = !parse(v).pre;
   const targets = plain ? [...FILES, INSTALL_JSON] : FILES;
   if (plain) readVersions(root, [INSTALL_JSON]); // throws unless exactly one version field, before anything is written
+  const log = path.join(root, CHANGELOG);
+  const rolled = plain && fs.existsSync(log) ? rollChangelog(fs.readFileSync(log, "utf8"), v, date) : null; // throws before anything is written
   for (const f of targets) {
     const p = path.join(root, f);
     fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace(VERSION_FIELD, `$1${v}$3`));
   }
+  if (rolled !== null) fs.writeFileSync(log, rolled);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const args = process.argv.slice(2);
+    if (args[0] === "--notes") {
+      if (args.length !== 2 || !SEMVER.test(args[1])) throw new Error("usage: bump-version.mjs --notes <X.Y.Z>");
+      const notes = changelogSection(fs.readFileSync(path.join(ROOT, CHANGELOG), "utf8"), args[1]);
+      process.stdout.write(notes ? `${notes}\n` : "");
+      process.exit(0);
+    }
     const i = args.indexOf("--pre");
     const pre = i >= 0 ? args.splice(i, 2)[1] : null;
     if (args.length !== 1 || (i >= 0 && !pre)) throw new Error("usage: bump-version.mjs <patch|minor|major|X.Y.Z[-pre]> [--pre <id>]");

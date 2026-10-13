@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { tmpdir, ROOT } from "./helpers/env.js";
-import { nextVersion, readVersions, FILES, INSTALL_JSON } from "../scripts/bump-version.mjs";
+import { nextVersion, readVersions, FILES, INSTALL_JSON, CHANGELOG, changelogSection, rollChangelog } from "../scripts/bump-version.mjs";
 
 const none = () => [];
 
@@ -102,4 +102,52 @@ test("CLI: refuses when the four files disagree", () => {
   const p = path.join(dir, ".codex-plugin/plugin.json");
   fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace(/"version": "[^"]*"/, '"version": "9.9.9"'));
   assert.throws(() => execFileSync("node", ["scripts/bump-version.mjs", "patch"], { cwd: dir, stdio: "pipe" }));
+});
+
+// ---- changelog ----
+
+const LOG = "# Changelog\n\nIntro.\n\n## [Unreleased]\n\n### Added\n\n- A new thing.\n\n## [0.2.4] - 2026-10-13\n\n### Fixed\n\n- An old thing.\n";
+
+test("changelog: a section's body by name; a plain release turns Unreleased into that version's section", () => {
+  assert.equal(changelogSection(LOG, "Unreleased"), "### Added\n\n- A new thing.");
+  assert.equal(changelogSection(LOG, "0.2.4"), "### Fixed\n\n- An old thing.");
+  assert.equal(changelogSection(LOG, "9.9.9"), "");
+  assert.equal(changelogSection(LOG.replace(/\n/g, "\r\n"), "0.2.4"), "### Fixed\n\n- An old thing.");
+  const rolled = rollChangelog(LOG, "0.3.0", "2026-10-20");
+  assert.equal(changelogSection(rolled, "Unreleased"), "");
+  assert.equal(changelogSection(rolled, "0.3.0"), "### Added\n\n- A new thing.");
+  assert.equal(changelogSection(rolled, "0.2.4"), "### Fixed\n\n- An old thing.");
+  assert.match(rolled, /## \[Unreleased\]\n\n## \[0\.3\.0\] - 2026-10-20\n\n### Added/);
+  assert.throws(() => rollChangelog(LOG, "0.2.4", "2026-10-20"), /already has a section/);
+  assert.throws(() => rollChangelog("# Changelog\n", "0.3.0", "2026-10-20"), /no "## \[Unreleased\]" section/);
+});
+
+test("CLI: a plain release rolls CHANGELOG.md and --notes prints the section; a prerelease leaves it alone", () => {
+  const { dir, run } = sandbox();
+  const p = path.join(dir, CHANGELOG);
+  run("0.2.4"); // pin the base before there is a changelog to roll
+  fs.writeFileSync(p, LOG);
+  assert.equal(run("patch", "--pre", "per-edit"), "0.2.5-per-edit.1\n");
+  assert.equal(fs.readFileSync(p, "utf8"), LOG, "prerelease: untouched");
+  assert.equal(run("minor"), "0.3.0\n");
+  assert.match(fs.readFileSync(p, "utf8"), /## \[Unreleased\]\n\n## \[0\.3\.0\] - \d{4}-\d\d-\d\d\n\n### Added\n\n- A new thing\./);
+  assert.equal(run("--notes", "0.3.0"), "### Added\n\n- A new thing.\n");
+  assert.equal(run("--notes", "9.9.9"), "", "no section: empty, so the workflow falls back to generated notes");
+});
+
+test("CLI: a release refuses when CHANGELOG.md has no Unreleased section, writing nothing", () => {
+  const { dir } = sandbox();
+  fs.writeFileSync(path.join(dir, CHANGELOG), "# Changelog\n");
+  const before = FILES.map((f) => fs.readFileSync(path.join(dir, f), "utf8"));
+  assert.throws(() => execFileSync("node", ["scripts/bump-version.mjs", "patch"], { cwd: dir, stdio: "pipe" }));
+  assert.deepEqual(FILES.map((f) => fs.readFileSync(path.join(dir, f), "utf8")), before);
+});
+
+test("CHANGELOG.md: has an Unreleased section and an entry for the current release; the release workflow uses it", () => {
+  const log = fs.readFileSync(path.join(ROOT, CHANGELOG), "utf8");
+  assert.match(log, /^## \[Unreleased\]$/m);
+  const cur = readVersions()[0][1];
+  if (/^\d+\.\d+\.\d+$/.test(cur)) assert.notEqual(changelogSection(log, cur), "", `CHANGELOG.md has no entry for ${cur}`);
+  assert.match(fs.readFileSync(path.join(ROOT, ".github/workflows/release.yml"), "utf8"), /bump-version\.mjs --notes "\$V"/);
+  assert.match(fs.readFileSync(path.join(ROOT, "README.md"), "utf8"), /\]\(CHANGELOG\.md\)/);
 });
