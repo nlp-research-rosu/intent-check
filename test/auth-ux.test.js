@@ -28,37 +28,7 @@ const prompt = (ctx, text = "please build the pricing module", extra = {}) => ru
 const start = (ctx, extra = {}) => runHook("session-start", fixture("session-start", ctx.repo, extra), ctx.env);
 const slash = (name, ctx, env = ctx.env) => runHook(name, undefined, env);
 
-// ---- item 1: keys per service, legacy migration -------------------------------------------------
-
-test("a legacy top-level api_key is moved under the current URL once /v1/me says 200, and stays readable", async () => {
-  const ctx = setup();
-  saveKey(ctx.data, TEST_KEY);
-  const n = meCalls();
-  const r = await start(ctx);
-  assert.equal(r.stdout, "", "connected: nothing to show");
-  assert.equal(meCalls(), n + 1);
-  const cfg = readJson(path.join(ctx.data, "config.json"));
-  assert.equal(cfg.keys[fp.url], TEST_KEY);
-  assert.equal(cfg.api_key, undefined, "the old field is removed once its key lives under keys[url]");
-  assert.equal(cfg.legacy_for, fp.url);
-  assert.equal(fs.existsSync(cfileOf(ctx)), false);
-  // Already under keys[url]: no second /v1/me.
-  await prompt(ctx);
-  assert.equal(meCalls(), n + 1);
-});
-
-test("a legacy key the service rejects is not migrated; the user gets a new link with the reason", async () => {
-  const ctx = setup();
-  saveKey(ctx.data, "ic_" + "Z".repeat(38));
-  const r = await start(ctx);
-  assert.match(r.json.systemMessage, /^Intent Check: Your saved key is no longer accepted \(revoked or expired\)\.\nIntent Check: connect your account → http/);
-  const cfg = readJson(path.join(ctx.data, "config.json"));
-  assert.equal(cfg.keys, undefined);
-  assert.deepEqual(cfg.legacy_rejected, [fp.url]);
-  const m = meCalls();
-  await prompt(ctx, "another prompt that is long enough", { session_id: "s2" });
-  assert.equal(meCalls(), m, "not asked again");
-});
+// ---- item 1: keys per service ----------------------------------------------------------------
 
 test("keys are per service: a key saved for another URL is not used", async () => {
   const ctx = setup();
@@ -575,7 +545,7 @@ test("an env-key 401 notes INTENT_API_KEY, pauses that key and leaves it alone",
   assert.equal(readJson(path.join(ctx.data, "config.json")).keys[fp.url], TEST_KEY, "saved key untouched");
 });
 
-test("/intent:on after /intent:live says live review is now off; INTENT_MODE is the older env override", async () => {
+test("/intent:on after /intent:live says live review is now off, and INTENT_LIVE in the environment takes precedence", async () => {
   const ctx = setup();
   delete ctx.env.INTENT_LIVE;
   saveKey(ctx.data, TEST_KEY, fp.url);
@@ -583,22 +553,10 @@ test("/intent:on after /intent:live says live review is now off; INTENT_MODE is 
   await slash("live", ctx);
   assert.equal((await slash("on", ctx)).stdout, "Intent Check is on. Changes are checked at the end of each turn. Live review is now off; /intent:live turns it back on.\n");
   assert.doesNotMatch((await slash("on", ctx)).stdout, /Live review is now off/);
-  assert.match((await slash("doctor", ctx, { ...ctx.env, INTENT_MODE: "per-edit" })).stdout, /: on \(live\)\n/);
-  const forced = (await slash("on", ctx, { ...ctx.env, INTENT_MODE: "per-edit" })).stdout;
-  assert.match(forced, /INTENT_MODE=per-edit is set in the environment and takes precedence\./);
+  assert.match((await slash("doctor", ctx, { ...ctx.env, INTENT_LIVE: "1" })).stdout, /: on \(live\)\n/);
+  const forced = (await slash("on", ctx, { ...ctx.env, INTENT_LIVE: "1" })).stdout;
+  assert.match(forced, /INTENT_LIVE=1 is set in the environment and takes precedence\./);
   assert.doesNotMatch(forced, /undefined/);
-});
-
-test("removed subcommands print one line instead of nothing", async () => {
-  const ctx = setup();
-  for (const name of ["check", "status", "connect", "disconnect", "mode"]) {
-    const r = await slash(name, ctx);
-    assert.equal(r.code, 0);
-    assert.match(r.stdout, /^Intent Check: that command was replaced\. Use \/intent:doctor to see the status or connect, or \/intent:deepscan <files> to review files\.\n$/);
-  }
-  const codex = await slash("status", ctx, { ...ctx.env, PLUGIN_ROOT: ROOT });
-  assert.match(codex.stdout, /^Intent Check: that command was replaced\. Ask for the Intent Check doctor/);
-  assert.doesNotMatch(codex.stdout, /\/intent:/);
 });
 
 test("doctor skips the host update while checks are off, and looks up the newest version once", async () => {

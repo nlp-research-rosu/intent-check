@@ -18,7 +18,7 @@ const example = JSON.parse(fs.readFileSync(path.join(ROOT, "contract", "examples
 
 function setup() {
   const data = tmpdir("intent-data-");
-  saveKey(data, TEST_KEY);
+  saveKey(data, TEST_KEY, fp.url);
   fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   const { dir, git } = makeRepo();
   return { data, repo: dir, git, env: baseEnv(data, fp.url) };

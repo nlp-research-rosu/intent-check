@@ -21,7 +21,7 @@ const unit = (root, p) => writeUnit(root, { ...example.result.units[0], path: p 
 
 function setup({ key = true, git = true, env = {} } = {}) {
   const data = tmpdir("intent-data-");
-  if (key) saveKey(data, TEST_KEY);
+  if (key) saveKey(data, TEST_KEY, fp.url);
   fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   const { dir, git: g } = makeRepo({ git });
   return { data, repo: dir, git: g, env: baseEnv(data, fp.url, env) };
@@ -222,7 +222,7 @@ test("r3-a: one root rule: git top level, else the current folder (no walk-up, n
   fs.mkdirSync(path.join(nested, ".intent", ".queue"), { recursive: true });
   for (const f of ["README.md", ".ignore", ".gitignore"]) fs.writeFileSync(path.join(nested, ".intent", f), "x\n");
   const data = tmpdir("intent-data-");
-  saveKey(data, TEST_KEY);
+  saveKey(data, TEST_KEY, fp.url);
   fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   await runHook("stop", fixture("stop", parent), baseEnv(data, fp.url));
   for (const f of ["README.md", ".ignore", ".gitignore"]) assert.ok(fs.existsSync(path.join(nested, ".intent", f)), f);

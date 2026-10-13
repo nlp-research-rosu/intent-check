@@ -98,10 +98,10 @@ export async function waitFor(fn, { timeoutMs = 15000, stepMs = 100 } = {}) {
   return null;
 }
 
-// Without a url: the old top-level api_key. With one: keys[url], the current format.
-export function saveKey(dataDir, key, url = null) {
+// Saves the key for one service URL (config.json keys[url]).
+export function saveKey(dataDir, key, url) {
   fs.mkdirSync(dataDir, { recursive: true });
-  const cfg = url ? { keys: { [url]: key } } : { api_key: key };
+  const cfg = { keys: { [url]: key } };
   fs.writeFileSync(path.join(dataDir, "config.json"), JSON.stringify(cfg), { mode: 0o600 });
 }
 

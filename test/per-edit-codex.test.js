@@ -45,7 +45,7 @@ function run(event, payload, env) {
 
 function setup({ mode = "per-edit", git = true, notice = false } = {}) {
   const data = tmpdir("intent-pec-data-");
-  saveKey(data, TEST_KEY);
+  saveKey(data, TEST_KEY, fp.url);
   fs.writeFileSync(path.join(data, "global.json"), notice ? JSON.stringify({ consent_shown_at: "2026-09-28T00:00:00Z" }) : QUIET_GLOBAL);
   const repo = makeRepo({ git }).dir;
   const env = baseEnv(data, fp.url, { INTENT_LIVE: mode === "per-edit" ? "1" : "0", PLUGIN_ROOT: ROOT, PLUGIN_DATA: data });

@@ -30,7 +30,7 @@ Wait for review/merge of PRs 1-7 and the orchestrator's Codex e2e. Then M6 plugi
 ## Commands (simplified 2026-10-13)
 
 - Five user commands: `on`, `live`, `off`, `deepscan`, `doctor` (`lib/commands.js`, `lib/deepscan.js`). `check`, `mode`, `status`, `connect` and `disconnect` are gone.
-- `on` is end-of-turn review only; `live` is on plus per-edit review (`config.json` `live`, `INTENT_LIVE=1|0` overrides; the old `mode`/`per_edit` settings are still read). End-of-turn review always runs while on.
+- `on` is end-of-turn review only; `live` is on plus per-edit review (`config.json` `live`, `INTENT_LIVE=1|0` overrides). End-of-turn review always runs while on.
 - `deepscan` routes by target: files go to the queue (`lib/queue.js`, the fast `/v1/jobs` check, no network in the command), a folder or nothing goes to `/v1/deepscans`. Depth is one bare word; there are no flags.
 - `doctor` reports state, replaces a missing or rejected connection with a fresh link, and on Claude Code runs the host's plugin update commands (`hostUpdate`). There is no disconnect command and no "disconnected" connect state any more.
 

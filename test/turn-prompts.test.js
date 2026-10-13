@@ -31,7 +31,7 @@ beforeEach(() => { fp.state.requests.length = 0; });
 
 function setup(extra = {}) {
   const data = tmpdir("intent-data-");
-  saveKey(data, TEST_KEY);
+  saveKey(data, TEST_KEY, fp.url);
   fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   const repo = makeRepo().dir;
   return { data, repo, env: baseEnv(data, fp.url, extra) };
@@ -119,24 +119,6 @@ test("ids and prompts trim together at max_prompts", async () => {
   assert.equal(s.prompts.length, s.prompt_ids.length);
   assert.equal(s.prompt_ids.at(-1), "id-6");
   assert.equal(s.prompts.at(-1), "prompt number 6");
-});
-
-test("old session files without prompt_ids still work", async () => {
-  const c = setup();
-  await sendPrompt(c, PA, A);
-  const key = st.sessionKey(fixture("prompt", c.repo).session_id);
-  const f = path.join(c.data, "sessions", `${key}.json`);
-  const old = JSON.parse(fs.readFileSync(f, "utf8"));
-  delete old.prompt_ids;
-  delete old.first_prompt_id;
-  fs.writeFileSync(f, JSON.stringify(old));
-  process.env.CLAUDE_PLUGIN_DATA = c.data;
-  assert.deepEqual(st.loadSession(key).prompt_ids, []);
-  assert.deepEqual(consume(c, A).prompts, [PA]);
-  await sendPrompt(c, PB, B);
-  const [s] = readSessionFiles(c.data);
-  assert.deepEqual(s.prompt_ids, [null, B]);
-  assert.deepEqual(consume(c, A).prompts, [PA, PB], "id not found: all prompts");
 });
 
 test("per-edit job snapshot respects the job's prompt_id", async () => {

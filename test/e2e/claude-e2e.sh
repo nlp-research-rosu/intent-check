@@ -104,7 +104,7 @@ USER_CODE="$(node -e 'try{console.log(JSON.parse(require("fs").readFileSync(proc
 
 # 2. Approve and wait for the key.
 approve "$USER_CODE" || bad "approve command failed"
-if wait_for 60 grep -q '"api_key"' "$DATA/config.json" 2>/dev/null; then ok "key saved by the background poller"; else bad "key not saved"; fi
+if wait_for 60 grep -q '"keys"' "$DATA/config.json" 2>/dev/null; then ok "key saved by the background poller"; else bad "key not saved"; fi
 [ "$(stat -c %a "$DATA/config.json" 2>/dev/null || stat -f %Lp "$DATA/config.json")" = 600 ] && ok "config.json is mode 600" || bad "config.json mode"
 send "Reply with just: ready"
 if wait_for 60 pane_has 'Intent Check: connected\.'; then ok "connected line shown"; else bad "connected line not visible"; fi
