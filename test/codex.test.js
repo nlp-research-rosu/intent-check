@@ -51,7 +51,7 @@ function run(event, payload, env, { hostFlag = true } = {}) {
 
 function setup({ key = true } = {}) {
   const data = tmpdir("intent-codex-data-");
-  if (key) saveKey(data, TEST_KEY);
+  if (key) saveKey(data, TEST_KEY, fp.url);
   fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   const { dir, git } = makeRepo();
   const env = baseEnv(data, fp.url, { CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDECODE: "1", PLUGIN_ROOT: ROOT, PLUGIN_DATA: data });

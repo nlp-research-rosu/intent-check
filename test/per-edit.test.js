@@ -18,7 +18,7 @@ beforeEach(() => Object.assign(fp.state, { scenario: "concerns", pollsBeforeDone
 
 function setup({ mode = "per-edit" } = {}) {
   const data = tmpdir("intent-data-");
-  saveKey(data, TEST_KEY);
+  saveKey(data, TEST_KEY, fp.url);
   const repo = makeRepo();
   fs.writeFileSync(path.join(data, "global.json"), JSON.stringify({ consent_shown_at: "2026-09-28T00:00:00Z" }));
   return { data, repo: repo.dir, env: baseEnv(data, fp.url, { INTENT_LIVE: mode === "per-edit" ? "1" : "0" }) };
@@ -137,7 +137,7 @@ test("classic mode: no check at the edit, the normal Stop check", async () => {
   assert.equal("per_edit" in fp.jobRequests()[n], false, "the end-of-turn body has no per_edit key");
 });
 
-test("on and live commands, doctor, and settings saved by earlier versions", async () => {
+test("on and live commands and doctor", async () => {
   const ctx = setup({ mode: "" });
   delete ctx.env.INTENT_LIVE;
   const run = (...a) => import("node:child_process").then(({ spawnSync }) => spawnSync(process.execPath, [path.join(ROOT, "bin", "intent.js"), ...a], { env: ctx.env, encoding: "utf8" }));
@@ -147,17 +147,6 @@ test("on and live commands, doctor, and settings saved by earlier versions", asy
   assert.match(first(await run("doctor")), /: on \(live\)$/);
   assert.match(first(await run("on")), /^Intent Check is on\. Changes are checked at the end of each turn\. Live review is now off; \/intent:live turns it back on\.$/);
   assert.match(first(await run("doctor")), /: on$/);
-  // Settings from earlier versions: the per_edit boolean and mode "per-edit".
-  const cfg = path.join(ctx.data, "config.json");
-  fs.writeFileSync(cfg, JSON.stringify({ per_edit: true }));
-  assert.match(first(await run("doctor")), /: on \(live\)$/);
-  fs.writeFileSync(cfg, JSON.stringify({ mode: "per-edit" }));
-  assert.match(first(await run("doctor")), /: on \(live\)$/);
-  fs.writeFileSync(cfg, JSON.stringify({ mode: "classic" }));
-  assert.match(first(await run("doctor")), /: on$/);
-  fs.writeFileSync(cfg, JSON.stringify({ per_edit: true, mode: "per-edit" }));
-  await run("live");
-  assert.deepEqual(JSON.parse(fs.readFileSync(cfg, "utf8")), { live: true });
   // The env var wins.
   assert.match(first((await import("node:child_process")).spawnSync(process.execPath, [path.join(ROOT, "bin", "intent.js"), "doctor"], { env: { ...ctx.env, INTENT_LIVE: "0" }, encoding: "utf8" })), /: on$/);
 });
@@ -285,7 +274,7 @@ test("an env-key 401 from a per-edit check adds the env note, pauses, and keeps 
   const g = readJson(path.join(ctx.data, "global.json"));
   assert.equal(g.paused.code, 401);
   assert.equal(g.paused.source, "env");
-  assert.equal(readJson(path.join(ctx.data, "config.json")).api_key, TEST_KEY);
+  assert.equal(readJson(path.join(ctx.data, "config.json")).keys[fp.url], TEST_KEY);
 });
 
 test("a successful per-edit submit records the last check", async () => {
@@ -307,14 +296,6 @@ test("no per-edit job is spawned for a paused key", async () => {
   await prompt(ctx);
   const { pause } = await import("../lib/pause.js");
   await inProcess(ctx, async () => pause(TEST_KEY, 401));
-  const n = fp.jobRequests().length;
-  await edit(ctx, "pricing.py", V1, "toolu_1");
-  await sleep(800);
-  assert.equal(fp.jobRequests().length, n);
-});
-
-test("no per-edit job is spawned for an unverified legacy key", async () => {
-  const ctx = setup(); // legacy api_key that no prompt or SessionStart has promoted yet
   const n = fp.jobRequests().length;
   await edit(ctx, "pricing.py", V1, "toolu_1");
   await sleep(800);

@@ -31,7 +31,7 @@ beforeEach(() => { fp.state.requests.length = 0; });
 
 function setup(extra = {}) {
   const data = tmpdir("intent-data-");
-  saveKey(data, TEST_KEY);
+  saveKey(data, TEST_KEY, fp.url);
   fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   const repo = makeRepo().dir;
   return { data, repo, env: baseEnv(data, fp.url, extra) };

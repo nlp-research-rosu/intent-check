@@ -12,7 +12,7 @@ after(() => fp.close());
 
 function setup({ key = true, git = true } = {}) {
   const data = tmpdir("intent-data-");
-  if (key) saveKey(data, TEST_KEY);
+  if (key) saveKey(data, TEST_KEY, fp.url);
   const repo = makeRepo({ git });
   return { data, repo: repo.dir, env: baseEnv(data, fp.url) };
 }

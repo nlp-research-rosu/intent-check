@@ -33,7 +33,7 @@ const unzip = (gz) => JSON.parse(zlib.gunzipSync(gz).toString("utf8"));
 
 function setup({ key = true } = {}) {
   const data = tmpdir("intent-data-");
-  if (key) saveKey(data, TEST_KEY);
+  if (key) saveKey(data, TEST_KEY, fp.url);
   fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   const { dir, git } = makeRepo();
   return { data, repo: dir, git, env: baseEnv(data, fp.url, { INTENT_DEEPSCAN_POLL_MS: "50", INTENT_DEEPSCAN_BUSY_MS: "20" }) };

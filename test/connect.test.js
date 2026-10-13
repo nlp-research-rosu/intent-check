@@ -114,7 +114,6 @@ test("the background poller saves the key under the service URL (mode 600); the 
   const cfg = path.join(ctx.data, "config.json");
   assert.ok(await waitFor(() => fs.existsSync(cfg) && (readJson(cfg).keys || {})[fp.url] === TEST_KEY, { timeoutMs: 10000 }));
   assertOwnerOnly(cfg);
-  assert.equal(readJson(cfg).api_key, undefined, "new keys go under keys[api_url], not the legacy field");
   const r = await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
   assert.equal(r.json.systemMessage, "Intent Check connected as tester");
   assert.match(r.json.hookSpecificOutput.additionalContext, /Intent Check connected as tester/);

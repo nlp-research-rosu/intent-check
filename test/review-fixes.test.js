@@ -117,7 +117,7 @@ test("3. merge conflict: the user's conflicted file is not uploaded as the agent
   git("commit", "-qam", "main");
   try { git("merge", "other"); } catch { /* conflict expected */ }
   const data = tmpdir("intent-data-");
-  saveKey(data, TEST_KEY);
+  saveKey(data, TEST_KEY, fp.url);
   fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   const env = baseEnv(data, fp.url);
   await runHook("prompt", fixture("prompt", dir), env);
@@ -197,7 +197,7 @@ test("7. sanitiser: invisible characters, tagged regions, lookalikes and social 
 
 test("8. a finisher exits when checks are turned off", async () => {
   const data = tmpdir("intent-data-");
-  saveKey(data, TEST_KEY);
+  saveKey(data, TEST_KEY, fp.url);
   const key = "0".repeat(32);
   fs.mkdirSync(path.join(data, "sessions"), { recursive: true });
   fs.writeFileSync(path.join(data, "sessions", `${key}.json`), JSON.stringify({ pending: [{ job_id: "A".repeat(22), url: "http://x/r/1", repo: tmpdir(), sent: [], submitted_at: Date.now() }] }));

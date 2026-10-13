@@ -11,8 +11,7 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 - Five commands replace eight. `/intent:on` turns checks on (your changes are reviewed at the end of each turn), `/intent:live` turns them on in live mode (every edit is also reviewed as it happens), and `/intent:off` turns them off. `/intent:on` turns live mode off again.
 - `/intent:deepscan [files or a folder] [fast|balanced|full]` is the one command for a review on demand. Files get the fast review; a folder or nothing gets a DeepScan.
 - `/intent:doctor` shows the plugin's state and repairs what it can: it gives a fresh connect link when the account is not connected, replaces a saved key the service no longer accepts, and updates the plugin on Claude Code. Its first line names a newer release when there is one.
-- `INTENT_LIVE=1` or `0` sets live mode from the environment. `INTENT_MODE=per-edit` or `classic` is still read when `INTENT_LIVE` is not set, and a saved per-edit setting carries over as live mode.
-- A removed command run from a script or an older skill prints a one-line pointer to its replacement.
+- `INTENT_LIVE=1` or `0` sets live mode from the environment.
 
 ### Fixed
 

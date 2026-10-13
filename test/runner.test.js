@@ -17,7 +17,7 @@ beforeEach(() => Object.assign(fp.state, { scenario: "concerns", pollsBeforeDone
 
 function setup({ key = true, git = true, env = {} } = {}) {
   const data = tmpdir("intent-data-");
-  if (key) saveKey(data, TEST_KEY);
+  if (key) saveKey(data, TEST_KEY, fp.url);
   const repo = makeRepo({ git });
   // Consent was shown in an earlier session, so outputs below are only what each test is about.
   fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
@@ -226,12 +226,11 @@ test("spend cap (429): nothing during the turn, one user-visible line at the nex
 
 test("a rejected saved key (401) is dropped, so the next prompt offers the connect link", async () => {
   const ctx = setup();
-  fs.writeFileSync(path.join(ctx.data, "config.json"), JSON.stringify({ api_key: "ic_" + "Z".repeat(38) }));
+  fs.writeFileSync(path.join(ctx.data, "config.json"), JSON.stringify({ keys: { [fp.url]: "ic_" + "Z".repeat(38) } }));
   const r = await turn(ctx, { "pricing.py": PRICING });
   assert.equal(r.code, 0);
   const cfg = JSON.parse(fs.readFileSync(path.join(ctx.data, "config.json"), "utf8"));
   assert.ok(!cfg.keys || !cfg.keys[fp.url], "no per-service key");
-  assert.ok((cfg.legacy_rejected || []).includes(fp.url) || cfg.api_key === undefined, "the legacy key is no longer offered for this service");
   const cfile = path.join(ctx.data, "connect.json");
   assert.ok(await waitFor(() => fs.existsSync(cfile) && JSON.parse(fs.readFileSync(cfile, "utf8")).status === "pending", { timeoutMs: 10000 }));
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "ok" }), ctx.env);
@@ -240,6 +239,7 @@ test("a rejected saved key (401) is dropped, so the next prompt offers the conne
 
 test("prover unreachable: the turn is not held up, paths are kept, the next prompt says so once", async () => {
   const ctx = setup({ env: { INTENT_API_URL: "http://127.0.0.1:9" } });
+  saveKey(ctx.data, TEST_KEY, "http://127.0.0.1:9");
   const r = await turn(ctx, { "pricing.py": PRICING });
   assert.equal(r.code, 0);
   assert.equal(r.stdout + r.stderr, "");
@@ -263,7 +263,7 @@ for (const [name, env, off] of [["INTENT_DISABLED=1", { INTENT_DISABLED: "1" }, 
     const ours = () => fp.state.requests.filter((x) => !(x.method === "GET" && x.path.startsWith("/v1/connect/"))).length;
     const n = ours();
     const s = await runHook("session-start", fixture("session-start", ctx.repo), ctx.env);
-    saveKey(ctx.data, TEST_KEY);
+    saveKey(ctx.data, TEST_KEY, fp.url);
     if (off) {
       const c = JSON.parse(fs.readFileSync(path.join(ctx.data, "config.json"), "utf8"));
       fs.writeFileSync(path.join(ctx.data, "config.json"), JSON.stringify({ ...c, disabled: true }));
