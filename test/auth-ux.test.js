@@ -584,6 +584,9 @@ test("/intent:on after /intent:live says live review is now off; INTENT_MODE is 
   assert.equal((await slash("on", ctx)).stdout, "Intent Check is on. Changes are checked at the end of each turn. Live review is now off; /intent:live turns it back on.\n");
   assert.doesNotMatch((await slash("on", ctx)).stdout, /Live review is now off/);
   assert.match((await slash("doctor", ctx, { ...ctx.env, INTENT_MODE: "per-edit" })).stdout, /: on \(live\)\n/);
+  const forced = (await slash("on", ctx, { ...ctx.env, INTENT_MODE: "per-edit" })).stdout;
+  assert.match(forced, /INTENT_MODE=per-edit is set in the environment and takes precedence\./);
+  assert.doesNotMatch(forced, /undefined/);
 });
 
 test("removed subcommands print one line instead of nothing", async () => {

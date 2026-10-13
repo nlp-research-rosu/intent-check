@@ -225,7 +225,7 @@ test("deepscan: uploads a gzip snapshot, prints the link, writes the scan record
   fp.state.deepscan.statuses = ["queued", "running", "done"];
   const r = await cli([], ctx);
   assert.equal(r.code, 0);
-  assert.match(r.out, /DeepScan \(fast, about 15–20 min\) started on 2 files/);
+  assert.match(r.out, /DeepScan \(fast, about 15 to 20 min\) started on 2 files/);
   assert.match(r.out, /Report: http:\/\/127\.0\.0\.1:\d+\/r\/[A-Za-z0-9]{22}/);
   assert.equal(r.out.split("\n").filter(Boolean).length <= 3, true);
   const id = idOf(r.out);
@@ -289,7 +289,7 @@ test("deepscan: a busy 429 is retried once; twice busy prints one line", async (
   const ctx = setup();
   fp.state.deepscan.submit = [{ status: 429, code: "rate_limited", reason: "deepscan_ingest_busy", retryAfter: 5 }];
   const ok = await cli([], ctx);
-  assert.match(ok.out, /DeepScan \(fast, about 15–20 min\) started/);
+  assert.match(ok.out, /DeepScan \(fast, about 15 to 20 min\) started/);
   assert.equal(fp.deepscanUploads().length, 2);
   const keys = fp.state.requests.filter((x) => x.path === "/v1/deepscans" && x.method === "POST").map((x) => x.headers["idempotency-key"]);
   assert.equal(keys[0], keys[1]);
@@ -478,7 +478,7 @@ test("upload: the timeout grows with the body; a network failure is retried once
   const ctx = setup();
   fp.state.deepscan.submit = [{ drop: true }];
   const r = await cli([], ctx);
-  assert.match(r.out, /DeepScan \(fast, about 15–20 min\) started/);
+  assert.match(r.out, /DeepScan \(fast, about 15 to 20 min\) started/);
   const posts = fp.state.requests.filter((x) => x.method === "POST" && x.path === "/v1/deepscans");
   assert.equal(posts.length, 2);
   assert.equal(posts[0].headers["idempotency-key"], posts[1].headers["idempotency-key"]);
@@ -724,11 +724,11 @@ test("depth: the upload carries it at the top level (fast when none is named), t
   w(ctx.repo, "src/a.py", "def f(x):\n    return x + 1\n");
   commitAll(ctx.git);
   const r0 = await cli([], ctx);
-  assert.match(r0.out, /DeepScan \(fast, about 15–20 min\) started/);
+  assert.match(r0.out, /DeepScan \(fast, about 15 to 20 min\) started/);
   const r1 = await cli(["balanced"], ctx);
-  assert.match(r1.out, /DeepScan \(balanced, about 30–35 min\) started/);
+  assert.match(r1.out, /DeepScan \(balanced, about 30 to 35 min\) started/);
   const r2 = await cli(["full"], ctx);
-  assert.match(r2.out, /DeepScan \(full, about 40–45 min\) started/);
+  assert.match(r2.out, /DeepScan \(full, about 40 to 45 min\) started/);
   const ups = fp.deepscanUploads();
   assert.deepEqual(ups.map((u) => u.depth), ["fast", "balanced", "full"]);
   for (const u of ups) assert.deepEqual(validateDeepscan(u, "DeepscanUpload"), []);
@@ -737,7 +737,7 @@ test("depth: the upload carries it at the top level (fast when none is named), t
   assert.match(bad.out, /--depth is not a DeepScan option/);
   // A folder narrows the scan; the depth still applies.
   const r3 = await cli(["src", "full"], ctx);
-  assert.match(r3.out, /DeepScan \(full, about 40–45 min\) started on 1 file in src\./);
+  assert.match(r3.out, /DeepScan \(full, about 40 to 45 min\) started on 1 file in src\./);
   assert.equal(fp.deepscanUploads().length, 4);
   // A file is not a scan: it is queued for the fast check, with no upload.
   const r4 = await cli(["src/a.py"], ctx);
