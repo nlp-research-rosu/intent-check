@@ -6,6 +6,8 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-13
+
 ### Changed
 
 - Five commands replace eight. `/intent:on` turns checks on (your changes are reviewed at the end of each turn), `/intent:live` turns them on in live mode (every edit is also reviewed as it happens), and `/intent:off` turns them off. `/intent:on` turns live mode off again.
