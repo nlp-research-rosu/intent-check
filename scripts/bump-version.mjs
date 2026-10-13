@@ -53,6 +53,7 @@ export function changelogSection(text, name) {
 export function rollChangelog(text, v, date) {
   if (!text.includes(UNRELEASED)) throw new Error(`${CHANGELOG}: no "${UNRELEASED}" section`);
   if (text.includes(`## [${v}]`)) throw new Error(`${CHANGELOG}: already has a section for ${v}`);
+  if (!changelogSection(text, "Unreleased")) throw new Error(`${CHANGELOG} has nothing under [Unreleased]; add the release notes first`);
   return text.replace(UNRELEASED, `${UNRELEASED}\n\n## [${v}] - ${date}`);
 }
 

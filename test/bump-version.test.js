@@ -135,6 +135,18 @@ test("CLI: a plain release rolls CHANGELOG.md and --notes prints the section; a 
   assert.equal(run("--notes", "9.9.9"), "", "no section: empty, so the workflow falls back to generated notes");
 });
 
+test("changelog: a plain release refuses an empty Unreleased section, writing nothing", () => {
+  const empty = "# Changelog\n\n## [Unreleased]\n\n## [0.2.4] - 2026-10-13\n\n### Fixed\n\n- An old thing.\n";
+  assert.throws(() => rollChangelog(empty, "0.3.0", "2026-10-20"), /nothing under \[Unreleased\]; add the release notes first/);
+  const { dir } = sandbox();
+  fs.writeFileSync(path.join(dir, CHANGELOG), empty);
+  const files = [...FILES, INSTALL_JSON];
+  const before = files.map((f) => fs.readFileSync(path.join(dir, f), "utf8"));
+  assert.throws(() => execFileSync("node", ["scripts/bump-version.mjs", "patch"], { cwd: dir, stdio: "pipe" }), /nothing under/);
+  assert.deepEqual(files.map((f) => fs.readFileSync(path.join(dir, f), "utf8")), before);
+  assert.equal(fs.readFileSync(path.join(dir, CHANGELOG), "utf8"), empty);
+});
+
 test("CLI: a release refuses when CHANGELOG.md has no Unreleased section, writing nothing", () => {
   const { dir } = sandbox();
   fs.writeFileSync(path.join(dir, CHANGELOG), "# Changelog\n");
