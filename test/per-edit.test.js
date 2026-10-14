@@ -308,19 +308,22 @@ test("spawned-but-unregistered checks count toward the in-flight cap, and reserv
   await edit(ctx, "pricing.py", V1, "toolu_0"); // creates the session file
   assert.ok(await waitFor(() => editJobs(ctx).some((e) => e.settled)), "first check settled");
   const { MAX_INFLIGHT_EDITS, EDIT_RESERVE_MS } = await import("../lib/runner.js");
-  const file = sessionJson(ctx);
-  const s = readJson(file);
-  s.edit_jobs = {};
-  s.edit_reserved = {};
-  for (let i = 0; i < MAX_INFLIGHT_EDITS; i++) s.edit_reserved[`r${i}`] = Date.now();
-  fs.writeFileSync(file, JSON.stringify(s));
+  // The first check's detached child still does a locked read-modify-write (releaseEditSlot) after it
+  // settles, so these writes go through the session lock; a bare writeFileSync could be clobbered by it.
+  const { withSession } = await import("../lib/state.js");
+  const key = path.basename(sessionJson(ctx), ".json");
+  await inProcess(ctx, async () => withSession(key, (s) => {
+    s.edit_jobs = {};
+    s.edit_reserved = {};
+    for (let i = 0; i < MAX_INFLIGHT_EDITS; i++) s.edit_reserved[`r${i}`] = Date.now();
+  }));
   const n = fp.jobRequests().length;
   await edit(ctx, "pricing.py", V2, "toolu_1");
   await sleep(1500);
   assert.equal(fp.jobRequests().length, n, "capped by reservations alone");
-  const s2 = readJson(file);
-  for (const id of Object.keys(s2.edit_reserved)) s2.edit_reserved[id] = Date.now() - EDIT_RESERVE_MS - 1000;
-  fs.writeFileSync(file, JSON.stringify(s2));
+  await inProcess(ctx, async () => withSession(key, (s2) => {
+    for (const id of Object.keys(s2.edit_reserved)) s2.edit_reserved[id] = Date.now() - EDIT_RESERVE_MS - 1000;
+  }));
   await edit(ctx, "pricing.py", V3, "toolu_2");
   assert.ok(await waitFor(() => fp.jobRequests().length > n, { timeoutMs: 8000 }), "expired reservations free the slots");
 });
