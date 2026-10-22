@@ -10,6 +10,9 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 - Sign-in runs through the prover console, and the key is saved in `~/.config/intent-check/credentials.json`, shared with the `intent-check` command. Keys saved by earlier versions are not carried over: connect again.
 - Checks and DeepScans go to the prover API (`https://prover.intentcomputing.org`). Report links open in the prover console (`INTENT_CONSOLE_URL` overrides it).
+### Added
+
+- Each release now includes the `intent-check` command line tool for macOS, Linux and Windows (x64 and arm64), with checksums and `install-intent-check.sh` / `install-intent-check.ps1` for installing it on its own.
 
 ## [0.3.0] - 2026-10-13
 
