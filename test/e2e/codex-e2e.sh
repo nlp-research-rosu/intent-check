@@ -2,7 +2,7 @@
 # Live end-to-end test of the intent plugin on Codex CLI (codex exec), for the orchestrator.
 # Not part of `npm test`.
 #
-#   INTENT_API_URL=https://web-staging-7e1c.up.railway.app E2E_APPROVE_SECRET=... test/e2e/codex-e2e.sh
+#   INTENT_API_URL=https://staging-prover.intentcomputing.org INTENT_CONSOLE_URL=https://staging-prover-console.intentcomputing.org E2E_APPROVE_CMD='...' test/e2e/codex-e2e.sh
 #
 # Isolation: a throwaway CODEX_HOME with auth.json SYMLINKED from ~/.codex, so a token refresh
 # during the run writes through to the real ~/.codex/auth.json (that is the point: a copy would go
@@ -15,8 +15,8 @@
 # the concern reaches the agent at the next prompt (resume) → a no-concerns check stays silent →
 # /intent:off equivalent (INTENT_DISABLED=1) sends nothing.
 #
-# Env: INTENT_API_URL (required; 127.0.0.1 = fake prover), E2E_APPROVE_SECRET (staging),
-#      E2E_APPROVE_CMD (override), MODEL (default gpt-5.6-luna), INTENT_PIPELINE (default canned), KEEP=1.
+# Env: INTENT_API_URL (required; 127.0.0.1 = fake prover), E2E_APPROVE_CMD (required for staging: approves $USER_CODE in the console; staging needs a Clerk account),
+#      MODEL (default gpt-5.6-luna), INTENT_PIPELINE (default canned), KEEP=1.
 set -euo pipefail
 
 : "${INTENT_API_URL:?set INTENT_API_URL}"
@@ -26,11 +26,12 @@ MODEL="${MODEL:-gpt-5.6-luna}"
 export INTENT_PIPELINE="${INTENT_PIPELINE:-canned}"
 FAKE=0
 case "$INTENT_API_URL" in http://127.0.0.1:*|http://localhost:*) FAKE=1 ;; esac
-if [ "$FAKE" = 0 ]; then : "${E2E_APPROVE_SECRET:?set E2E_APPROVE_SECRET}"; fi
+if [ "$FAKE" = 0 ]; then : "${E2E_APPROVE_CMD:?set E2E_APPROVE_CMD}"; fi
 [ -f "$HOME/.codex/auth.json" ] || { echo "no ~/.codex/auth.json"; exit 1; }
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/intent-codex-e2e-XXXXXX")"
 export CODEX_HOME="$WORK/home"
+export XDG_CONFIG_HOME="$WORK/xdg"
 REPO="$WORK/repo"
 DATA="$CODEX_HOME/plugins/data/intent-intentcomputing"
 PASS=0; FAIL=0
@@ -56,12 +57,7 @@ cx() { (cd "$REPO" && INTENT_DEBUG=1 INTENT_API_URL="$INTENT_API_URL" INTENT_CON
 approve() {
   local code=$1
   if [ -n "${E2E_APPROVE_CMD:-}" ]; then USER_CODE="$code" bash -c "$E2E_APPROVE_CMD"; return; fi
-  if [ "$FAKE" = 1 ]; then
-    curl -fsS -X POST "$INTENT_API_URL/_control" -H 'content-type: application/json' -d '{"connectApproved":true}' >/dev/null
-  else
-    curl -fsS -X POST "$INTENT_API_URL/v1/e2e/approve/$code" -H "X-E2E-Secret: $E2E_APPROVE_SECRET" \
-      -H 'content-type: application/json' -d '{"handle":"e2e"}' >/dev/null
-  fi
+  curl -fsS -X POST "$INTENT_API_URL/_control" -H 'content-type: application/json' -d '{"connectApproved":true}' >/dev/null
 }
 
 mkdir -p "$CODEX_HOME" "$REPO"
@@ -89,7 +85,7 @@ wait_for 20 test -f "$DATA/connect.json" || true
 USER_CODE="$(node -e 'try{console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).user_code||"")}catch{console.log("")}' "$DATA/connect.json")"
 [ -n "$USER_CODE" ] && ok "connect started ($USER_CODE)" || bad "no connect request"
 approve "$USER_CODE" || bad "approve failed"
-if wait_for 60 grep -q '"keys"' "$DATA/config.json" 2>/dev/null; then ok "key saved"; else bad "key not saved"; fi
+if wait_for 60 grep -q '"keys"' "$WORK/xdg/intent-check/credentials.json" 2>/dev/null; then ok "key saved"; else bad "key not saved"; fi
 
 # 2. Seeded bug: Stop must return quickly; the detached poller writes .intent/.
 T0=$SECONDS

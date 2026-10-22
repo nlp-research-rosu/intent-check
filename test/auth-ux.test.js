@@ -6,12 +6,12 @@ import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { QUIET_GLOBAL, PLUGIN_VERSION, ROOT, fixture, tmpdir, makeRepo, baseEnv, runHook, waitFor, saveKey, seedGlobal } from "./helpers/env.js";
+import { QUIET_GLOBAL, PLUGIN_VERSION, ROOT, fixture, tmpdir, makeRepo, baseEnv, runHook, waitFor, saveKey, seedGlobal, xdgDir, savedKey, credentialsPath } from "./helpers/env.js";
 
 let fp;
 before(async () => { fp = createFakeProver(); await fp.listen(); });
 after(() => fp.close());
-beforeEach(() => Object.assign(fp.state, { connectApproved: false, connectKeyTaken: false, connectStatus: null, connectStartStatus: null, keyRevoked: false, key: TEST_KEY, handle: "tester", pollsBeforeDone: 0, scenario: "concerns", verifyUrl: null, connectStartDelayMs: 0, meStatus: null, pollStatus: null }));
+beforeEach(() => Object.assign(fp.state, { connectApproved: false, connectKeyTaken: false, connectStatus: null, connectStartStatus: null, keyRevoked: false, key: TEST_KEY, handle: "tester", pollsBeforeDone: 0, scenario: "concerns", verifyUrl: null, connectStartDelayMs: 0, tasksStatus: null, pollStatus: null }));
 
 function setup() {
   const data = tmpdir("intent-data-");
@@ -21,8 +21,8 @@ function setup() {
 
 const readJson = (f) => JSON.parse(fs.readFileSync(f, "utf8"));
 const cfileOf = (ctx) => path.join(ctx.data, "connect.json");
-const posts = () => fp.state.requests.filter((x) => x.method === "POST" && x.path === "/v1/connect").length;
-const meCalls = () => fp.state.requests.filter((x) => x.path === "/v1/me" && x.method === "GET").length;
+const posts = () => fp.state.requests.filter((x) => x.method === "POST" && x.path === "/api/cli-connect" && x.body && x.body.action === "start").length;
+const keyChecks = () => fp.state.requests.filter((x) => x.path === "/tasks" && x.method === "GET").length;
 const connectStatus = (ctx) => (fs.existsSync(cfileOf(ctx)) ? readJson(cfileOf(ctx)).status : null);
 const prompt = (ctx, text = "please build the pricing module", extra = {}) => runHook("prompt", fixture("prompt", ctx.repo, { prompt: text, ...extra }), ctx.env);
 const start = (ctx, extra = {}) => runHook("session-start", fixture("session-start", ctx.repo, extra), ctx.env);
@@ -45,7 +45,7 @@ test("INTENT_API_KEY wins over a saved key, and doctor shows where the key comes
   saveKey(ctx.data, "ic_" + "Y".repeat(38), fp.url);
   const env = await slash("doctor", ctx, { ...ctx.env, INTENT_API_KEY: TEST_KEY });
   assert.match(env.stdout, /Key source: INTENT_API_KEY \(environment\)/);
-  assert.match(env.stdout, /Account: tester/, "the env key is the one asked");
+  assert.match(env.stdout, /Account: key accepted/, "the env key is the one asked");
 });
 
 // ---- item 3: connect creation off the prompt path, backoff -------------------------------------
@@ -76,7 +76,8 @@ test("a timeout is not backed off: the next prompt tries again", async () => {
   const keep = { ...process.env };
   try {
     process.env.CLAUDE_PLUGIN_DATA = ctx.data;
-    process.env.INTENT_API_URL = `http://127.0.0.1:${hang.address().port}`;
+    process.env.XDG_CONFIG_HOME = xdgDir(ctx.data);
+    process.env.INTENT_CONSOLE_URL = process.env.INTENT_API_URL = `http://127.0.0.1:${hang.address().port}`;
     delete process.env.INTENT_API_KEY;
     const { ensureRequest } = await import("../lib/connect.js");
     const c = await ensureRequest({ timeoutMs: 300 });
@@ -85,7 +86,7 @@ test("a timeout is not backed off: the next prompt tries again", async () => {
     assert.equal(g.backoff && g.backoff.connect, undefined);
     assert.match(g.last_error.text, /could not start a connect request/);
   } finally {
-    for (const k of ["CLAUDE_PLUGIN_DATA", "INTENT_API_URL"]) { if (keep[k] === undefined) delete process.env[k]; else process.env[k] = keep[k]; }
+    for (const k of ["CLAUDE_PLUGIN_DATA", "XDG_CONFIG_HOME", "INTENT_API_URL", "INTENT_CONSOLE_URL"]) { if (keep[k] === undefined) delete process.env[k]; else process.env[k] = keep[k]; }
     hang.closeAllConnections?.();
     await new Promise((r) => hang.close(r));
   }
@@ -101,8 +102,8 @@ test("connect-wait wakes the agent the moment the connection is approved", async
   fp.state.connectApproved = true;
   const w = await waiter;
   assert.equal(w.code, 2);
-  assert.match(w.stderr, /Intent Check connected as tester/);
-  assert.deepEqual(w.json, { rewakeSummary: "Intent Check connected as tester" });
+  assert.match(w.stderr, /Intent Check connected/);
+  assert.deepEqual(w.json, { rewakeSummary: "Intent Check connected" });
   // Announced once: the next prompt does not say it again.
   const p = await prompt(ctx);
   assert.equal(p.stdout, "");
@@ -166,10 +167,9 @@ test("Codex has no wake: the confirmation arrives with the next prompt", async (
   assert.doesNotMatch(p1.json.hookSpecificOutput.additionalContext, /confirms here by itself/);
   assert.match(p1.json.hookSpecificOutput.additionalContext, /"done" or "skip"/);
   fp.state.connectApproved = true;
-  const cfg = path.join(ctx.data, "config.json");
-  assert.ok(await waitFor(() => fs.existsSync(cfg) && (readJson(cfg).keys || {})[fp.url], { timeoutMs: 10000 }));
+  assert.ok(await waitFor(() => savedKey(ctx.data, fp.url), { timeoutMs: 10000 }));
   const p2 = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "next thing please" }), env);
-  assert.match(p2.json.hookSpecificOutput.additionalContext, /Intent Check connected as tester/);
+  assert.match(p2.json.hookSpecificOutput.additionalContext, /Intent Check connected/);
 });
 
 // ---- item 5: state changes show the link again with a reason ------------------------------------
@@ -210,8 +210,7 @@ test("a 401 on submit forgets the saved key and prepares a new link with the rea
   fs.writeFileSync(path.join(ctx.repo, "pricing.py"), "def a(x):\n    y = x\n    return y\n");
   const s = await runHook("stop", fixture("stop", ctx.repo), ctx.env);
   assert.equal(s.code, 0);
-  const cfg = readJson(path.join(ctx.data, "config.json"));
-  assert.equal((cfg.keys || {})[fp.url], undefined);
+  assert.equal(savedKey(ctx.data, fp.url), undefined);
   assert.ok(await waitFor(() => connectStatus(ctx) === "pending", { timeoutMs: 10000 }));
   assert.match(readJson(cfileOf(ctx)).reason, /no longer accepted/);
   const r = await prompt(ctx, "carry on with the next task please");
@@ -225,18 +224,19 @@ async function inProcess(ctx, fn) {
   const keep = { ...process.env };
   try {
     process.env.CLAUDE_PLUGIN_DATA = ctx.data;
-    process.env.INTENT_API_URL = fp.url;
+    process.env.XDG_CONFIG_HOME = xdgDir(ctx.data);
+    process.env.INTENT_API_URL = process.env.INTENT_CONSOLE_URL = fp.url;
     delete process.env.INTENT_API_KEY;
     return await fn(await import("../lib/connect.js"), await import("../lib/config.js"));
   } finally {
-    for (const k of ["CLAUDE_PLUGIN_DATA", "INTENT_API_URL", "INTENT_API_KEY"]) { if (keep[k] === undefined) delete process.env[k]; else process.env[k] = keep[k]; }
+    for (const k of ["CLAUDE_PLUGIN_DATA", "XDG_CONFIG_HOME", "INTENT_API_URL", "INTENT_CONSOLE_URL", "INTENT_API_KEY"]) { if (keep[k] === undefined) delete process.env[k]; else process.env[k] = keep[k]; }
   }
 }
 
 async function pendingRequest(ctx) {
-  const r = await fetch(`${fp.url}/v1/connect`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+  const r = await fetch(`${fp.url}/api/cli-connect`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "start" }) });
   const j = await r.json();
-  fs.writeFileSync(cfileOf(ctx), JSON.stringify({ status: "pending", api_url: fp.url, device_code: j.device_code, verification_url: j.verification_url, expires_at: Date.now() + 600000, created_at: 1, interval_s: 1, poller_pid: process.pid }));
+  fs.writeFileSync(cfileOf(ctx), JSON.stringify({ status: "pending", api_url: fp.url, device_code: j.device_code, verification_url: `${fp.url}/connect/${j.user_code}`, expires_at: Date.now() + 600000, created_at: 1, interval_s: 1, poller_pid: process.pid }));
 }
 
 test("poller race: two polls at once, the loser's 'consumed' never undoes the winner's approval", async () => {
@@ -250,14 +250,13 @@ test("poller race: two polls at once, the loser's 'consumed' never undoes the wi
     const rec = c.readConnect();
     assert.equal(rec.status, "approved");
     assert.equal(rec.announce, true);
-    assert.equal(rec.handle, "tester");
   });
 });
 
 test("the key is saved before anything is acknowledged: a failed save is never reported as connected", async () => {
   const ctx = setup();
   await pendingRequest(ctx);
-  fs.mkdirSync(path.join(ctx.data, "config.json")); // saving the key will fail
+  fs.mkdirSync(credentialsPath(ctx.data), { recursive: true }); // saving the key will fail
   fp.state.connectApproved = true;
   await inProcess(ctx, async (c) => {
     const res = await c.checkConnectOnce(3000);
@@ -278,9 +277,9 @@ test("/intent:doctor: version, service, account, state, last check, last error, 
   const lines = r.stdout.trim().split("\n");
   assert.equal(lines[0], `Intent Check v${PLUGIN_VERSION}: on`);
   assert.equal(lines[1], `Service: ${fp.url}`);
-  assert.equal(lines[2], "Account: tester (key ending BBBB)");
+  assert.equal(lines[2], "Account: key accepted");
   assert.equal(lines[3], "State: connected");
-  assert.equal(lines[4], "Key source: saved by Intent Check for this service");
+  assert.equal(lines[4], `Key source: ${credentialsPath(ctx.data)}, ending ${TEST_KEY.slice(-4)}`);
   assert.equal(lines[5], "Last check: none yet");
   assert.equal(lines[6], "Last error: none");
   assert.match(lines[7], /^Local state: /);
@@ -288,6 +287,15 @@ test("/intent:doctor: version, service, account, state, last check, last error, 
   assert.match(lines[9], /^Nothing is being sent because no turn has changed source files/);
   assert.equal(lines.length, 10, "connected: no link, nothing to do");
   assert.doesNotMatch(r.stdout, new RegExp(TEST_KEY));
+});
+
+test("/intent:doctor names a credentials file others can read, and offers a new link", { skip: process.platform === "win32" }, async () => {
+  const ctx = setup();
+  saveKey(ctx.data, TEST_KEY, fp.url);
+  fs.chmodSync(credentialsPath(ctx.data), 0o644);
+  const d = await slash("doctor", ctx);
+  assert.match(d.stdout, /To do: .*credentials\.json: the credentials file is readable by others; run chmod 600 on it\./);
+  assert.match(d.stdout, /Key source: none/);
 });
 
 test("/intent:doctor explains why nothing was sent: not connected (with a link), off, and records the last check", async () => {
@@ -351,7 +359,7 @@ test("/intent:doctor forgets a saved key the service rejects and shows a new lin
   assert.match(d.stdout, /Account: the service did not accept the key/);
   assert.match(d.stdout, /Key source: none/);
   assert.match(d.stdout, /\nIntent Check: connect your account → http/);
-  assert.equal((readJson(path.join(ctx.data, "config.json")).keys || {})[fp.url], undefined);
+  assert.equal(savedKey(ctx.data, fp.url), undefined);
   const env = await slash("doctor", ctx, { ...ctx.env, INTENT_API_KEY: TEST_KEY });
   assert.match(env.stdout, /To do: The key in INTENT_API_KEY is not accepted/);
 });
@@ -368,7 +376,7 @@ test("/intent:on and /intent:live turn checks on, set live, and show the connect
   assert.match((await slash("doctor", ctx)).stdout, /^Intent Check v\S+: on \(live\)\n/);
   saveKey(ctx.data, TEST_KEY, fp.url);
   const on = await slash("on", ctx);
-  assert.equal(on.stdout, "Intent Check is on. Changes are checked at the end of each turn.\n");
+  assert.equal(on.stdout, "Intent Check is on. Changes are checked at the end of each turn. Live review is now off; /intent:live turns it back on.\n");
   assert.equal(cfg().live, false);
   // The env var wins, and the command says so.
   const forced = await slash("on", ctx, { ...ctx.env, INTENT_LIVE: "1" });
@@ -542,7 +550,7 @@ test("an env-key 401 notes INTENT_API_KEY, pauses that key and leaves it alone",
     assert.match(JSON.stringify(loadSession("sess").notes), /INTENT_API_KEY was not accepted/);
     assert.ok(pausedFor(ENV));
   });
-  assert.equal(readJson(path.join(ctx.data, "config.json")).keys[fp.url], TEST_KEY, "saved key untouched");
+  assert.equal(savedKey(ctx.data, fp.url), TEST_KEY, "saved key untouched");
 });
 
 test("/intent:on after /intent:live says live review is now off, and INTENT_LIVE in the environment takes precedence", async () => {

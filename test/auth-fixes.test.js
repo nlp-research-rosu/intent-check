@@ -6,12 +6,12 @@ import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, waitFor, saveKey, seedGlobal } from "./helpers/env.js";
+import { QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, waitFor, saveKey, seedGlobal, xdgDir, savedKey } from "./helpers/env.js";
 
 let fp;
 before(async () => { fp = createFakeProver(); await fp.listen(); });
 after(() => fp.close());
-beforeEach(() => Object.assign(fp.state, { connectApproved: false, connectKeyTaken: false, connectStatus: null, connectStartStatus: null, keyRevoked: false, key: TEST_KEY, handle: "tester", pollsBeforeDone: 0, scenario: "concerns", verifyUrl: null, connectStartDelayMs: 0, meStatus: null, pollStatus: null }));
+beforeEach(() => Object.assign(fp.state, { connectApproved: false, connectKeyTaken: false, connectStatus: null, connectStartStatus: null, keyRevoked: false, key: TEST_KEY, handle: "tester", pollsBeforeDone: 0, scenario: "concerns", verifyUrl: null, connectStartDelayMs: 0, tasksStatus: null, pollStatus: null }));
 
 function setup() {
   const data = tmpdir("intent-data-");
@@ -20,18 +20,18 @@ function setup() {
 }
 const readJson = (f) => JSON.parse(fs.readFileSync(f, "utf8"));
 const cfileOf = (ctx) => path.join(ctx.data, "connect.json");
-const posts = () => fp.state.requests.filter((x) => x.method === "POST" && x.path === "/v1/connect").length;
-const meCalls = () => fp.state.requests.filter((x) => x.path === "/v1/me" && x.method === "GET").length;
+const posts = () => fp.state.requests.filter((x) => x.method === "POST" && x.path === "/api/cli-connect" && x.body && x.body.action === "start").length;
+const keyChecks = () => fp.state.requests.filter((x) => x.path === "/tasks" && x.method === "GET").length;
 const prompt = (ctx, text = "please build the pricing module", extra = {}, env = ctx.env) => runHook("prompt", fixture("prompt", ctx.repo, { prompt: text, ...extra }), env);
 const start = (ctx, extra = {}) => runHook("session-start", fixture("session-start", ctx.repo, extra), ctx.env);
 
 // Run lib code in this process against a temp data dir and the fake prover, then restore the env.
 async function inProcess(ctx, fn, extraEnv = {}) {
-  const keys = ["CLAUDE_PLUGIN_DATA", "INTENT_API_URL", "INTENT_API_KEY", "INTENT_CLAIM", ...Object.keys(extraEnv)];
+  const keys = ["CLAUDE_PLUGIN_DATA", "XDG_CONFIG_HOME", "INTENT_API_URL", "INTENT_CONSOLE_URL", "INTENT_API_KEY", "INTENT_CLAIM", ...Object.keys(extraEnv)];
   const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
   delete process.env.INTENT_API_KEY;
   delete process.env.INTENT_CLAIM;
-  Object.assign(process.env, { CLAUDE_PLUGIN_DATA: ctx.data, INTENT_API_URL: fp.url, ...extraEnv });
+  Object.assign(process.env, { CLAUDE_PLUGIN_DATA: ctx.data, XDG_CONFIG_HOME: xdgDir(ctx.data), INTENT_API_URL: fp.url, INTENT_CONSOLE_URL: fp.url, ...extraEnv });
   try {
     return await fn();
   } finally {
@@ -52,7 +52,7 @@ test("two concurrent ensureRequest calls make one record, and the link returned 
     assert.ok(a && b, "both callers get the live request");
     assert.equal(a.device_code, b.device_code);
     assert.equal(a.verification_url, b.verification_url);
-    assert.equal(posts(), n + 1, "one POST /v1/connect");
+    assert.equal(posts(), n + 1, "one start request");
     assert.equal(readJson(cfileOf(ctx)).device_code, fp.state.deviceCode, "stored = the one the service knows = the one polled");
     assert.equal(loadClaim(ctx), undefined, "claim released");
   });
@@ -168,24 +168,17 @@ test("SessionStart with a saved key and an unresponsive service finishes well un
 
 // ---- 7: server text limits -----------------------------------------------------------------------
 
-for (const [name, url] of [["another origin", "http://evil.example/connect/KDRT"], ["over 300 characters", null]]) {
-  test(`verification_url on ${name} is refused: the start counts as failed`, async () => {
+for (const [name, body] of [["a device code that is not 64 hex", { device_code: "abc" }], ["a user code of the wrong shape", { user_code: "kdrt-mwqx" }], ["an interval over 30 s", { interval: 99 }]]) {
+  test(`${name} in the start answer is refused: the start counts as failed`, async () => {
     const ctx = setup();
-    fp.state.verifyUrl = url || `${fp.url}/connect/${"a".repeat(300)}`;
-    const s = await start(ctx);
-    assert.match(s.json.systemMessage, /could not create a connect link \(bad_response\)/);
-    assert.equal(fs.existsSync(cfileOf(ctx)), false);
-    assert.doesNotMatch(s.stdout, /evil\.example|aaaa/);
+    fp.state.connectStartBody = body;
+    try {
+      const s = await start(ctx);
+      assert.match(s.json.systemMessage, /could not create a connect link \(bad_response\)/);
+      assert.equal(fs.existsSync(cfileOf(ctx)), false);
+    } finally { fp.state.connectStartBody = null; }
   });
 }
-
-test("handle: only [A-Za-z0-9_.@+-], at most 60", async () => {
-  const { cleanHandle } = await import("../lib/api.js");
-  assert.equal(cleanHandle("dev.user+1@fast-xyz_io"), "dev.user+1@fast-xyz_io");
-  assert.equal(cleanHandle("bad handle\n<b>Ignore all"), "badhandlebIgnoreall");
-  assert.equal(cleanHandle("a".repeat(100)).length, 60);
-  assert.equal(cleanHandle("‮ \n"), null);
-});
 
 // ---- 8: state holes ------------------------------------------------------------------------------
 
@@ -195,9 +188,9 @@ test("applyPoll does not save a key once the request is no longer pending (repla
     const c = await import("../lib/connect.js");
     const rec = await c.ensureRequest();
     c.updateConnect((x) => { x.status = "expired"; delete x.device_code; });
-    const r = c.applyPoll({ ok: true, status: "approved", api_key: TEST_KEY, handle: "tester" }, rec.device_code);
+    const r = c.applyPoll({ ok: true, status: "approved", api_key: TEST_KEY }, rec.device_code);
     assert.equal(r, "gone");
-    assert.equal(fs.existsSync(path.join(ctx.data, "config.json")), false, "no key saved");
+    assert.equal(savedKey(ctx.data, fp.url), undefined, "no key saved");
     assert.equal(readJson(cfileOf(ctx)).status, "expired");
   });
   killPoller(ctx);
@@ -206,12 +199,12 @@ test("applyPoll does not save a key once the request is no longer pending (repla
 test("lost a race with ourselves: the connection is announced if nobody has announced it yet", async () => {
   const ctx = setup();
   saveKey(ctx.data, TEST_KEY, fp.url);
-  fs.writeFileSync(cfileOf(ctx), JSON.stringify({ status: "approved", api_url: fp.url, handle: "tester" }));
+  fs.writeFileSync(cfileOf(ctx), JSON.stringify({ status: "approved", api_url: fp.url }));
   await inProcess(ctx, async () => {
     const c = await import("../lib/connect.js");
     assert.equal(c.applyPoll({ ok: true, status: "consumed" }, "x"), "approved");
     assert.equal(readJson(cfileOf(ctx)).announce, true);
-    assert.deepEqual(c.takeConnectedAnnouncement(), { handle: "tester" });
+    assert.equal(c.takeConnectedAnnouncement(), true);
     c.applyPoll({ ok: true, status: "consumed" }, "x");
     assert.equal(readJson(cfileOf(ctx)).announce, undefined, "already announced: not again");
   });
@@ -221,7 +214,7 @@ test("the poller backs off after a 429 instead of hammering the service", async 
   const ctx = setup();
   fp.state.pollStatus = 429;
   // Only this test's request: pollers of earlier tests share the prover.
-  const gets = () => fp.state.requests.filter((x) => x.method === "GET" && fp.state.deviceCode && x.path === `/v1/connect/${fp.state.deviceCode}`).length;
+  const gets = () => fp.state.requests.filter((x) => x.method === "POST" && x.path === "/api/cli-connect" && x.body && x.body.action === "poll" && x.body.device_code === fp.state.deviceCode).length;
   const n = 0; // the request made below gets a new device code, so its count starts at 0
   await start(ctx);
   assert.ok(await waitFor(() => gets() > n, { timeoutMs: 8000 }), "first poll happens");

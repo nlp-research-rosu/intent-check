@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { fixture, tmpdir, makeRepo, baseEnv, runHook, readSessionFiles, saveKey, waitFor, sleep, ROOT } from "./helpers/env.js";
+import { fixture, tmpdir, makeRepo, baseEnv, runHook, readSessionFiles, saveKey, waitFor, sleep, ROOT, xdgDir, savedKey } from "./helpers/env.js";
 
 const V1 = "def apply_discount(price_cents, percent):\n    return price_cents - price_cents * percent // 100\n\ndef total(items):\n    return sum(items)\n";
 const V2 = V1 + "\ndef tax(x):\n    return x * 2\n\ndef net(x):\n    return x - tax(x)\n";
@@ -216,10 +216,10 @@ function savedKeyCtx() {
 }
 
 async function inProcess(ctx, fn) {
-  const keys = ["CLAUDE_PLUGIN_DATA", "INTENT_API_URL", "INTENT_API_KEY"];
+  const keys = ["CLAUDE_PLUGIN_DATA", "XDG_CONFIG_HOME", "INTENT_API_URL", "INTENT_CONSOLE_URL", "INTENT_API_KEY"];
   const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
   delete process.env.INTENT_API_KEY;
-  Object.assign(process.env, { CLAUDE_PLUGIN_DATA: ctx.data, INTENT_API_URL: fp.url });
+  Object.assign(process.env, { CLAUDE_PLUGIN_DATA: ctx.data, XDG_CONFIG_HOME: xdgDir(ctx.data), INTENT_API_URL: fp.url, INTENT_CONSOLE_URL: fp.url });
   try { return await fn(); } finally { for (const k of keys) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } }
 }
 
@@ -229,8 +229,7 @@ test("a per-edit 401 with a saved key clears it, marks connect.json revoked, and
   fp.state.keyRevoked = true;
   try {
     await edit(ctx, "pricing.py", V1, "toolu_1");
-    const cfg = path.join(ctx.data, "config.json");
-    assert.ok(await waitFor(() => !((readJson(cfg).keys || {})[fp.url])), "saved key cleared");
+    assert.ok(await waitFor(() => !savedKey(ctx.data, fp.url)), "saved key cleared");
     const c = path.join(ctx.data, "connect.json");
     assert.ok(await waitFor(() => fs.existsSync(c) && readJson(c).status === "pending", { timeoutMs: 10000 }), "connect.json updated with a new request");
     assert.match(readJson(c).reason || "", /no longer accepted/);
@@ -246,7 +245,7 @@ test("two concurrent per-edit 401s do not claim INTENT_API_KEY was rejected", as
   fp.state.submitDelayMs = 400;
   try {
     await Promise.all([edit(ctx, "pricing.py", V1, "toolu_1"), edit(ctx, "other.py", V2, "toolu_2")]);
-    assert.ok(await waitFor(() => !((readJson(path.join(ctx.data, "config.json")).keys || {})[fp.url])));
+    assert.ok(await waitFor(() => !savedKey(ctx.data, fp.url)));
     await sleep(1500);
     assert.doesNotMatch(notesText(ctx), /INTENT_API_KEY/);
   } finally { fp.state.keyRevoked = false; fp.state.submitDelayMs = 0; }
@@ -274,7 +273,7 @@ test("an env-key 401 from a per-edit check adds the env note, pauses, and keeps 
   const g = readJson(path.join(ctx.data, "global.json"));
   assert.equal(g.paused.code, 401);
   assert.equal(g.paused.source, "env");
-  assert.equal(readJson(path.join(ctx.data, "config.json")).keys[fp.url], TEST_KEY);
+  assert.equal(savedKey(ctx.data, fp.url), TEST_KEY);
 });
 
 test("a successful per-edit submit records the last check", async () => {

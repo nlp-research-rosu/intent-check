@@ -8,6 +8,7 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ### Changed
 
+- Sign-in runs through the prover console, and the key is saved in `~/.config/intent-check/credentials.json`, shared with the `intent-check` command. Keys saved by earlier versions are not carried over: connect again.
 - Checks and DeepScans go to the prover API (`https://prover.intentcomputing.org`). Report links open in the prover console (`INTENT_CONSOLE_URL` overrides it).
 
 ## [0.3.0] - 2026-10-13

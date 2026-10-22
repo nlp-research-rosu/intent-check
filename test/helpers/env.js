@@ -46,7 +46,7 @@ export function baseEnv(dataDir, apiUrl, extra = {}) {
   for (const k of Object.keys(env)) {
     if (k.startsWith("INTENT_") || k.startsWith("CLAUDE_") || k === "DO_NOT_TRACK") delete env[k];
   }
-  return { ...env, CLAUDE_PLUGIN_DATA: dataDir, INTENT_API_URL: apiUrl, INTENT_CONSOLE_URL: apiUrl, CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PLUGIN_ROOT: ROOT, INTENT_LIVE: "0", ...extra };
+  return { ...env, CLAUDE_PLUGIN_DATA: dataDir, XDG_CONFIG_HOME: xdgDir(dataDir), INTENT_API_URL: apiUrl, INTENT_CONSOLE_URL: apiUrl, CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PLUGIN_ROOT: ROOT, INTENT_LIVE: "0", ...extra };
 }
 
 // Run one hook like Claude Code: JSON on stdin, capture stdout/stderr/exit code.
@@ -99,11 +99,19 @@ export async function waitFor(fn, { timeoutMs = 15000, stepMs = 100 } = {}) {
 }
 
 // Saves the key for one service URL (config.json keys[url]).
+// The credentials file lives under XDG_CONFIG_HOME; each test gets its own next to its data dir.
+export const xdgDir = (dataDir) => path.join(dataDir, "xdg");
+export const credentialsPath = (dataDir) => path.join(xdgDir(dataDir), "intent-check", "credentials.json");
+
 export function saveKey(dataDir, key, url) {
-  fs.mkdirSync(dataDir, { recursive: true });
-  const cfg = { keys: { [url]: key } };
-  fs.writeFileSync(path.join(dataDir, "config.json"), JSON.stringify(cfg), { mode: 0o600 });
+  const file = credentialsPath(dataDir);
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(file, JSON.stringify({ keys: { [new URL(url).origin]: key } }), { mode: 0o600 });
 }
+
+export const savedKey = (dataDir, url) => {
+  try { return JSON.parse(fs.readFileSync(credentialsPath(dataDir), "utf8")).keys[new URL(url).origin]; } catch { return undefined; }
+};
 
 // global.json content for tests that are not about the first-run notices (consent, "ready").
 export const PLUGIN_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, ".claude-plugin", "plugin.json"), "utf8")).version;
@@ -146,10 +154,10 @@ export const SKIP_FILE_SYMLINKS = CAN_SYMLINK_FILES ? false : "a symlink to a fi
 
 // Files holding keys or session data are written owner-only (mode 600). Windows has no permission bits
 // (Node reports 666 for any writable file; the user profile's ACL does that job), so nothing to check there.
-export function assertOwnerOnly(file) {
+export function assertOwnerOnly(file, expected = 0o600) {
   if (process.platform === "win32") return;
   const mode = fs.statSync(file).mode & 0o777;
-  if (mode !== 0o600) throw new Error(`${file} has mode ${mode.toString(8)}, expected 600`);
+  if (mode !== expected) throw new Error(`${file} has mode ${mode.toString(8)}, expected ${expected.toString(8)}`);
 }
 
 // Whether a checked-in file is executable. Windows has no executable bit on disk, so there the mode

@@ -52,6 +52,7 @@ async function session({ key = null, oldNode = false } = {}) {
     USERPROFILE: home,
     CODEX_HOME: codexHome,
     INTENT_API_URL: fp.url,
+    INTENT_CONSOLE_URL: fp.url,
     INTENT_DEBUG: "1",
     MOCK_API_KEY: "dummy-not-a-real-key",
     ...(key ? { INTENT_API_KEY: key } : {}),

@@ -4,8 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { QUIET_GLOBAL, assertOwnerOnly, fixture, tmpdir, makeRepo, baseEnv, runHook, waitFor } from "./helpers/env.js";
-import { validateDef } from "./helpers/schema.js";
+import { QUIET_GLOBAL, assertOwnerOnly, fixture, tmpdir, makeRepo, baseEnv, runHook, waitFor, savedKey, credentialsPath } from "./helpers/env.js";
 
 let fp;
 before(async () => { fp = createFakeProver(); await fp.listen(); });
@@ -19,7 +18,7 @@ function setup() {
 }
 
 const readJson = (f) => JSON.parse(fs.readFileSync(f, "utf8"));
-const posts = () => fp.state.requests.filter((x) => x.method === "POST" && x.path === "/v1/connect").length;
+const posts = () => fp.state.requests.filter((x) => x.method === "POST" && x.path === "/api/cli-connect").length;
 const LINK = /http:\/\/127\.0\.0\.1:\d+\/connect\/KDRT-MWQX/;
 
 test("no key: SessionStart creates the request and shows the link; the prompt tells the agent to wait for done or skip", async () => {
@@ -28,9 +27,8 @@ test("no key: SessionStart creates the request and shows the link; the prompt te
   const r = await runHook("session-start", fixture("session-start", ctx.repo), ctx.env);
   assert.equal(r.code, 0);
   assert.match(r.json.systemMessage, /^Intent Check: connect your account → http:\/\/127\.0\.0\.1:\d+\/connect\/KDRT-MWQX$/);
-  const start = fp.state.requests.slice(n).find((x) => x.method === "POST" && x.path === "/v1/connect");
-  assert.deepEqual(validateDef(start.body, "ConnectStart"), []);
-  assert.equal(start.body.host, "claude-code");
+  const start = fp.state.requests.slice(n).find((x) => x.method === "POST" && x.path === "/api/cli-connect");
+  assert.deepEqual(start.body, { action: "start" });
   const cfile = path.join(ctx.data, "connect.json");
   assertOwnerOnly(cfile);
   const c = readJson(cfile);
@@ -90,10 +88,9 @@ test("a done reply before approval asks the user to approve; after approval the 
   fp.state.connectApproved = true;
   // The usual order: the background poller saves the key before the user replies "done"; the
   // gated agent must still be told to carry on.
-  const cfg = path.join(ctx.data, "config.json");
-  assert.ok(await waitFor(() => fs.existsSync(cfg) && (readJson(cfg).keys || {})[fp.url] === TEST_KEY, { timeoutMs: 10000 }));
+  assert.ok(await waitFor(() => savedKey(ctx.data, fp.url) === TEST_KEY, { timeoutMs: 10000 }));
   const ok = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "done" }), ctx.env);
-  assert.match(ok.json.hookSpecificOutput.additionalContext, /Intent Check connected as tester/);
+  assert.match(ok.json.hookSpecificOutput.additionalContext, /Intent Check connected/);
   assert.match(ok.json.hookSpecificOutput.additionalContext, /Carry on with their original request/);
 });
 
@@ -107,16 +104,16 @@ test("until connected nothing else is sent", async () => {
   assert.equal(fp.jobRequests().length, n);
 });
 
-test("the background poller saves the key under the service URL (mode 600); the next prompt says connected as <handle>, once", async () => {
+test("the background poller saves the key in the credentials file (file 600, folder 700); the next prompt says connected, once", async () => {
   const ctx = setup();
   await runHook("session-start", fixture("session-start", ctx.repo), ctx.env);
   fp.state.connectApproved = true;
-  const cfg = path.join(ctx.data, "config.json");
-  assert.ok(await waitFor(() => fs.existsSync(cfg) && (readJson(cfg).keys || {})[fp.url] === TEST_KEY, { timeoutMs: 10000 }));
-  assertOwnerOnly(cfg);
+  assert.ok(await waitFor(() => savedKey(ctx.data, fp.url) === TEST_KEY, { timeoutMs: 10000 }));
+  assertOwnerOnly(credentialsPath(ctx.data));
+  assertOwnerOnly(path.dirname(credentialsPath(ctx.data)), 0o700);
   const r = await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
-  assert.equal(r.json.systemMessage, "Intent Check connected as tester");
-  assert.match(r.json.hookSpecificOutput.additionalContext, /Intent Check connected as tester/);
+  assert.equal(r.json.systemMessage, "Intent Check connected");
+  assert.match(r.json.hookSpecificOutput.additionalContext, /Intent Check connected/);
   const r2 = await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
   assert.equal(r2.stdout, "");
   // Now checks run.
@@ -134,8 +131,8 @@ test("if the poller died, the next prompt picks the approval up itself", async (
   fs.writeFileSync(cfile, JSON.stringify({ ...c, poller_pid: 999999 }));
   fp.state.connectApproved = true;
   const r = await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
-  assert.equal(r.json.systemMessage, "Intent Check connected as tester");
-  assert.equal(readJson(path.join(ctx.data, "config.json")).keys[fp.url], TEST_KEY);
+  assert.equal(r.json.systemMessage, "Intent Check connected");
+  assert.equal(savedKey(ctx.data, fp.url), TEST_KEY);
 });
 
 test("INTENT_API_KEY skips the connect flow", async () => {

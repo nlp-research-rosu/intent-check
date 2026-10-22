@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { symlink, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT } from "./helpers/env.js";
+import { symlink, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT, xdgDir } from "./helpers/env.js";
 import { validateDef } from "./helpers/schema.js";
 import { writeUnit } from "../lib/intentdir.js";
 
@@ -30,7 +30,7 @@ function cli(args, cwd, data) {
   return new Promise((resolve) => {
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("CLAUDE_") && !k.startsWith("INTENT_")));
     // HOME points at a throwaway dir so a failing run cannot log into the real plugin data dir.
-    const c = spawn(process.execPath, [BIN, "deepscan", ...args, ...(data ? ["--data", data] : [])], { cwd, env: { ...env, HOME: tmpdir("intent-home-"), INTENT_API_URL: fp.url } });
+    const c = spawn(process.execPath, [BIN, "deepscan", ...args, ...(data ? ["--data", data] : [])], { cwd, env: { ...env, HOME: tmpdir("intent-home-"), XDG_CONFIG_HOME: data ? xdgDir(data) : undefined, INTENT_API_URL: fp.url } });
     let out = "";
     c.stdout.on("data", (d) => { out += d; });
     c.on("close", (code) => resolve({ code, out: out.trim() }));

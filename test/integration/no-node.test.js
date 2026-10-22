@@ -41,6 +41,7 @@ async function turns({ oldNode }) {
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
     DISABLE_AUTOUPDATER: "1",
     INTENT_API_URL: fp.url,
+    INTENT_CONSOLE_URL: fp.url,
     PATH: toolsDir({ oldNode }),
   });
   const out = [];

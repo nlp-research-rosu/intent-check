@@ -5,7 +5,7 @@ import http from "node:http";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-export const TEST_KEY = "ic_" + "A".repeat(32) + "BBBBBB";
+export const TEST_KEY = "ak_test_" + "A".repeat(32); // Clerk keys are opaque: no format to rely on
 
 const newId = () => crypto.randomUUID();
 const ERR = { unauthorized: { code: "AUTHENTICATION_REQUIRED", message: "A valid Bearer API key is required." } };
@@ -126,37 +126,27 @@ export function createFakeProver(opts = {}) {
         res.writeHead(200, { "content-type": "text/plain", "content-length": Buffer.byteLength(t) });
         return res.end(t);
       }
-      if (req.method === "GET" && url.pathname === "/v1/me") {
-        if (st.meStatus) return json(res, st.meStatus, { error: { code: "x", message: "x" } });
-        if (!authed) return json(res, 401, { error: { code: "unauthorized", message: "bad key" } });
-        return json(res, 200, { handle: st.handle || "tester", machine_name: "test-box", key_last4: st.key.slice(-4), environment: "test" });
-      }
-      if (req.method === "DELETE" && url.pathname === "/v1/me/key") {
-        if (!authed) return json(res, 401, { error: { code: "unauthorized", message: "bad key" } });
-        st.keyRevoked = true;
-        res.writeHead(204);
-        return res.end();
-      }
-      if (req.method === "POST" && url.pathname === "/v1/connect") {
-        if (st.connectStartStatus) return json(res, st.connectStartStatus, { error: { code: "unavailable", message: "x", reason: null } });
-        st.connectCreated = (st.connectCreated || 0) + 1;
-        st.connectKeyTaken = false;
-        st.deviceCode = crypto.randomBytes(24).toString("hex").slice(0, 32);
-        const body = { device_code: st.deviceCode, user_code: "KDRT-MWQX", verification_url: st.verifyUrl || `${base}/connect/KDRT-MWQX`, expires_in: 900, interval: 1 };
-        if (st.connectStartDelayMs) return void setTimeout(() => json(res, 201, body), st.connectStartDelayMs);
-        return json(res, 201, body);
-      }
-      const cm = url.pathname.match(/^\/v1\/connect\/([A-Za-z0-9]+)$/);
-      if (req.method === "GET" && cm) {
-        if (st.pollStatus) return json(res, st.pollStatus, { error: { code: "rate_limited", message: "x" } });
-        if (cm[1] !== st.deviceCode) return json(res, 404, { error: { code: "not_found", message: "unknown" } });
-        if (st.connectStatus) return json(res, 200, { status: st.connectStatus }); // "denied" | "expired" | "consumed"
+      // The console's device flow. Controls: connectApproved, connectStatus (denied|expired|consumed|failed),
+      // connectStartStatus and pollStatus (an HTTP error), connectStartDelayMs, connectStartBody (fields to override).
+      if (req.method === "POST" && url.pathname === "/api/cli-connect") {
+        if (body && body.action === "start") {
+          if (st.connectStartStatus) return json(res, st.connectStartStatus, { status: "busy" });
+          st.connectCreated = (st.connectCreated || 0) + 1;
+          st.connectKeyTaken = false;
+          st.deviceCode = crypto.randomBytes(32).toString("hex");
+          const out = { device_code: st.deviceCode, user_code: "KDRT-MWQX", expires_in: 600, interval: 3, ...st.connectStartBody };
+          if (st.connectStartDelayMs) return void setTimeout(() => json(res, 201, out), st.connectStartDelayMs);
+          return json(res, 201, out);
+        }
+        if (!body || body.action !== "poll" || !/^[a-f0-9]{64}$/.test(body.device_code || "")) return json(res, 400, { status: "invalid_request" });
+        if (st.pollStatus) return json(res, st.pollStatus, { status: "invalid_request" });
+        if (body.device_code !== st.deviceCode) return json(res, 200, { status: "expired" });
+        if (st.connectStatus) return json(res, 200, { status: st.connectStatus });
         if (!st.connectApproved) return json(res, 200, { status: "pending" });
         if (st.connectKeyTaken) return json(res, 200, { status: "consumed" });
         st.connectKeyTaken = true;
         st.keyRevoked = false;
-        const handle = st.handle || "tester";
-        return json(res, 200, { status: "approved", api_key: st.key, handle, account: { handle } });
+        return json(res, 200, { status: "approved", api_key: st.key });
       }
       if (req.method === "POST" && url.pathname === "/intent-checks") {
         if (!authed) return json(res, 401, ERR.unauthorized);
@@ -218,6 +208,7 @@ export function createFakeProver(opts = {}) {
       }
       if (req.method === "GET" && url.pathname === "/tasks") {
         if (!authed) return json(res, 401, ERR.unauthorized);
+        if (st.tasksStatus) return json(res, st.tasksStatus, { code: "INTERNAL_ERROR", message: "x" });
         return json(res, 200, { tasks: [], hasMore: false });
       }
       // Artifacts answer 302 to a signed link on a host that wants no API key (here: this server's /_files).

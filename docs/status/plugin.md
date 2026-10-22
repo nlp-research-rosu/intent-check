@@ -24,7 +24,8 @@ Wait for review/merge of PRs 1-7 and the orchestrator's Codex e2e. Then M6 plugi
 
 - Every hook and command runs `node ${CLAUDE_PLUGIN_ROOT}/bin/hooks.js` directly (Claude Code hooks in exec form, so no shell is needed and Windows without `sh` works). `bin/intent` is the POSIX `sh` launcher (issue #22). No hook or command references it, but Claude Code puts the plugin's `bin/` on the Bash tool's PATH, so it is the bare `intent` command there: it `exec`s `bin/hooks.js` when Node >=18 is on PATH, otherwise prints a short no-Node message for `session-start`/`prompt`/`deepscan`/`doctor` and exits 0 silently for everything else. `bin/hooks.js` line 1 is an old-syntax Node version check that says so on stderr once per data dir (marker `.node-too-old-<version>`); everything else is in `lib/`. `lib/hooks.js` is host-neutral; `lib/claude.js` holds the Claude output protocol. `lib/codex.js` + `hooks/codex-hooks.json` are the Codex side; the host comes from `--host codex` (or `PLUGIN_ROOT`), never from `CLAUDECODE`.
 - API: the prover (`INTENT_API_URL`, default `https://prover.intentcomputing.org`). Checks are `POST /intent-checks` and `GET /tasks/{id}`; `lib/api.js` maps a task to the status and snake_case result shapes the rest of the plugin reads and downloads a check's artifacts (the API answers 302 to a signed link, followed without the key). Report links are `{console}/tasks/{id}` (`INTENT_CONSOLE_URL`, default `https://prover-console.intentcomputing.org`).
-- State: `${CLAUDE_PLUGIN_DATA}/sessions/<sha256(session)[:32]>.json` (lock file per session), `config.json` (key, api_url, disabled; mode 600), `global.json` (consent shown), `connect.json` (pending connect; mode 600), `intent.log`.
+- Sign-in: the device flow runs against the console (`POST {console}/api/cli-connect`, `start` then `poll`; link `{console}/connect/{user_code}`). The key is opaque and lands in `~/.config/intent-check/credentials.json` (`$XDG_CONFIG_HOME/intent-check/`, `%APPDATA%\intent-check\` on Windows), shared with the `intent-check` CLI: `{"keys": {"<api origin>": "<key>"}}`, folder 700, file 600, written atomically under a lock, and refused when group or others can read it. Lookup is `INTENT_API_KEY`, then the entry for the API origin. A 401 deletes the entry and starts one new flow (an env key pauses uploads for 24 h instead). Uploads mask the stored key values by exact match (`lib/redact.js`), because the keys have no fixed format.
+- State: `${CLAUDE_PLUGIN_DATA}/sessions/<sha256(session)[:32]>.json` (lock file per session), `config.json` (api_url, disabled, live; mode 600), `global.json` (consent shown), `connect.json` (pending connect; mode 600), `intent.log`.
 - Runner ownership: each runner/finisher writes `owner {pid, token}`; a newer runner takes over all pending jobs and the older one exits 0. The prompt hook only checks pending jobs when no live owner exists.
 - Wake rules: exit 2 only if interactive (`CLAUDE_CODE_ENTRYPOINT=cli`), `stop_hook_active` false, fewer than 3 wakes in 2 min, and no concern file woke the agent in the last 10 min; otherwise a next-prompt note. Findings are deduped for 1 h.
 
@@ -33,7 +34,7 @@ Wait for review/merge of PRs 1-7 and the orchestrator's Codex e2e. Then M6 plugi
 - Five user commands: `on`, `live`, `off`, `deepscan`, `doctor` (`lib/commands.js`, `lib/deepscan.js`). `check`, `mode`, `status`, `connect` and `disconnect` are gone.
 - `on` is end-of-turn review only; `live` is on plus per-edit review (`config.json` `live`, `INTENT_LIVE=1|0` overrides). End-of-turn review always runs while on.
 - `deepscan` routes by target: files go to the queue (`lib/queue.js`, the fast `POST /intent-checks` check, no network in the command), a folder or nothing goes to `POST /deepscans`. Depth is one bare word; there are no flags.
-- `doctor` reports state, replaces a missing or rejected connection with a fresh link, and on Claude Code runs the host's plugin update commands (`hostUpdate`). There is no disconnect command and no "disconnected" connect state any more.
+- `doctor` reports state (it validates the key with `GET /tasks?limit=1` and shows the key source and its last 4 characters), replaces a missing or rejected connection with a fresh link, and on Claude Code runs the host's plugin update commands (`hostUpdate`). There is no disconnect command and no "disconnected" connect state any more.
 
 ## DeepScan (P2)
 
@@ -49,6 +50,6 @@ Wait for review/merge of PRs 1-7 and the orchestrator's Codex e2e. Then M6 plugi
 
 ## Needs orchestrator
 
-- `test/e2e/claude-e2e.sh` approves via `POST $INTENT_API_URL/v1/e2e/approve/<user_code>` (`X-E2E-Secret`, body `{"handle":"e2e"}`); `E2E_APPROVE_CMD` overrides. Against the fake prover (`node test/helpers/fake-prover.js 47222`, `INTENT_API_URL=http://127.0.0.1:47222`) it approves via `/_control`.
+- The e2e scripts approve through the fake prover's `/_control` (`node test/helpers/fake-prover.js 47222`, `INTENT_API_URL=http://127.0.0.1:47222`). Against real staging they need a Clerk account and `E2E_APPROVE_CMD` that approves `$USER_CODE` in the console.
 - `node --test test/` fails on Node 22 (directory argument is treated as a module). CI and `npm test` now use `node --test test/*.test.js`.
 - Privacy URL in plugin.json/.codex-plugin is a placeholder (`<staging>/privacy`) until the web agent ships the page.

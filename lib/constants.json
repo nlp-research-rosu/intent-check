@@ -1,11 +1,5 @@
 {
   "contract_version": "1",
-  "api_key": {
-    "prefix": "ic_",
-    "regex": "^ic_[A-Za-z0-9]{38}$",
-    "redaction_regex": "\\bic_[A-Za-z0-9]{38}\\b",
-    "format": "ic_ + 32 random base62 chars + 6 base62 chars of CRC32(prefix + random)"
-  },
   "headers": {
     "auth": "Authorization",
     "plugin_version": "X-Intent-Version",
