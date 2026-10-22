@@ -4,3 +4,4 @@ node_modules/
 test/e2e/.runs/
 .worktrees/
 cli/target/
+__pycache__/
