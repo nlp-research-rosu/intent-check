@@ -73,9 +73,9 @@ test("skill and commands exist and reference the plugin root, run with node dire
   assert.match(skill, /^---\nname: intent-check\ndescription: /);
   assert.match(skill, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/hooks\.js"/);
   assert.doesNotMatch(skill, /\bsh\b.*bin\/intent\b/);
-  for (const w of ["on", "live", "off", "doctor", "deepscan"]) assert.match(skill, new RegExp(`/intent:${w}\\b`), `skill maps ${w}`);
-  assert.deepEqual(fs.readdirSync(path.join(ROOT, "commands")).sort(), ["deepscan.md", "doctor.md", "live.md", "off.md", "on.md"]);
-  for (const c of ["off", "on", "live", "deepscan", "doctor"]) {
+  for (const w of ["on", "live", "off", "doctor", "deepscan", "prove"]) assert.match(skill, new RegExp(`/intent:${w}\\b`), `skill maps ${w}`);
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "commands")).sort(), ["deepscan.md", "doctor.md", "live.md", "off.md", "on.md", "prove.md"]);
+  for (const c of ["off", "on", "live", "deepscan", "doctor", "prove"]) {
     const md = fs.readFileSync(path.join(ROOT, "commands", `${c}.md`), "utf8");
     assert.match(md, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/hooks\.js"/);
     // Claude Code matches the rule's prefix against the command text, quotes included: a rule without
