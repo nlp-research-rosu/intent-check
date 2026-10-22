@@ -1,0 +1,36 @@
+{
+  "id": "0b7e4a9c-52d1-4f0a-8c3e-91d6a7b5e2f4",
+  "kind": "deepscan",
+  "status": "completed",
+  "semantics": null,
+  "createdAt": "2026-10-20T14:00:00.000Z",
+  "startedAt": "2026-10-20T14:00:02.000Z",
+  "finishedAt": "2026-10-20T14:18:00.000Z",
+  "timing": { "queueMilliseconds": 2000, "executionMilliseconds": 1078000, "totalMilliseconds": 1080000 },
+  "error": null,
+  "kept": false,
+  "filesExpireAt": "2026-10-22T14:18:00.000Z",
+  "result": {
+    "depth": "fast",
+    "budgetSeconds": 1800,
+    "counts": { "CRITICAL": 0, "HIGH": 1, "MODERATE": 0, "LOW": 0, "MARGINAL": 0 },
+    "cards": [
+      {
+        "id": "F1",
+        "criticality": "HIGH",
+        "title": "A discount above 100 percent makes the price negative",
+        "property": "Price is never negative.",
+        "cause": [{ "path": "src/pricing.py", "line": 3 }],
+        "reproSketch": "Call apply_discount(1000, 150).",
+        "control": "apply_discount(1000, 100) returns 0."
+      }
+    ],
+    "oneLiners": [],
+    "report": {
+      "name": "report.json",
+      "size": 2048,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "url": "/tasks/0b7e4a9c-52d1-4f0a-8c3e-91d6a7b5e2f4/artifacts/report.json"
+    }
+  }
+}

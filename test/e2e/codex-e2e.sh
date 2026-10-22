@@ -51,7 +51,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-cx() { (cd "$REPO" && INTENT_DEBUG=1 INTENT_API_URL="$INTENT_API_URL" codex exec --skip-git-repo-check -s workspace-write -m "$MODEL" "$@" </dev/null) 2>&1; }
+cx() { (cd "$REPO" && INTENT_DEBUG=1 INTENT_API_URL="$INTENT_API_URL" INTENT_CONSOLE_URL="${INTENT_CONSOLE_URL:-$INTENT_API_URL}" codex exec --skip-git-repo-check -s workspace-write -m "$MODEL" "$@" </dev/null) 2>&1; }
 
 approve() {
   local code=$1
@@ -120,7 +120,7 @@ if [ "$(emitted no_concerns)" = 0 ]; then ok "no concerns stayed silent"; else b
 
 # 5. Off switch: nothing sent.
 N="$(wc -l < "$REPO/.intent/.sent.log")"
-(cd "$REPO" && INTENT_DISABLED=1 INTENT_API_URL="$INTENT_API_URL" codex exec --skip-git-repo-check -s workspace-write -m "$MODEL" resume --last "Append a function triple(x) returning x * 3 with a docstring to util.py. Reply with just: done" </dev/null >/dev/null 2>&1) || true
+(cd "$REPO" && INTENT_DISABLED=1 INTENT_API_URL="$INTENT_API_URL" INTENT_CONSOLE_URL="${INTENT_CONSOLE_URL:-$INTENT_API_URL}" codex exec --skip-git-repo-check -s workspace-write -m "$MODEL" resume --last "Append a function triple(x) returning x * 3 with a docstring to util.py. Reply with just: done" </dev/null >/dev/null 2>&1) || true
 sleep 20
 [ "$(wc -l < "$REPO/.intent/.sent.log")" = "$N" ] && ok "no upload while disabled" || bad "uploaded while disabled"
 

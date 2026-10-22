@@ -78,7 +78,7 @@ test("codex apply_patch in per-edit mode: one edit job per path, host codex with
     assert.equal(q.codex_modes.approval_policy, "on-request");
     assert.equal(q.permission_mode, null);
   }
-  for (const p of fp.state.requests.filter((x) => x.path === "/v1/jobs" && x.method === "POST")) assert.equal(p.headers["x-intent-supersede"], undefined);
+  for (const p of fp.state.requests.filter((x) => x.path === "/intent-checks" && x.method === "POST")) assert.equal(p.headers["x-intent-supersede"], undefined);
 });
 
 test("codex apply_patch in classic mode: nothing at the edit", async () => {

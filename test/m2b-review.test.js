@@ -172,11 +172,11 @@ test("r2-1: a failing queued review keeps its id and Idempotency-Key, is retried
     shown.push((await runHook("prompt", fixture("prompt", ctx.repo), ctx.env)).stdout);
     await runHook("stop", fixture("stop", ctx.repo), ctx.env);
   }
-  const posts = fp.state.requests.filter((r) => r.method === "POST" && r.path === "/v1/jobs" && r.body && r.body.units && r.body.units[0].path === "bad.py");
+  const posts = fp.state.requests.filter((r) => r.method === "POST" && r.path === "/intent-checks" && r.body && r.body.units && r.body.units[0].path === "bad.py");
   for (const p of posts) keys.push(p.headers["idempotency-key"]);
   assert.equal(posts.length, 3, "three attempts, then dropped");
   assert.equal(new Set(keys).size, 1, "same Idempotency-Key on every retry");
-  const good = fp.state.requests.filter((r) => r.method === "POST" && r.path === "/v1/jobs" && r.body && r.body.units && r.body.units[0].path === "good.py");
+  const good = fp.state.requests.filter((r) => r.method === "POST" && r.path === "/intent-checks" && r.body && r.body.units && r.body.units[0].path === "good.py");
   assert.equal(good.length, 1, "the healthy review went out on the first Stop");
   assert.equal(queueFiles(ctx.repo).length, 0);
   assert.match(shown.join("\n"), /gave up on a requested review of 1 file after 3 failed attempts/);

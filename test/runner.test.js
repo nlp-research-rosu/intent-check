@@ -45,7 +45,7 @@ test("concerns: submits a contract-valid job, writes .intent/ and wakes the agen
   const r = await turn(ctx, { "pricing.py": PRICING });
   assert.equal(r.code, 2, r.stderr);
   assert.deepEqual(JSON.parse(r.stdout.split("\n")[0]), { rewakeSummary: "Intent Check: 1 concern in pricing.py" });
-  assert.match(r.stderr, /^Intent Check: 1 concern about code changed in this session\. Report: http:\/\/127\.0\.0\.1:\d+\/r\/\w{22}\n/);
+  assert.match(r.stderr, /^Intent Check: 1 concern about code changed in this session\. Report: http:\/\/127\.0\.0\.1:\d+\/tasks\/[0-9a-f-]{36}\n/);
   assert.match(r.stderr, /Intent mismatch \(high\) at pricing\.py:3/);
   assert.match(r.stderr, /fix it directly, editing only pricing\.py/); // fixture permission_mode is acceptEdits
 
@@ -55,7 +55,7 @@ test("concerns: submits a contract-valid job, writes .intent/ and wakes the agen
   assert.equal(req.units[0].sha256, "a949e6048d964c91f2a1587532adda76e4348d987f3c78cdf6c47f5b7b94a510");
   assert.match(req.units[0].diff, /^--- \/dev\/null\n\+\+\+ b\/pricing\.py/);
   assert.equal(req.intent.prompts.at(-1), "Add a helper that applies a percentage discount. It must never go below zero.");
-  const post = fp.state.requests.filter((x) => x.method === "POST" && x.path === "/v1/jobs").at(-1);
+  const post = fp.state.requests.filter((x) => x.method === "POST" && x.path === "/intent-checks").at(-1);
   assert.equal(post.headers["x-intent-version"], JSON.parse(fs.readFileSync(path.join(ROOT, ".claude-plugin", "plugin.json"), "utf8")).version);
   assert.match(post.headers["idempotency-key"], /^[0-9a-f]{64}$/);
   assert.equal(post.headers.authorization, `Bearer ${TEST_KEY}`);
@@ -86,8 +86,8 @@ test("no concerns: silent at Stop; the model and the user each get a line at the
   assert.equal(r.code, 0);
   assert.equal(r.stdout + r.stderr, "");
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "thanks" }), ctx.env);
-  assert.match(next.json.hookSpecificOutput.additionalContext, /^Intent Check: no concerns in pricing\.py · http:\/\/127\.0\.0\.1:\d+\/r\/\w{22}$/);
-  assert.match(next.json.systemMessage, /^Intent Check: checked `pricing\.py` · no concerns · http:\/\/127\.0\.0\.1:\d+\/r\/\w{22}$/);
+  assert.match(next.json.hookSpecificOutput.additionalContext, /^Intent Check: no concerns in pricing\.py · http:\/\/127\.0\.0\.1:\d+\/tasks\/[0-9a-f-]{36}$/);
+  assert.match(next.json.systemMessage, /^Intent Check: checked `pricing\.py` · no concerns · http:\/\/127\.0\.0\.1:\d+\/tasks\/[0-9a-f-]{36}$/);
   const again = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "and again" }), ctx.env);
   assert.equal(again.stdout, "");
 });
@@ -99,13 +99,25 @@ test("failed job: one user note, /intent:doctor shows the error, last check not 
   assert.equal(r.code, 0);
   assert.ok(await waitFor(() => (readSessionFiles(ctx.data)[0] || { notes: [] }).notes.length > 0));
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "thanks" }), ctx.env);
-  assert.match(next.json.systemMessage, /^Intent Check could not finish checking `pricing\.py`, so there is no report for it\. Run \/intent:deepscan with the files to try again\. · http:\/\/127\.0\.0\.1:\d+\/r\/\w{22}$/);
+  assert.match(next.json.systemMessage, /^Intent Check could not finish checking `pricing\.py`, so there is no report for it\. Run \/intent:deepscan with the files to try again\. · http:\/\/127\.0\.0\.1:\d+\/tasks\/[0-9a-f-]{36}$/);
   assert.doesNotMatch(next.json.systemMessage, /[\u2013\u2014]/);
   const again = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "and again" }), ctx.env);
   assert.equal(again.stdout, "");
   const g = JSON.parse(fs.readFileSync(path.join(ctx.data, "global.json"), "utf8"));
   assert.equal(g.last_check.ok, false);
-  assert.match(g.last_error.text, /^check failed on the service \(pipeline_error\), job \S+$/);
+  assert.match(g.last_error.text, /^check failed on the service \(CHECK_FAILED\), job \S+$/);
+});
+
+test("a queued check the daily cap caught ends failed with SPEND_CAP: the spend note, not a failure note", async () => {
+  fp.state.scenario = "failed";
+  fp.state.failCode = "SPEND_CAP";
+  try {
+    const ctx = setup();
+    await turn(ctx, { "pricing.py": PRICING });
+    assert.ok(await waitFor(() => (readSessionFiles(ctx.data)[0] || { notes: [] }).notes.length > 0));
+    const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "thanks" }), ctx.env);
+    assert.match(next.json.systemMessage, /today's free check limit was reached/);
+  } finally { fp.state.failCode = null; }
 });
 
 test("failed job: Codex shows the note too (it drops only quiet notes)", async () => {
@@ -150,7 +162,7 @@ test("the Stop of a wake-up turn (stop_hook_active) never wakes; its result arri
 test("a file fixed after a wake is re-checked but reported as a note, not another wake", async () => {
   const ctx = setup();
   assert.equal((await turn(ctx, { "pricing.py": PRICING })).code, 2);
-  fp.state.concern = { id: "c2", type: "implementation_bug", severity: "high", path: "pricing.py", line: 2, claim_id: null, title: "Rounding is floor, not nearest", explanation: "x", fix_direction: "Round to nearest." };
+  fp.state.concern = { id: "c2", type: "implementationBug", severity: "high", path: "pricing.py", line: 2, claimId: null, title: "Rounding is floor, not nearest", explanation: "x", fixDirection: "Round to nearest." };
   const r = await turn(ctx, { "pricing.py": PRICING.replace("// 100", "// 100  # fixed") });
   assert.equal(r.code, 0);
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "ok" }), ctx.env);
@@ -212,7 +224,7 @@ test("entrypoint matrix: only the SDKs/local-agent/mcp detach; everything else (
 });
 
 test("spend cap (429): nothing during the turn, one user-visible line at the next prompt, once", async () => {
-  fp.state.submitStatus = { status: 429, code: "spend_cap" };
+  fp.state.submitStatus = { status: 429, code: "SPEND_CAP" };
   const ctx = setup();
   const r = await turn(ctx, { "pricing.py": PRICING });
   assert.equal(r.code, 0);
@@ -290,7 +302,7 @@ test("SIGTERM (hook timeout or quit): a detached finisher keeps polling and writ
   const n = fp.state.requests.length;
   let child;
   const done = runHook("stop", fixture("stop", ctx.repo), ctx.env, { onSpawn: (c) => { child = c; } });
-  assert.ok(await waitFor(() => fp.state.requests.slice(n).some((x) => x.method === "GET" && x.path.startsWith("/v1/jobs/"))));
+  assert.ok(await waitFor(() => fp.state.requests.slice(n).some((x) => x.method === "GET" && x.path.startsWith("/tasks/"))));
   child.kill("SIGTERM");
   const r = await done;
   assert.equal(r.code, 0);
@@ -307,7 +319,7 @@ test("late result: a job whose runner died is delivered at the next prompt (1 s 
   const n = fp.state.requests.length;
   let child;
   const done = runHook("stop", fixture("stop", ctx.repo), ctx.env, { onSpawn: (c) => { child = c; } });
-  assert.ok(await waitFor(() => fp.state.requests.slice(n).some((x) => x.method === "GET" && x.path.startsWith("/v1/jobs/"))));
+  assert.ok(await waitFor(() => fp.state.requests.slice(n).some((x) => x.method === "GET" && x.path.startsWith("/tasks/"))));
   child.kill("SIGKILL");
   await done;
   fp.state.pollsBeforeDone = 0;
@@ -322,7 +334,7 @@ test("stale result: a file edited after submission gets the 'checked the version
   await turn(ctx, { "pricing.py": PRICING }, { run: false });
   const n = fp.state.requests.length;
   const done = runHook("stop", fixture("stop", ctx.repo), ctx.env);
-  assert.ok(await waitFor(() => fp.state.requests.slice(n).some((x) => x.method === "GET" && x.path.startsWith("/v1/jobs/"))));
+  assert.ok(await waitFor(() => fp.state.requests.slice(n).some((x) => x.method === "GET" && x.path.startsWith("/tasks/"))));
   fs.appendFileSync(path.join(ctx.repo, "pricing.py"), "# edited meanwhile\n");
   const r = await done;
   assert.equal(r.code, 2);
@@ -335,7 +347,7 @@ test("a newer runner takes over the session's pending jobs; the old one exits qu
   await turn(ctx, { "a.py": "def a(x):\n    y = x\n    return y\n" }, { run: false });
   const n = fp.state.requests.length;
   const first = runHook("stop", fixture("stop", ctx.repo), ctx.env);
-  assert.ok(await waitFor(() => fp.state.requests.slice(n).some((x) => x.method === "GET" && x.path.startsWith("/v1/jobs/"))));
+  assert.ok(await waitFor(() => fp.state.requests.slice(n).some((x) => x.method === "GET" && x.path.startsWith("/tasks/"))));
   await turn(ctx, { "b.py": "def b(x):\n    y = x\n    return y\n" }, { run: false });
   const second = runHook("stop", fixture("stop", ctx.repo), ctx.env);
   const r1 = await first;

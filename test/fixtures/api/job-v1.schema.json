@@ -7,7 +7,6 @@
     "ApiKey": { "type": "string", "pattern": "^ic_[A-Za-z0-9]{38}$" },
     "Host": { "enum": ["claude-code", "codex"] },
     "Mode": { "enum": ["edit", "request", "repo"] },
-    "JobStatusValue": { "enum": ["queued", "running", "done", "failed", "superseded"] },
     "Verdict": { "enum": ["no_concerns", "concerns"] },
     "ConcernType": { "enum": ["intent_mismatch", "hidden_assumption", "implementation_bug"] },
     "Severity": { "enum": ["high", "medium"] },
@@ -108,16 +107,6 @@
       }
     },
 
-    "JobCreated": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["job_id", "url", "status"],
-      "properties": {
-        "job_id": { "type": "string", "pattern": "^[A-Za-z0-9]{22}$" },
-        "url": { "type": "string", "format": "uri" },
-        "status": { "const": "queued" }
-      }
-    },
 
     "AgentConcern": {
       "description": "One concern for the user's agent. The plugin renders agent text from these fields only, after its own sanitising.",
@@ -186,18 +175,6 @@
       }
     },
 
-    "JobStatus": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["job_id", "status", "url"],
-      "properties": {
-        "job_id": { "type": "string" },
-        "status": { "$ref": "#/$defs/JobStatusValue" },
-        "url": { "type": "string", "format": "uri" },
-        "result": { "$ref": "#/$defs/JobResult", "description": "Present only when status is done." },
-        "error": { "$ref": "#/$defs/ErrorBody", "description": "Present only when status is failed." }
-      }
-    },
 
     "ConnectStart": {
       "description": "POST /v1/connect request body (no auth, per-IP limited).",
@@ -255,26 +232,8 @@
         "key_last4": { "type": "string", "minLength": 4, "maxLength": 4 },
         "environment": { "description": "Deployment the key is for, e.g. production or staging.", "type": "string", "maxLength": 40 }
       }
-    },
-
-    "ErrorBody": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["code", "message"],
-      "properties": {
-        "code": {
-          "enum": ["invalid_request", "unauthorized", "payload_too_large", "upgrade_required", "rate_limited", "spend_cap", "blocked", "not_found", "budget_exceeded", "pipeline_error", "internal"]
-        },
-        "message": { "type": "string", "maxLength": 300 },
-        "reason": { "type": ["string", "null"], "maxLength": 80 }
-      }
-    },
-
-    "ErrorResponse": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["error"],
-      "properties": { "error": { "$ref": "#/$defs/ErrorBody" } }
     }
+
+
   }
 }
