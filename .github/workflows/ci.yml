@@ -27,6 +27,26 @@ jobs:
           node-version: ${{ matrix.node }}
       # scripts/test.mjs lists the files itself and runs them one at a time on Windows.
       - run: npm test
+  cli:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+      - run: cargo fmt --check
+      - run: cargo clippy --locked -- -D warnings
+      - run: cargo build --locked
+      - run: cargo test --locked
+      - name: Check CLI sessions, cancellation and login against controlled servers
+        run: |
+          python3 tests/check-cli-semantics.py "$PWD/target/debug/intent-check"
+          python3 tests/check-cli-cancellation.py "$PWD/target/debug/intent-check"
+          python3 tests/check-cli-login.py "$PWD/target/debug/intent-check"
   # Decides whether the OS-matrix integration job runs, so the required unit job above never waits on it.
   # PRs run it when they touch hooks/, bin/, lib/, commands/, skills/, .claude-plugin/, .codex-plugin/,
   # .github/, test/integration|helpers|e2e/ or package.json; every other event runs it.
