@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://intentcomputing.org/contract/deepscan-v1.schema.json",
   "title": "Intent Check DeepScan API, contract v1",
-  "description": "POST /v1/deepscans (a gzip'd JSON snapshot of the repo) and GET /v1/deepscans/{job_id}. Shared by the intent plugin and the prover. Changes are additive only. See contract/README.md.",
+  "description": "POST /v1/deepscans (a gzip'd JSON snapshot of the repo) and GET /v1/deepscans/{job_id}. Shared by the intent plugin and the prover. Changes are additive only.",
   "$defs": {
     "Host": { "enum": ["claude-code", "codex"] },
     "Sha1or256": { "type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$" },

@@ -66,7 +66,7 @@ test("large files send only touched regions ±40 lines", () => {
 
 test("prior artifacts come from .intent/", () => {
   const root = tmpdir();
-  const ex = JSON.parse(fs.readFileSync(path.join(ROOT, "contract", "examples", "status-done-concerns.json"), "utf8"));
+  const ex = JSON.parse(fs.readFileSync(path.join(ROOT, "test", "fixtures", "api", "examples", "status-done-concerns.json"), "utf8"));
   writeUnit(root, ex.result.units[0], { job_id: ex.job_id, url: ex.url }, ex.result);
   const p = readPrior(root, "pricing.py");
   assert.equal(p.source_sha256, ex.result.units[0].checked_sha256);
@@ -78,7 +78,7 @@ test("prior artifacts come from .intent/", () => {
 
 test("prior artifacts: VERIFICATION.k comes back too, redacted and schema-valid, once a unit has one", () => {
   const root = tmpdir();
-  const ex = JSON.parse(fs.readFileSync(path.join(ROOT, "contract", "examples", "status-done-no-concerns.json"), "utf8"));
+  const ex = JSON.parse(fs.readFileSync(path.join(ROOT, "test", "fixtures", "api", "examples", "status-done-no-concerns.json"), "utf8"));
   writeUnit(root, ex.result.units[0], { job_id: ex.job_id, url: ex.url }, ex.result);
   const p = readPrior(root, "pricing.py");
   assert.match(p.verification_k, /PRICING-VERIFICATION/);

@@ -63,10 +63,10 @@ const idOf = (out) => /\/r\/([A-Za-z0-9]{22})/.exec(out)[1];
 
 test("contract files exist, and the example upload validates", () => {
   assert.ok(C.deepscan && C.deepscan.max_files === 3000);
-  const ex = JSON.parse(fs.readFileSync(path.join(ROOT, "contract", "examples", "deepscan-upload.json"), "utf8"));
+  const ex = JSON.parse(fs.readFileSync(path.join(ROOT, "test", "fixtures", "api", "examples", "deepscan-upload.json"), "utf8"));
   assert.deepEqual(validateDeepscan(ex, "DeepscanUpload"), []);
   for (const n of ["queued", "running", "done", "failed"]) {
-    const s = JSON.parse(fs.readFileSync(path.join(ROOT, "contract", "examples", `deepscan-status-${n}.json`), "utf8"));
+    const s = JSON.parse(fs.readFileSync(path.join(ROOT, "test", "fixtures", "api", "examples", `deepscan-status-${n}.json`), "utf8"));
     assert.deepEqual(validateDeepscan(s, "DeepscanStatus"), [], n);
   }
 });

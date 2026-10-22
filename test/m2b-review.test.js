@@ -16,7 +16,7 @@ before(async () => { fp = createFakeProver(); await fp.listen(); });
 after(() => fp.close());
 beforeEach(() => Object.assign(fp.state, { scenario: "concerns", pollsBeforeDone: 0, submitStatus: null, concern: null, submitDelayMs: 0, idem: new Map() }));
 
-const example = JSON.parse(fs.readFileSync(path.join(ROOT, "contract", "examples", "status-done-concerns.json"), "utf8"));
+const example = JSON.parse(fs.readFileSync(path.join(ROOT, "test", "fixtures", "api", "examples", "status-done-concerns.json"), "utf8"));
 const unit = (root, p) => writeUnit(root, { ...example.result.units[0], path: p }, { job_id: "j", url: "u" }, example.result);
 
 function setup({ key = true, git = true, env = {} } = {}) {

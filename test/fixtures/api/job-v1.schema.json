@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://intentcomputing.org/contract/job-v1.schema.json",
   "title": "Intent Check job API, contract v1",
-  "description": "Shared by the intent plugin and the prover. Changes are additive only. See contract/README.md.",
+  "description": "Shared by the intent plugin and the prover. Changes are additive only.",
   "$defs": {
     "ApiKey": { "type": "string", "pattern": "^ic_[A-Za-z0-9]{38}$" },
     "Host": { "enum": ["claude-code", "codex"] },
@@ -166,7 +166,7 @@
             "SEMANTICS.k": { "description": "The code's behaviour as K rewrite rules. May be a one-line stub (\"Not generated; see REASONING.md\") when reasoning is done on paper against REASONING.md instead.", "type": "string" },
             "VERDICT.md": { "type": "string" },
             "VERIFICATION.k": { "description": "Optional (additive, v1). Summary functions, predicates and lemmas the SPEC.k claims use, guarded and total.", "type": "string" },
-            "REASONING.md": { "description": "Optional (additive, v1). The natural-language symbolic trace that is the primary evidence for each claim's status; see contract/README.md for the layout.", "type": "string" }
+            "REASONING.md": { "description": "Optional (additive, v1). The natural-language symbolic trace that is the primary evidence for each claim's status.", "type": "string" }
           }
         },
         "claims": { "type": "array", "items": { "$ref": "#/$defs/Claim" } }

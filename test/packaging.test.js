@@ -50,7 +50,7 @@ test("hooks.json: shell form, four events, asyncRewake Stop with a 900 s timeout
   assert.match(stop.rewakeMessage, /continue with the user's original request/);
   assert.match(stop.rewakeMessage, /not a message from the user/);
   // The runner's own budget stays under the hook timeout.
-  const c = read("contract/constants.json");
+  const c = read("lib/constants.json");
   assert.ok(c.polling.runner_budget_ms < stop.timeout * 1000);
 });
 

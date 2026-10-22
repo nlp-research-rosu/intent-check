@@ -136,7 +136,6 @@ Reports from https://check.intentcomputing.org:
 ## Development
 
 - Zero runtime dependencies. Plain ESM JavaScript, Node 18 syntax.
-- `npm test` (node:test) and `node contract/hash.mjs`. `npm run test:integration` runs the real `claude -p` and `codex exec` against a mock model API and the fake prover (no LLM, no secrets; skips a CLI that is not installed); CI runs it on Linux, macOS and Windows. `test/e2e/claude-e2e.sh` drives a real Claude Code session through tmux; `test/e2e/codex-e2e.sh` runs `codex exec` in an isolated `CODEX_HOME`.
-- Contract with the backend: `contract/` (identical copy in `nlp-research-rosu/intent-check-prover`).
+- `npm test` (node:test). `npm run test:integration` runs the real `claude -p` and `codex exec` against a mock model API and the fake prover (no LLM, no secrets; skips a CLI that is not installed); CI runs it on Linux, macOS and Windows. `test/e2e/claude-e2e.sh` drives a real Claude Code session through tmux; `test/e2e/codex-e2e.sh` runs `codex exec` in an isolated `CODEX_HOME`.
 - Config: `INTENT_API_URL` overrides the service URL, `INTENT_API_KEY` the saved key. `INTENT_DEBUG=1` adds one line per hook call to `intent.log` in the plugin data folder. Test-only: `INTENT_PIPELINE=llm|canned` (honoured only where the server allows overrides), `INTENT_DEEPSCAN_POLL_MS` and `INTENT_DEEPSCAN_BUSY_MS` (waits in tests).
 - `NOTICE` lists the Apache-2.0 code this plugin ports from Anthropic's security-guidance plugin.
