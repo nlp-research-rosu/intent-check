@@ -15,7 +15,7 @@ Automatically, after each turn that changes code with logic (functions, state, c
 
 ## What is sent, and what stays local
 
-After a turn that changes source files, the plugin sends to the Intent Check service:
+After a turn that changes source files, the plugin sends to the prover service:
 
 - your last few prompts in the session (and the first one), the approved plan and todo items, and the agent's final message for the turn
 - the diff of each changed source file and the file itself (large files: only the changed regions)
@@ -134,7 +134,7 @@ Then start `codex` and choose "Trust all and continue" when it says the plugin's
 
 Intent Check 0.2.0 updated its edit hook (it now also runs after `apply_patch` and shell commands in live mode). If Codex lists it as Modified, approve it in `/hooks` (or the app's hook review); the first session after the update says so once.
 
-Codex hooks are plain command strings, so the same `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" ...` line serves every OS;
+Codex hooks are plain command strings, so the same `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" ...` line serves every OS.
 - Codex cannot wake an idle session, so concerns reach the agent with your next message (or at the end of the same turn, if the check already finished). Clean checks show one short "no concerns" line the next time you prompt.
 - Codex does not load plugin slash commands. Ask the agent instead ("turn Intent Check off", "turn live mode on", "run the Intent Check doctor"); it runs the plugin's `hooks.js off`, `live` or `doctor`, which may need your approval to write outside the sandbox. `INTENT_DISABLED=1` when starting Codex also turns checks off.
 - To ask for a review, ask the agent to check specific files ("check auth.py with Intent Check"), or for a whole-repo scan, ask for a DeepScan.
@@ -142,7 +142,7 @@ Codex hooks are plain command strings, so the same `node "${CLAUDE_PLUGIN_ROOT}/
 
 ## DeepScan
 
-`/intent:deepscan` is the one command for a review on demand (Codex: ask the agent, it runs `intent deepscan`). What it does depends on what you name:
+`/intent:deepscan` is the one command for a review on demand (Codex: ask the agent, it runs `hooks.js deepscan`). What it does depends on what you name:
 
     /intent:deepscan [files or a folder] [fast|balanced|full]
 
@@ -168,7 +168,8 @@ Earlier versions had a separate `check` command for files, and `--depth` and `--
 ## Development
 
 - Zero runtime dependencies. Plain ESM JavaScript, Node 18 syntax.
-- `npm test` (node:test) and `node contract/hash.mjs`. `npm run test:integration` runs the real `claude -p` and `codex exec` against a mock model API and the fake prover (no LLM, no secrets; skips a CLI that is not installed); CI runs it on Linux, macOS and Windows. `test/e2e/claude-e2e.sh` drives a real Claude Code session through tmux; `test/e2e/codex-e2e.sh` runs `codex exec` in an isolated `CODEX_HOME`.
-- Backend: the prover API (`nlp-research-rosu/prover`, branch `staging`). Contract: `contract/`.
+- `npm test` (node:test). `npm run test:integration` runs the real `claude -p` and `codex exec` against a mock model API and the fake prover (no LLM, no secrets; skips a CLI that is not installed); CI runs it on Linux, macOS and Windows. `test/e2e/claude-e2e.sh` drives a real Claude Code session through tmux; `test/e2e/codex-e2e.sh` runs `codex exec` in an isolated `CODEX_HOME`.
+- Backend: the prover API (`nlp-research-rosu/prover`). Its `openapi.yaml` is the contract; `test/helpers/fake-prover.js` mirrors it for tests.
+- CLI: `cli/` (Rust). `cargo fmt --check`, `cargo clippy --locked -- -D warnings`, `cargo test --locked`, and the scripts in `cli/tests/` (each takes the binary path).
 - `INTENT_DEBUG=1` adds one line per hook call to `intent.log` in the plugin data folder. Test-only: `INTENT_PIPELINE=llm|canned` (honoured only where the server allows overrides), `INTENT_DEEPSCAN_POLL_MS` and `INTENT_DEEPSCAN_BUSY_MS` (waits in tests).
 - `NOTICE` lists the Apache-2.0 code this plugin ports from Anthropic's security-guidance plugin.
