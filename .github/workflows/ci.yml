@@ -28,6 +28,7 @@ jobs:
       - run: node contract/hash.mjs
       # scripts/test.mjs lists the files itself and runs them one at a time on Windows.
       - run: npm test
+      - run: sh -n scripts/install-intent-check.sh
   cli:
     runs-on: ubuntu-latest
     timeout-minutes: 15

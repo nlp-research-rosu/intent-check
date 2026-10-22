@@ -6,6 +6,10 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+### Added
+
+- Each release now includes the `intent-check` command line tool for macOS, Linux and Windows (x64 and arm64), with checksums and `install-intent-check.sh` / `install-intent-check.ps1` for installing it on its own.
+
 ## [0.3.0] - 2026-10-13
 
 ### Changed
