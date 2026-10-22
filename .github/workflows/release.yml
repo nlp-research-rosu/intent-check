@@ -14,7 +14,7 @@ on:
         options: [patch, minor, major]
         default: patch
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: release
   cancel-in-progress: false
@@ -26,8 +26,8 @@ jobs:
       matrix:
         node: [18, 22]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ matrix.node }}
       - run: node contract/hash.mjs
@@ -40,6 +40,8 @@ jobs:
     if: github.ref_type == 'branch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: write
     outputs:
       v: ${{ steps.bump.outputs.v }}
       sha: ${{ steps.bump.outputs.sha }}
@@ -48,10 +50,10 @@ jobs:
       BUMP: ${{ inputs.bump }}
       BRANCH: ${{ github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - name: Configure git
@@ -105,10 +107,11 @@ jobs:
       run:
         working-directory: cli
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.bump.outputs.sha }}
-      - uses: dtolnay/rust-toolchain@stable
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
       - run: cargo build --locked --release
       - if: ${{ !matrix.windows }}
         shell: bash
@@ -127,44 +130,49 @@ jobs:
           Compress-Archive target/release/intent-check.exe "${{ matrix.asset }}.zip"
           $hash = (Get-FileHash "${{ matrix.asset }}.zip" -Algorithm SHA256).Hash.ToLower()
           "$hash  ${{ matrix.asset }}.zip" | Set-Content "${{ matrix.asset }}.zip.sha256"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ matrix.asset }}
           path: cli/${{ matrix.asset }}.*
   publish:
     needs: [bump, build]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     timeout-minutes: 10
     env:
       GH_TOKEN: ${{ github.token }}
       BRANCH: ${{ github.ref_name }}
       V: ${{ needs.bump.outputs.v }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.bump.outputs.sha }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: intent-check-*
           path: dist
           merge-multiple: true
       - name: GitHub release
         run: |
-          if [ "$(gh release view "v$V" --json isDraft --jq .isDraft 2>/dev/null)" = false ]; then
+          # gh release view does not find drafts, so look the tag up in the list
+          state=$(gh release list --limit 1000 --json tagName,isDraft --jq ".[] | select(.tagName == \"v$V\") | .isDraft")
+          if [ "$state" = false ]; then
             echo "release v$V already published"
             exit 0
           fi
           for e in sh ps1; do sed "s/__INTENT_CHECK_RELEASE_TAG__/v$V/" "scripts/install-intent-check.$e" > "dist/install-intent-check.$e"; done
+          ! grep -l __INTENT_CHECK_RELEASE_TAG__ dist/install-intent-check.* || { echo "release tag placeholder left in an installer" >&2; exit 1; }
           assets=(dist/*)
           printf '%s\n' intent-check-{darwin,linux}-{x64,arm64}.tar.gz{,.sha256} \
             intent-check-windows-{x64,arm64}.zip{,.sha256} install-intent-check.sh install-intent-check.ps1 |
             sort > "$RUNNER_TEMP/expected.txt"
           printf '%s\n' "${assets[@]#dist/}" | sort > "$RUNNER_TEMP/local-assets.txt"
           diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/local-assets.txt"
-          if ! gh release view "v$V" >/dev/null 2>&1; then
+          if [ -z "$state" ]; then
             if [ "$BRANCH" = main ]; then
               # The release notes are this version's CHANGELOG.md section; generated notes when it is empty or cannot be read.
               node scripts/bump-version.mjs --notes "$V" > "$RUNNER_TEMP/notes.md" || : > "$RUNNER_TEMP/notes.md"
