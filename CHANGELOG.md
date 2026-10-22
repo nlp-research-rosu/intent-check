@@ -6,6 +6,27 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+### Breaking
+
+- The plugin now uses the prover API as its only backend. Reinstall or update the plugin and sign in once: the first prompt shows a link to the prover console.
+- Report links from earlier versions stop working. Results open in the prover console.
+- The KIT plugin is replaced by prove mode in this plugin (`/intent:prove`). Uninstall KIT.
+- `.prover-client/` and `~/.config/prover-client` are no longer used. Keys saved by earlier versions are not carried over.
+- The plugin's script is `bin/hooks.js` (was `bin/intent.js`). This matters only if you call it by path on Codex.
+
+### Added
+
+- Prove mode: `/intent:prove [what to prove]` proves a program correct with K. Proof files go under `.intent/prove/<target>/`; the CLI's session state in `.intent/prove/sessions/` is not committed.
+- The `intent-check` command line tool. The first `/intent:prove` downloads it for the plugin version, and each release includes it for macOS, Linux and Windows (x64 and arm64), with checksums and `install-intent-check.sh` / `install-intent-check.ps1` for installing it on its own.
+- `INTENT_CONSOLE_URL` sets the prover console that sign-in and result links open in. `INTENT_CLI_PATH` points the plugin at a local `intent-check` binary (development).
+
+### Changed
+
+- Sign-in runs through the prover console, and the key is saved in `~/.config/intent-check/credentials.json`, shared with the `intent-check` command. For cloud sessions and CI, set `INTENT_API_KEY`.
+- Checks and DeepScans go to the prover API (`https://prover.intentcomputing.org`, `INTENT_API_URL` overrides it).
+- Everything the plugin writes in your repo lives under `.intent/`.
+- The README describes all four modes (check, live, deepscan, prove), sign-in, the commands, file locations and environment variables, and no longer lists sample report pages.
+
 ## [0.3.0] - 2026-10-13
 
 ### Changed

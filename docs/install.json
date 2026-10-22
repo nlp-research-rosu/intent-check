@@ -30,7 +30,7 @@
             "Open Terminal and run `node -v`. You should see v18 or higher; if not, install Node from nodejs.org first.",
             "In the same window, run `npx -y @anthropic-ai/claude-code@latest plugin marketplace add {marketplace}{ref}`, then `npx -y @anthropic-ai/claude-code@latest plugin install intent@intentcomputing`.",
             "Restart the Claude app, then open a Code-tab session on a local folder.",
-            "Send your first prompt: it shows a link to connect your account. Open it and approve."
+            "Send your first prompt: it shows a link to sign in to the prover console. Open it and approve."
           ],
           "verify": "Type `/intent:doctor` in the session, or click + → Plugins to see intent listed.",
           "update": "Run `npx -y @anthropic-ai/claude-code@latest plugin update intent@intentcomputing` in Terminal, then restart the Claude app."
@@ -45,7 +45,7 @@
             "Open PowerShell and run `node -v`. You should see v18 or higher; if not, install Node from nodejs.org first.",
             "In the same window, run `npx.cmd -y @anthropic-ai/claude-code@latest plugin marketplace add {marketplace}{ref}`, then `npx.cmd -y @anthropic-ai/claude-code@latest plugin install intent@intentcomputing`.",
             "Restart the Claude app, then open a Code-tab session on a local folder.",
-            "Send your first prompt: it shows a link to connect your account. Open it and approve."
+            "Send your first prompt: it shows a link to sign in to the prover console. Open it and approve."
           ],
           "verify": "Type `/intent:doctor` in the session, or click + → Plugins to see intent listed.",
           "update": "Run `npx.cmd -y @anthropic-ai/claude-code@latest plugin update intent@intentcomputing` in PowerShell, then restart the Claude app."
@@ -62,9 +62,9 @@
             "Run `/plugin marketplace add {marketplace}{ref}`.",
             "Run `/plugin install intent@intentcomputing` and choose \"Install for you\".",
             "Run `/reload-plugins` (or restart Claude Code).",
-            "Send your first prompt: it shows a link to connect your account. Open it and approve."
+            "Send your first prompt: it shows a link to sign in to the prover console. Open it and approve."
           ],
-          "verify": "Type `/intent:doctor`: it shows whether this machine is connected. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
+          "verify": "Type `/intent:doctor`: it shows whether this machine is signed in. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
           "update": "Run `claude plugin update intent@intentcomputing` in your shell (or `/plugin` → Installed → Update now), then `/reload-plugins`. To get updates automatically: `/plugin` → Marketplaces → intentcomputing → Enable auto-update (it is off by default for third-party marketplaces)."
         },
         "windows": {
@@ -77,9 +77,9 @@
             "Run `/plugin marketplace add {marketplace}{ref}`.",
             "Run `/plugin install intent@intentcomputing` and choose \"Install for you\".",
             "Run `/reload-plugins` (or restart Claude Code).",
-            "Send your first prompt: it shows a link to connect your account. Open it and approve."
+            "Send your first prompt: it shows a link to sign in to the prover console. Open it and approve."
           ],
-          "verify": "Type `/intent:doctor`: it shows whether this machine is connected. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
+          "verify": "Type `/intent:doctor`: it shows whether this machine is signed in. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
           "update": "Run `claude plugin update intent@intentcomputing` in your shell (or `/plugin` → Installed → Update now), then `/reload-plugins`. To get updates automatically: `/plugin` → Marketplaces → intentcomputing → Enable auto-update (it is off by default for third-party marketplaces)."
         },
         "linux": {
@@ -92,9 +92,9 @@
             "Run `/plugin marketplace add {marketplace}{ref}`.",
             "Run `/plugin install intent@intentcomputing` and choose \"Install for you\".",
             "Run `/reload-plugins` (or restart Claude Code).",
-            "Send your first prompt: it shows a link to connect your account. Open it and approve."
+            "Send your first prompt: it shows a link to sign in to the prover console. Open it and approve."
           ],
-          "verify": "Type `/intent:doctor`: it shows whether this machine is connected. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
+          "verify": "Type `/intent:doctor`: it shows whether this machine is signed in. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
           "update": "Run `claude plugin update intent@intentcomputing` in your shell (or `/plugin` → Installed → Update now), then `/reload-plugins`. To get updates automatically: `/plugin` → Marketplaces → intentcomputing → Enable auto-update (it is off by default for third-party marketplaces)."
         }
       },
@@ -110,9 +110,9 @@
             "Run `npx -y @anthropic-ai/claude-code@latest plugin marketplace add {marketplace}{ref}`.",
             "Run `npx -y @anthropic-ai/claude-code@latest plugin install intent@intentcomputing`.",
             "Reload the VS Code window (Command Palette → Developer: Reload Window) and open the Claude Code panel.",
-            "Send your first prompt: it shows a link to connect your account. Open it and approve."
+            "Send your first prompt: it shows a link to sign in to the prover console. Open it and approve."
           ],
-          "verify": "In the Claude Code panel, type `/intent:doctor`: it shows whether this machine is connected. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
+          "verify": "In the Claude Code panel, type `/intent:doctor`: it shows whether this machine is signed in. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
           "update": "Run `npx -y @anthropic-ai/claude-code@latest plugin update intent@intentcomputing` in the integrated terminal, then reload the window. To get updates automatically, type `/plugins` in the Claude Code panel, open the Marketplaces tab, select intentcomputing and choose Enable auto-update (it is off by default for third-party marketplaces)."
         },
         "windows": {
@@ -126,9 +126,9 @@
             "Run `npx.cmd -y @anthropic-ai/claude-code@latest plugin marketplace add {marketplace}{ref}`.",
             "Run `npx.cmd -y @anthropic-ai/claude-code@latest plugin install intent@intentcomputing`.",
             "Reload the VS Code window (Command Palette → Developer: Reload Window) and open the Claude Code panel.",
-            "Send your first prompt: it shows a link to connect your account. Open it and approve."
+            "Send your first prompt: it shows a link to sign in to the prover console. Open it and approve."
           ],
-          "verify": "In the Claude Code panel, type `/intent:doctor`: it shows whether this machine is connected. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
+          "verify": "In the Claude Code panel, type `/intent:doctor`: it shows whether this machine is signed in. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
           "update": "Run `npx.cmd -y @anthropic-ai/claude-code@latest plugin update intent@intentcomputing` in the integrated terminal, then reload the window. To get updates automatically, type `/plugins` in the Claude Code panel, open the Marketplaces tab, select intentcomputing and choose Enable auto-update (it is off by default for third-party marketplaces)."
         },
         "linux": {
@@ -142,9 +142,9 @@
             "Run `npx -y @anthropic-ai/claude-code@latest plugin marketplace add {marketplace}{ref}`.",
             "Run `npx -y @anthropic-ai/claude-code@latest plugin install intent@intentcomputing`.",
             "Reload the VS Code window (Command Palette → Developer: Reload Window) and open the Claude Code panel.",
-            "Send your first prompt: it shows a link to connect your account. Open it and approve."
+            "Send your first prompt: it shows a link to sign in to the prover console. Open it and approve."
           ],
-          "verify": "In the Claude Code panel, type `/intent:doctor`: it shows whether this machine is connected. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
+          "verify": "In the Claude Code panel, type `/intent:doctor`: it shows whether this machine is signed in. Or ask Claude to change a function by 3+ lines and look for an `Intent Check:` note after the turn.",
           "update": "Run `npx -y @anthropic-ai/claude-code@latest plugin update intent@intentcomputing` in the integrated terminal, then reload the window. To get updates automatically, type `/plugins` in the Claude Code panel, open the Marketplaces tab, select intentcomputing and choose Enable auto-update (it is off by default for third-party marketplaces)."
         }
       }
@@ -176,7 +176,7 @@
             "Open Terminal and run `codex plugin marketplace add {marketplace}{codex_ref}`.",
             "Run `codex plugin add intent@intentcomputing`.",
             "Start `codex` and choose \"Trust all and continue\" when it says the plugin's hooks need review (or trust them in `/hooks`).",
-            "Send your first prompt: it shows a link to connect your account. Open it and approve."
+            "Send your first prompt: it shows a link to sign in to the prover console. Open it and approve."
           ],
           "verify": "Start `codex`, send a prompt, then ask the agent to run the Intent Check doctor. Or ask it to change a function by 3+ lines: the check note arrives with your next message.",
           "update": "Run `codex plugin marketplace upgrade intentcomputing`, then restart `codex`. Codex may ask you to trust the plugin's hooks again after an update."
@@ -190,7 +190,7 @@
             "Open PowerShell and run `codex plugin marketplace add {marketplace}{codex_ref}`.",
             "Run `codex plugin add intent@intentcomputing`.",
             "Start `codex` and choose \"Trust all and continue\" when it says the plugin's hooks need review (or trust them in `/hooks`).",
-            "Send your first prompt: it shows a link to connect your account. Open it and approve."
+            "Send your first prompt: it shows a link to sign in to the prover console. Open it and approve."
           ],
           "verify": "Start `codex`, send a prompt, then ask the agent to run the Intent Check doctor. Or ask it to change a function by 3+ lines: the check note arrives with your next message.",
           "update": "Run `codex plugin marketplace upgrade intentcomputing`, then restart `codex`. Codex may ask you to trust the plugin's hooks again after an update."
@@ -204,7 +204,7 @@
             "Open a terminal and run `codex plugin marketplace add {marketplace}{codex_ref}`.",
             "Run `codex plugin add intent@intentcomputing`.",
             "Start `codex` and choose \"Trust all and continue\" when it says the plugin's hooks need review (or trust them in `/hooks`).",
-            "Send your first prompt: it shows a link to connect your account. Open it and approve."
+            "Send your first prompt: it shows a link to sign in to the prover console. Open it and approve."
           ],
           "verify": "Start `codex`, send a prompt, then ask the agent to run the Intent Check doctor. Or ask it to change a function by 3+ lines: the check note arrives with your next message.",
           "update": "Run `codex plugin marketplace upgrade intentcomputing`, then restart `codex`. Codex may ask you to trust the plugin's hooks again after an update."
