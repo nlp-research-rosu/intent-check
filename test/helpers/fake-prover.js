@@ -1,4 +1,4 @@
-// A fake prover (node:http) implementing contract v1 for tests and local smoke runs.
+// A fake prover (node:http) serving the prover API routes (see the prover repo's openapi.yaml) for tests and local smoke runs.
 // Standalone: node test/helpers/fake-prover.js [port]  -> prints its base URL; control via POST /_control.
 import zlib from "node:zlib";
 import http from "node:http";
@@ -7,12 +7,13 @@ import { fileURLToPath } from "node:url";
 
 export const TEST_KEY = "ic_" + "A".repeat(32) + "BBBBBB";
 
-const id22 = () => crypto.randomBytes(32).toString("base64").replace(/[^A-Za-z0-9]/g, "").slice(0, 22);
+const newId = () => crypto.randomUUID();
+const ERR = { unauthorized: { code: "AUTHENTICATION_REQUIRED", message: "A valid Bearer API key is required." } };
 
 export function createFakeProver(opts = {}) {
   const st = {
     key: TEST_KEY,
-    scenario: "concerns", // "concerns" | "no_concerns" | "partial" | "failed" | "superseded"
+    scenario: "concerns", // "concerns" | "no_concerns" | "partial" | "failed" | "superseded" | "data_expired" (data_expired keeps the verdict, no artifacts)
     pollsBeforeDone: 1,
     submitStatus: null, // e.g. { status: 429, code: "spend_cap" }
     concern: null, // override the agent concern
@@ -30,29 +31,56 @@ export function createFakeProver(opts = {}) {
     res.end(b);
   }
 
-  function result(job) {
-    const units = job.request.units;
-    const first = units[0];
-    const concerns = st.scenario === "concerns" ? [st.concern || {
-      id: "c1", type: "intent_mismatch", severity: "high", path: first.path, line: 3, claim_id: "k1",
+  const ART_TEXT = { "INTENT.md": (u) => `# ${u.path}\n`, "SPEC.k": () => "module SPEC\nendmodule\n", "SEMANTICS.k": () => "module SEM\nendmodule\n", "VERDICT.md": (u, i, bad) => (bad ? "Concerns (1)\n" : "No concerns\n") };
+  const artifactText = (job, i, name) => ART_TEXT[name](job.request.units[i], i, i === 0 && concernsOf(job).length > 0);
+
+  function concernsOf(job) {
+    return ["concerns", "data_expired"].includes(st.scenario) ? [st.concern || {
+      id: "c1", type: "intentMismatch", severity: "high", path: job.request.units[0].path, line: 3, claimId: "k1",
       title: "\"Never below zero\" does not hold when percent > 100",
       explanation: "With percent = 150 the result is negative.",
-      fix_direction: "Clamp percent to 0..100, or clamp the result at 0.",
+      fixDirection: "Clamp percent to 0..100, or clamp the result at 0.",
     }] : [];
+  }
+
+  // An IntentCheckResult (openapi): every file links its artifacts by path under the API root.
+  function result(id, job) {
+    const concerns = concernsOf(job);
     return {
-      verdict: concerns.length ? "concerns" : "no_concerns",
+      verdict: concerns.length ? "concerns" : "noConcerns",
       partial: st.scenario === "partial",
-      checked_at: new Date(job.created).toISOString(),
-      agent_concerns: concerns,
-      units: units.map((u, i) => ({
+      concerns,
+      units: job.request.units.map((u, i) => ({
         path: u.path,
-        checked_sha256: u.sha256,
-        verdict: i === 0 && concerns.length ? "concerns" : "no_concerns",
-        artifacts: { "INTENT.md": `# ${u.path}\n`, "SPEC.k": "module SPEC\nendmodule\n", "SEMANTICS.k": "module SEM\nendmodule\n", "VERDICT.md": concerns.length && i === 0 ? "Concerns (1)\n" : "No concerns\n" },
+        checkedSha256: u.sha256,
+        verdict: i === 0 && concerns.length ? "concerns" : "noConcerns",
+        partial: false,
         claims: [],
+        artifacts: Object.fromEntries(Object.keys(ART_TEXT).map((name) => {
+          const text = artifactText(job, i, name);
+          return [name, { name, size: Buffer.byteLength(text), sha256: crypto.createHash("sha256").update(text).digest("hex"), url: `/tasks/${id}/artifacts/${i}/${name}` }];
+        })),
       })),
     };
   }
+
+  // A Task (openapi TaskBase plus kind and result).
+  function task(id, kind, status, { result: res = null, error = null, created = Date.now() } = {}) {
+    const end = ["queued", "running"].includes(status) ? null : new Date().toISOString();
+    return {
+      id, kind, status, semantics: null, createdAt: new Date(created).toISOString(), startedAt: status === "queued" ? null : new Date(created).toISOString(), finishedAt: end,
+      timing: null, error, kept: false, filesExpireAt: null, result: res,
+    };
+  }
+
+  const defaultSummary = () => ({
+    depth: "fast",
+    budgetSeconds: 900,
+    counts: { CRITICAL: 0, HIGH: 1, MODERATE: 0, LOW: 0, MARGINAL: 0 },
+    cards: [{ id: "F1", criticality: "HIGH", title: "A discount above 100 percent makes the price negative", property: "Price is never negative.", cause: [{ path: "src/pricing.py", line: 3 }], reproSketch: "Call apply_discount(1000, 150).", control: "apply_discount(1000, 100) returns 0." }],
+    oneLiners: [],
+    report: { name: "report.json", size: 2, sha256: "0".repeat(64), url: "/tasks/x/artifacts/report.json" },
+  });
 
   const server = http.createServer((req, res) => {
     const chunks = [];
@@ -62,7 +90,7 @@ export function createFakeProver(opts = {}) {
       let body = null;
       const url = new URL(req.url, base);
       try {
-        const raw = (url.pathname === "/v1/deepscans" && req.headers["content-encoding"] !== "identity" ? zlib.gunzipSync(rawBuf) : rawBuf).toString("utf8");
+        const raw = (url.pathname === "/deepscans" && req.headers["content-encoding"] !== "identity" ? zlib.gunzipSync(rawBuf) : rawBuf).toString("utf8");
         body = raw ? JSON.parse(raw) : null;
       } catch { body = null; }
       st.requests.push({ method: req.method, path: url.pathname, headers: req.headers, body });
@@ -74,6 +102,16 @@ export function createFakeProver(opts = {}) {
       }
       if (req.method === "GET" && url.pathname === "/_state") {
         return json(res, 200, { requests: st.requests.map((r) => ({ method: r.method, path: r.path })), jobs: [...st.jobs.keys()] });
+      }
+      // The signed link an artifact redirects to: no API key needed, and none must arrive.
+      const fm = url.pathname.match(/^\/_files\/([^/]+)\/(\d+)\/([A-Za-z.]+)$/);
+      if (req.method === "GET" && fm) {
+        st.fileAuth = req.headers.authorization || null;
+        const job = st.jobs.get(fm[1]);
+        if (!job || !ART_TEXT[fm[3]]) return json(res, 404, { code: "NOT_FOUND", message: "x" });
+        const t = artifactText(job, Number(fm[2]), fm[3]);
+        res.writeHead(200, { "content-type": "text/plain", "content-length": Buffer.byteLength(t) });
+        return res.end(t);
       }
       if (req.method === "GET" && url.pathname === "/v1/me") {
         if (st.meStatus) return json(res, st.meStatus, { error: { code: "x", message: "x" } });
@@ -107,85 +145,98 @@ export function createFakeProver(opts = {}) {
         const handle = st.handle || "tester";
         return json(res, 200, { status: "approved", api_key: st.key, handle, account: { handle } });
       }
-      if (req.method === "POST" && url.pathname === "/v1/jobs") {
-        if (!authed) return json(res, 401, { error: { code: "unauthorized", message: "bad key" } });
-        if (st.submitStatus) return json(res, st.submitStatus.status, { error: { code: st.submitStatus.code, message: "x", reason: null } });
+      if (req.method === "POST" && url.pathname === "/intent-checks") {
+        if (!authed) return json(res, 401, ERR.unauthorized);
+        if (st.submitStatus) return json(res, st.submitStatus.status, { code: st.submitStatus.code, message: "x" });
         if (st.failPath && body && Array.isArray(body.units) && body.units.some((u) => u.path === st.failPath)) {
-          return json(res, 500, { error: { code: "internal", message: "x", reason: null } });
+          return json(res, 500, { code: "INTERNAL_ERROR", message: "x" });
         }
-        // Idempotency-Key: a repeat returns the original job (contract README).
+        // Idempotency-Key: a repeat returns the original task.
         const idem = req.headers["idempotency-key"];
         st.idem = st.idem || new Map();
-        let job_id = idem && st.idem.get(idem);
-        if (!job_id) {
-          job_id = id22();
-          // Server behavior: a job supersedes the session's unfinished jobs on overlapping
-          // paths, whatever their mode, unless it is a per-edit job (per_edit: true).
+        let id = idem && st.idem.get(idem);
+        if (!id) {
+          id = newId();
+          // Server behavior: a check supersedes the caller's unfinished checks of the same files
+          // unless it is a per-edit check (per_edit: true).
           if (body && body.per_edit !== true && Array.isArray(body.units)) {
             const paths = new Set(body.units.map((u) => u.path));
             for (const j of st.jobs.values()) {
               if (!j.superseded && j.request && j.request.session_id === body.session_id && j.request.units.some((u) => paths.has(u.path))) j.superseded = true;
             }
           }
-          st.jobs.set(job_id, { request: body, polls: 0, created: Date.now() });
-          if (idem) st.idem.set(idem, job_id);
+          st.jobs.set(id, { request: body, polls: 0, created: Date.now() });
+          if (idem) st.idem.set(idem, id);
         }
-        const reply = () => json(res, 202, { job_id, url: `${base}/r/${job_id}`, status: "queued" });
+        const reply = () => json(res, 202, { id, kind: "intentCheck", status: "queued", semantics: null, createdAt: new Date().toISOString() });
         if (st.submitDelayMs) return void setTimeout(reply, st.submitDelayMs);
         return reply();
       }
       // DeepScan. st.deepscan = { submit: [{status, code, reason, retryAfter}, ...] consumed one per POST,
-      // statuses: [...] one per GET (last repeats), summary, error }.
-      if (req.method === "POST" && url.pathname === "/v1/deepscans") {
-        if (!authed) return json(res, 401, { error: { code: "unauthorized", message: "bad key" } });
+      // statuses: [...] one per GET (last repeats; queued|running|done|failed|superseded), summary, error }.
+      if (req.method === "POST" && url.pathname === "/deepscans") {
+        if (!authed) return json(res, 401, ERR.unauthorized);
         const ds = (st.deepscan = st.deepscan || {});
         st.deepscanContentType = req.headers["content-type"];
         const fail = (ds.submit || []).shift();
         if (fail && fail.drop) return void req.socket.destroy();
         if (fail) {
-          const b = JSON.stringify({ error: { code: fail.code || "x", message: fail.message || "x", reason: fail.reason || null } });
+          const b = JSON.stringify({ code: fail.code || "x", message: fail.message || "x", ...(fail.reason ? { details: { reason: fail.reason } } : {}) });
           res.writeHead(fail.status, { "content-type": "application/json", ...(fail.retryAfter ? { "retry-after": String(fail.retryAfter) } : {}) });
           return res.end(b);
         }
         const idem = req.headers["idempotency-key"];
         ds.idem = ds.idem || new Map();
-        let job_id = idem && ds.idem.get(idem);
-        if (!job_id) {
-          job_id = id22();
+        let id = idem && ds.idem.get(idem);
+        if (!id) {
+          id = newId();
           st.scans = st.scans || new Map();
-          st.scans.set(job_id, { request: body, polls: 0 });
-          if (idem) ds.idem.set(idem, job_id);
+          st.scans.set(id, { request: body, polls: 0 });
+          if (idem) ds.idem.set(idem, id);
         }
-        return json(res, 202, { job_id, url: ds.urlOverride || `${base}/r/${job_id}`, status: "queued", ...(ds.budget_s === null ? {} : { budget_s: ds.budget_s ?? 900 }) });
+        return json(res, 202, { id, kind: "deepscan", status: "queued", semantics: null, createdAt: new Date().toISOString() });
       }
-      const dm = url.pathname.match(/^\/v1\/deepscans\/([A-Za-z0-9]+)$/);
-      if (req.method === "GET" && dm) {
-        if (!authed) return json(res, 401, { error: { code: "unauthorized", message: "bad key" } });
-        if ((st.deepscan || {}).getStatus) return json(res, st.deepscan.getStatus, { error: { code: "internal", message: "x", reason: null } });
-        const scan = st.scans && st.scans.get(dm[1]);
-        if (!scan) return json(res, 404, { error: { code: "not_found", message: "no scan" } });
-        const ds = st.deepscan || {};
-        const seq = ds.statuses || ["done"];
-        const status = seq[Math.min(scan.polls++, seq.length - 1)];
-        const out = { job_id: dm[1], status, stage: status, progress: { stage: status, hunters_done: 0, hunters_total: 14, elapsed_s: 1 }, url: `${base}/r/${dm[1]}`, ...(ds.getBudget_s === undefined ? { budget_s: ds.budget_s ?? 900 } : ds.getBudget_s === null ? {} : { budget_s: ds.getBudget_s }) };
-        if (status === "done") out.summary = ds.summary || { counts: { CRITICAL: 0, HIGH: 1, MODERATE: 0, LOW: 0, MARGINAL: 0 }, cards: [{ id: "F1", criticality: "HIGH", title: "A discount above 100 percent makes the price negative", property: "Price is never negative.", cause: [{ path: "src/pricing.py", line: 3 }], repro_sketch: "Call apply_discount(1000, 150).", control: "apply_discount(1000, 100) returns 0." }], one_liners: [] };
-        if (status === "failed") out.error = ds.error || { code: "budget_exceeded", message: "The scan ran out of time.", reason: "scan_budget" };
-        return json(res, 200, out);
+      if (req.method === "GET" && url.pathname === "/tasks") {
+        if (!authed) return json(res, 401, ERR.unauthorized);
+        return json(res, 200, { tasks: [], hasMore: false });
       }
-      const jm = url.pathname.match(/^\/v1\/jobs\/([A-Za-z0-9]+)$/);
-      if (req.method === "GET" && jm) {
-        if (!authed) return json(res, 401, { error: { code: "unauthorized", message: "bad key" } });
-        const job = st.jobs.get(jm[1]);
-        if (!job) return json(res, 404, { error: { code: "not_found", message: "no job" } });
-        const common = { job_id: jm[1], url: `${base}/r/${jm[1]}` };
-        if (job.superseded && !job.finished) return json(res, 200, { ...common, status: "superseded" });
-        if (job.polls++ < st.pollsBeforeDone) return json(res, 200, { ...common, status: job.polls === 1 ? "queued" : "running" });
-        if (st.scenario === "failed") return json(res, 200, { ...common, status: "failed", error: { code: "pipeline_error", message: "x", reason: null } });
-        if (st.scenario === "superseded") return json(res, 200, { ...common, status: "superseded" });
+      // Artifacts answer 302 to a signed link on a host that wants no API key (here: this server's /_files).
+      const am = url.pathname.match(/^\/tasks\/([^/]+)\/artifacts\/(\d+\/[A-Za-z.]+)$/);
+      if (req.method === "GET" && am) {
+        if (!authed) return json(res, 401, ERR.unauthorized);
+        if (!st.jobs.has(am[1])) return json(res, 404, { code: "NOT_FOUND", message: "Task was not found." });
+        res.writeHead(302, { location: `${base}/_files/${am[1]}/${am[2]}` });
+        return res.end();
+      }
+      const tm = url.pathname.match(/^\/tasks\/([^/]+)$/);
+      if (req.method === "GET" && tm) {
+        if (!authed) return json(res, 401, ERR.unauthorized);
+        const id = tm[1];
+        const scan = st.scans && st.scans.get(id);
+        if (scan) {
+          const ds = st.deepscan || {};
+          if (ds.getStatus) return json(res, ds.getStatus, { code: "INTERNAL_ERROR", message: "x" });
+          const seq = ds.statuses || ["done"];
+          const status = seq[Math.min(scan.polls++, seq.length - 1)];
+          if (status === "queued" || status === "running") return json(res, 200, task(id, "deepscan", status));
+          if (status === "superseded") return json(res, 200, task(id, "deepscan", "cancelled", { error: { code: "SUPERSEDED", message: "A newer scan replaced this one." } }));
+          if (status === "failed") return json(res, 200, task(id, "deepscan", "failed", { error: ds.error || { code: "DEEPSCAN_FAILED", message: "The scan ran out of time." } }));
+          const sum = ds.summary || defaultSummary();
+          const budget = ds.getBudget_s === undefined ? ds.budget_s ?? 900 : ds.getBudget_s;
+          const { budgetSeconds, ...rest } = sum;
+          return json(res, 200, task(id, "deepscan", "completed", { result: { ...rest, ...(budget === null ? {} : { budgetSeconds: budget }) } }));
+        }
+        const job = st.jobs.get(id);
+        if (!job) return json(res, 404, { code: "NOT_FOUND", message: "Task was not found." });
+        const superseded = () => json(res, 200, task(id, "intentCheck", "cancelled", { error: { code: "SUPERSEDED", message: "A newer check replaced this one.", details: { supersededBy: newId() } } }));
+        if (job.superseded && !job.finished) return superseded();
+        if (job.polls++ < st.pollsBeforeDone) return json(res, 200, task(id, "intentCheck", job.polls === 1 ? "queued" : "running"));
+        if (st.scenario === "failed") return json(res, 200, task(id, "intentCheck", "failed", { error: { code: st.failCode || "CHECK_FAILED", message: "x" } }));
+        if (st.scenario === "superseded") return superseded();
         job.finished = true;
-        return json(res, 200, { ...common, status: "done", result: result(job) });
+        return json(res, 200, task(id, "intentCheck", st.scenario === "data_expired" ? "data_expired" : "completed", { result: result(id, job), created: job.created }));
       }
-      json(res, 404, { error: { code: "not_found", message: "no route" } });
+      json(res, 404, { code: "NOT_FOUND", message: "no route" });
     });
   });
 
@@ -203,10 +254,10 @@ export function createFakeProver(opts = {}) {
       return new Promise((resolve) => server.close(() => resolve()));
     },
     deepscanUploads() {
-      return st.requests.filter((r) => r.method === "POST" && r.path === "/v1/deepscans").map((r) => r.body);
+      return st.requests.filter((r) => r.method === "POST" && r.path === "/deepscans").map((r) => r.body);
     },
     jobRequests() {
-      return st.requests.filter((r) => r.method === "POST" && r.path === "/v1/jobs").map((r) => r.body);
+      return st.requests.filter((r) => r.method === "POST" && r.path === "/intent-checks").map((r) => r.body);
     },
   };
 }

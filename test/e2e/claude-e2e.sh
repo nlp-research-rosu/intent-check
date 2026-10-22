@@ -15,6 +15,7 @@
 #
 # Env:
 #   INTENT_API_URL       required. A 127.0.0.1 URL means the fake prover (test/helpers/fake-prover.js).
+#   INTENT_CONSOLE_URL   where report links point; defaults to INTENT_API_URL (right for the fake prover only).
 #   E2E_APPROVE_SECRET   required unless the fake prover is used (POST /v1/e2e/approve/<user_code>, X-E2E-Secret).
 #   E2E_APPROVE_CMD      optional shell command that approves $USER_CODE (overrides the default below).
 #   INTENT_PIPELINE      optional: canned (default here) or llm, sent as X-Intent-Pipeline.
@@ -83,7 +84,7 @@ rm -f "$DATA/config.json" "$DATA/connect.json" 2>/dev/null || true
 
 log "starting claude in tmux session $S (plugin: $PLUGIN_DIR, api: $INTENT_API_URL)"
 tmux new-session -d -s "$S" -x 220 -y 60 \
-  "cd '$REPO' && INTENT_API_URL='$INTENT_API_URL' INTENT_PIPELINE='$INTENT_PIPELINE' claude --plugin-dir '$PLUGIN_DIR' \
+  "cd '$REPO' && INTENT_API_URL='$INTENT_API_URL' INTENT_CONSOLE_URL='${INTENT_CONSOLE_URL:-$INTENT_API_URL}' INTENT_PIPELINE='$INTENT_PIPELINE' claude --plugin-dir '$PLUGIN_DIR' \
    --settings '{\"enabledPlugins\":{\"security-guidance@claude-plugins-official\":false}}' --model '$MODEL' --permission-mode acceptEdits; sleep 600"
 
 # Folder-trust dialog, then the input box.
@@ -119,7 +120,7 @@ wait_for 120 test -s "$REPO/.intent/.sent.log" || true
 BEFORE="$(sha256sum "$REPO/pricing.py" 2>/dev/null | cut -c1-64)"
 if wait_for 120 test -f "$REPO/.intent/pricing.py/meta.json"; then ok ".intent/pricing.py written"; else bad ".intent/pricing.py missing"; fi
 URL="$(node -e 'try{console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).url)}catch{console.log("")}' "$REPO/.intent/pricing.py/meta.json")"
-case "$URL" in http*/r/*) ok "report URL $URL" ;; *) bad "no report URL in meta.json" ;; esac
+case "$URL" in http*/tasks/*) ok "report URL $URL" ;; *) bad "no report URL in meta.json" ;; esac
 [ -f "$REPO/.intent/.ignore" ] && [ "$(cat "$REPO/.intent/.ignore")" = "*" ] && ok ".intent/.ignore holds *" || bad ".intent/.ignore"
 
 # 4. The idle session is woken with the concern, and the agent fixes it (acceptEdits).

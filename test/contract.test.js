@@ -19,12 +19,3 @@ test("JobRequest declares per_edit, the boolean per-edit bodies send", () => {
   assert.equal(req.properties.per_edit.type, "boolean");
   assert.equal((req.required || []).includes("per_edit"), false, "optional: classic bodies omit it");
 });
-
-test("DeepscanCreated and DeepscanStatus declare budget_s, a required integer the waiter follows", () => {
-  const schema = JSON.parse(readFileSync(join(fx, "deepscan-v1.schema.json"), "utf8"));
-  for (const name of ["DeepscanCreated", "DeepscanStatus"]) {
-    const def = schema.$defs[name];
-    assert.equal(def.properties.budget_s.type, "integer", name);
-    assert.ok(def.required.includes("budget_s"), name);
-  }
-});

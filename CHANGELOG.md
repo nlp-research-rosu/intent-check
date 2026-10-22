@@ -6,6 +6,10 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+### Changed
+
+- Checks and DeepScans go to the prover API (`https://prover.intentcomputing.org`). Report links open in the prover console (`INTENT_CONSOLE_URL` overrides it).
+
 ## [0.3.0] - 2026-10-13
 
 ### Changed

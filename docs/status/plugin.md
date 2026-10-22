@@ -23,6 +23,7 @@ Wait for review/merge of PRs 1-7 and the orchestrator's Codex e2e. Then M6 plugi
 ## Design notes for whoever resumes
 
 - Every hook and command runs `node ${CLAUDE_PLUGIN_ROOT}/bin/intent.js` directly (Claude Code hooks in exec form, so no shell is needed and Windows without `sh` works). `bin/intent` is the POSIX `sh` launcher (issue #22). No hook or command references it, but Claude Code puts the plugin's `bin/` on the Bash tool's PATH, so it is the bare `intent` command there: it `exec`s `bin/intent.js` when Node >=18 is on PATH, otherwise prints a short no-Node message for `session-start`/`prompt`/`deepscan`/`doctor` and exits 0 silently for everything else. `bin/intent.js` line 1 is an old-syntax Node version check that says so on stderr once per data dir (marker `.node-too-old-<version>`); everything else is in `lib/`. `lib/hooks.js` is host-neutral; `lib/claude.js` holds the Claude output protocol. `lib/codex.js` + `hooks/codex-hooks.json` are the Codex side; the host comes from `--host codex` (or `PLUGIN_ROOT`), never from `CLAUDECODE`.
+- API: the prover (`INTENT_API_URL`, default `https://prover.intentcomputing.org`). Checks are `POST /intent-checks` and `GET /tasks/{id}`; `lib/api.js` maps a task to the status and snake_case result shapes the rest of the plugin reads and downloads a check's artifacts (the API answers 302 to a signed link, followed without the key). Report links are `{console}/tasks/{id}` (`INTENT_CONSOLE_URL`, default `https://prover-console.intentcomputing.org`).
 - State: `${CLAUDE_PLUGIN_DATA}/sessions/<sha256(session)[:32]>.json` (lock file per session), `config.json` (key, api_url, disabled; mode 600), `global.json` (consent shown), `connect.json` (pending connect; mode 600), `intent.log`.
 - Runner ownership: each runner/finisher writes `owner {pid, token}`; a newer runner takes over all pending jobs and the older one exits 0. The prompt hook only checks pending jobs when no live owner exists.
 - Wake rules: exit 2 only if interactive (`CLAUDE_CODE_ENTRYPOINT=cli`), `stop_hook_active` false, fewer than 3 wakes in 2 min, and no concern file woke the agent in the last 10 min; otherwise a next-prompt note. Findings are deduped for 1 h.
@@ -31,15 +32,15 @@ Wait for review/merge of PRs 1-7 and the orchestrator's Codex e2e. Then M6 plugi
 
 - Five user commands: `on`, `live`, `off`, `deepscan`, `doctor` (`lib/commands.js`, `lib/deepscan.js`). `check`, `mode`, `status`, `connect` and `disconnect` are gone.
 - `on` is end-of-turn review only; `live` is on plus per-edit review (`config.json` `live`, `INTENT_LIVE=1|0` overrides). End-of-turn review always runs while on.
-- `deepscan` routes by target: files go to the queue (`lib/queue.js`, the fast `/v1/jobs` check, no network in the command), a folder or nothing goes to `/v1/deepscans`. Depth is one bare word; there are no flags.
+- `deepscan` routes by target: files go to the queue (`lib/queue.js`, the fast `POST /intent-checks` check, no network in the command), a folder or nothing goes to `POST /deepscans`. Depth is one bare word; there are no flags.
 - `doctor` reports state, replaces a missing or rejected connection with a fresh link, and on Claude Code runs the host's plugin update commands (`hostUpdate`). There is no disconnect command and no "disconnected" connect state any more.
 
 ## DeepScan (P2)
 
 - `lib/snapshot.js` builds the upload (filters, redaction, priority trim); `lib/deepscan.js` holds the command, a detached waiter and late delivery. Repo mode is removed; use `deepscan` for a whole repo or a folder.
-- Per-scan state: `${CLAUDE_PLUGIN_DATA}/deepscans/<job_id>.json`. The waiter polls GET every 30 s until 30 min after the scan's `budget_s` (from the 202 and every GET, capped at 24 h; 60 min after `created_at` when absent) and owns its own token (not the session owner). SessionStart and UserPromptSubmit show a finished scan of the current repo once (`delivered` flag, under a lock); a scan whose waiter died gets one GET from the hook. Delivered files are removed after 7 days.
-- `intent deepscan [files or a folder] [fast|balanced|full]` (depth default fast) sends `depth` at the top level of the upload next to `meta`, records it in the scan file and names it with its expected time in the start message (fast 15-20 min, balanced 30-35, full 40-45). The server sets `budget_s` from the depth.
-- `POST /v1/deepscans` busy (429 `deepscan_ingest_busy`, `Retry-After`) is retried once, then one line.
+- Per-scan state: `${CLAUDE_PLUGIN_DATA}/deepscans/<job_id>.json`. The waiter polls GET every 30 s until 30 min after the scan's `budget_s` (set from the depth at submit, 1800 s for fast and 3600 s otherwise, then from the finished result; capped at 24 h; 60 min after `created_at` when absent) and owns its own token (not the session owner). SessionStart and UserPromptSubmit show a finished scan of the current repo once (`delivered` flag, under a lock); a scan whose waiter died gets one GET from the hook. Delivered files are removed after 7 days.
+- `intent deepscan [files or a folder] [fast|balanced|full]` (depth default fast) sends `depth` at the top level of the upload next to `meta`, records it in the scan file and names it with its expected time in the start message (fast 15-20 min, balanced 30-35, full 40-45). 
+- `POST /deepscans` busy (429 `RATE_LIMITED` with `Retry-After`) is retried once, then one line.
 
 ## Open questions
 

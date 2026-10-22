@@ -113,7 +113,7 @@ test("codex exec with a seeded key: the edit is uploaded to the prover as a job"
   // apply_patch anyway). The Stop hook finds the edit through the repo's diff.
   assertHooksRan(s, ["SessionStart", "UserPromptSubmit", "Stop"]);
   await waitFor(() => fp.jobRequests().length > before, { timeoutMs: 20000 });
-  assert.ok(fp.jobRequests().length > before, note(s, "no POST /v1/jobs reached the fake prover"));
+  assert.ok(fp.jobRequests().length > before, note(s, "no POST /intent-checks reached the fake prover"));
   assert.match(s.log, /"event":"job\.submitted"/, note(s, "Stop did not log a submitted job"));
   assert.ok(fp.jobRequests().at(-1).units.some((u) => /a\.js$/.test(u.path)), "the written file is in the job");
 });

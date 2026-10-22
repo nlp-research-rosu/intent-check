@@ -204,7 +204,7 @@ test("8. a finisher exits when checks are turned off", async () => {
   const t0 = Date.now();
   await new Promise((resolve) => spawn(process.execPath, [BIN, "finish", key], { env: baseEnv(data, fp.url, { INTENT_DISABLED: "1" }) }).on("close", resolve));
   assert.ok(Date.now() - t0 < 3000);
-  assert.equal(fp.state.requests.filter((r) => r.path === `/v1/jobs/${"A".repeat(22)}`).length, 0);
+  assert.equal(fp.state.requests.filter((r) => r.path === `/tasks/${"A".repeat(22)}`).length, 0);
 });
 
 test("9. after a 401 on an env key, later turns upload nothing", async () => {
@@ -212,7 +212,7 @@ test("9. after a 401 on an env key, later turns upload nothing", async () => {
   fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   const env = baseEnv(data, fp.url, { INTENT_API_KEY: "ic_" + "R".repeat(38) });
   const repo = makeRepo().dir;
-  const posts = () => fp.state.requests.filter((r) => r.method === "POST" && r.path === "/v1/jobs").length;
+  const posts = () => fp.state.requests.filter((r) => r.method === "POST" && r.path === "/intent-checks").length;
   const n = posts();
   const shown = [];
   for (const name of ["a", "b"]) {
@@ -277,7 +277,7 @@ test("re-review: while paused, one note per session; an env-key pause expires af
   fs.writeFileSync(path.join(data, "global.json"), QUIET_GLOBAL);
   const env = baseEnv(data, fp.url, { INTENT_API_KEY: "ic_" + "P".repeat(38) });
   const repo = makeRepo().dir;
-  const posts = () => fp.state.requests.filter((r) => r.method === "POST" && r.path === "/v1/jobs").length;
+  const posts = () => fp.state.requests.filter((r) => r.method === "POST" && r.path === "/intent-checks").length;
   const edit = async (name, session) => {
     const outp = await runHook("prompt", fixture("prompt", repo, { session_id: session }), env);
     const abs = path.join(repo, `${name}.py`);

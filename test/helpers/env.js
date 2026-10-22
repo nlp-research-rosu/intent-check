@@ -46,7 +46,7 @@ export function baseEnv(dataDir, apiUrl, extra = {}) {
   for (const k of Object.keys(env)) {
     if (k.startsWith("INTENT_") || k.startsWith("CLAUDE_") || k === "DO_NOT_TRACK") delete env[k];
   }
-  return { ...env, CLAUDE_PLUGIN_DATA: dataDir, INTENT_API_URL: apiUrl, CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PLUGIN_ROOT: ROOT, INTENT_LIVE: "0", ...extra };
+  return { ...env, CLAUDE_PLUGIN_DATA: dataDir, INTENT_API_URL: apiUrl, INTENT_CONSOLE_URL: apiUrl, CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PLUGIN_ROOT: ROOT, INTENT_LIVE: "0", ...extra };
 }
 
 // Run one hook like Claude Code: JSON on stdin, capture stdout/stderr/exit code.

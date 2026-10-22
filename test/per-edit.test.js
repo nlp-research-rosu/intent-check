@@ -36,7 +36,7 @@ async function edit(ctx, rel, content, id) {
 }
 
 const submitted = (n) => waitFor(() => fp.jobRequests().length >= n);
-const post = () => fp.state.requests.filter((r) => r.method === "POST" && r.path === "/v1/jobs");
+const post = () => fp.state.requests.filter((r) => r.method === "POST" && r.path === "/intent-checks");
 const editJobs = (ctx) => Object.values(readSessionFiles(ctx.data)[0].edit_jobs);
 
 test("post-tool spawns a per-edit check and stays fast", async () => {

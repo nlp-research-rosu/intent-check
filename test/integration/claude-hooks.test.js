@@ -89,7 +89,7 @@ test("claude -p with a seeded key: the edit is uploaded to the prover as a job",
   // claude -p never renders asyncRewake, so Stop hands the upload to a detached process that can
   // outlive the session: wait for it.
   await waitFor(() => fp.jobRequests().length > before, { timeoutMs: 20000 });
-  assert.ok(fp.jobRequests().length > before, note(s, "no POST /v1/jobs reached the fake prover"));
+  assert.ok(fp.jobRequests().length > before, note(s, "no POST /intent-checks reached the fake prover"));
   const job = fp.jobRequests().at(-1);
   assert.ok(job.units.some((u) => /a\.js$/.test(u.path)), "the written file is in the job");
 });

@@ -11,15 +11,20 @@ import { isInteractiveEntrypoint } from "../lib/config.js";
 function probe(env, files = {}) {
   const data = tmpdir("intent-cfg-");
   for (const [f, v] of Object.entries(files)) fs.writeFileSync(path.join(data, f), JSON.stringify(v));
-  const code = `import(${JSON.stringify(pathToFileURL(path.join(ROOT, "lib", "config.js")).href)}).then((c) => console.log(JSON.stringify({ url: c.apiUrl(), key: c.apiKey(), off: c.disabledReason(), v: c.pluginVersion() })))`;
+  const code = `import(${JSON.stringify(pathToFileURL(path.join(ROOT, "lib", "config.js")).href)}).then((c) => console.log(JSON.stringify({ url: c.apiUrl(), console: c.consoleUrl(), key: c.apiKey(), off: c.disabledReason(), v: c.pluginVersion() })))`;
   const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("INTENT_") && k !== "DO_NOT_TRACK"));
   return JSON.parse(execFileSync(process.execPath, ["-e", code], { env: { ...clean, CLAUDE_PLUGIN_DATA: data, ...env } }).toString());
 }
 
 test("API base: INTENT_API_URL, then config.json api_url, then the compiled default", () => {
-  assert.equal(probe({}).url, "https://check.intentcomputing.org");
+  assert.equal(probe({}).url, "https://prover.intentcomputing.org");
   assert.equal(probe({}, { "config.json": { api_url: "https://cfg.example/" } }).url, "https://cfg.example");
   assert.equal(probe({ INTENT_API_URL: "http://127.0.0.1:1" }, { "config.json": { api_url: "https://cfg.example" } }).url, "http://127.0.0.1:1");
+});
+
+test("console base: INTENT_CONSOLE_URL, then the compiled default", () => {
+  assert.equal(probe({}).console, "https://prover-console.intentcomputing.org");
+  assert.equal(probe({ INTENT_CONSOLE_URL: "https://staging-prover-console.intentcomputing.org/" }).console, "https://staging-prover-console.intentcomputing.org");
 });
 
 test("API key: INTENT_API_KEY, then config.json keys", () => {
