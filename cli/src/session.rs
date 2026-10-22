@@ -27,7 +27,7 @@ pub fn directory(id: Uuid) -> Result<PathBuf> {
 pub fn workspace(session: &Session) -> PathBuf {
     session
         .project_root
-        .join(".prover-client/sessions")
+        .join(".intent-check/sessions")
         .join(session.session_id.to_string())
 }
 

@@ -3,3 +3,4 @@ node_modules/
 *.log
 test/e2e/.runs/
 .worktrees/
+cli/target/

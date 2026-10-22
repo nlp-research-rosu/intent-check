@@ -151,7 +151,7 @@ impl Api {
         write_json(&evidence, "result.json", &snapshot)?;
         let waited = waited.map_err(|error| {
             anyhow!(
-                "Task {id}: {error}; evidence: {}; resume with prover-client task wait {id} --session {}",
+                "Task {id}: {error}; evidence: {}; resume with intent-check task wait {id} --session {}",
                 evidence.display(), session.session_id
             )
         })?;
@@ -484,7 +484,7 @@ impl Api {
         let status = response.status();
         if status == StatusCode::UNAUTHORIZED {
             bail!(
-                "Prover requires a valid API key; run prover-client login and give the user its browser link and code"
+                "Prover requires a valid API key; run intent-check login and give the user its browser link and code"
             );
         }
         let status_error = response.error_for_status_ref().err();

@@ -1,11 +1,11 @@
 [package]
-name = "prover-client"
-version = "0.1.10"
+name = "intent-check"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.89"
 
 [[bin]]
-name = "prover-client"
+name = "intent-check"
 path = "src/main.rs"
 
 [dependencies]

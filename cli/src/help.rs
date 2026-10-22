@@ -1,7 +1,7 @@
-pub const ROOT: &str = r#"The KIT plugin bundles agent skills and the Prover Client CLI.
-Prover Client connects to Prover, the remote server.
-Use `prover-client <command> --help` for options, examples, and result details.
-For nested commands, use e.g. `prover-client session start --help`.
+pub const ROOT: &str = r#"The Intent Check plugin bundles agent skills and the intent-check CLI.
+intent-check connects to Prover, the remote server.
+Use `intent-check <command> --help` for options, examples, and result details.
+For nested commands, use e.g. `intent-check session start --help`.
 
 Use --project <directory> when starting a session; it defaults to the current
 directory. Execution commands use --session <ID>; --project on them asserts
@@ -23,30 +23,30 @@ Argument errors exit 2. Help and version output are plain text.
 
 The budget shows attempts used when Prover accepted this task.
 Other commands can use more attempts while it runs. Use
-`prover-client session show <SESSION_ID>` to see the latest counts.
-Use `prover-client task --help` to inspect or recover accepted tasks without
+`intent-check session show <SESSION_ID>` to see the latest counts.
+Use `intent-check task --help` to inspect or recover accepted tasks without
 submitting again or consuming another attempt.
 
-Use `prover-client config --help` for settings, timeouts, and cancellation behavior."#;
+Use `intent-check config --help` for settings, timeouts, and cancellation behavior."#;
 
-pub const LOGIN: &str = r#"Run `prover-client login` and give the user verification_url.
+pub const LOGIN: &str = r#"Run `intent-check login` and give the user verification_url.
 The link includes the connection code. The user signs in and approves the machine.
 The command keeps running, collects the API key, saves it without printing it,
 and exits with status connected. No user terminal interaction is needed.
 Production server and portal URLs are the defaults. To override them, edit
-config.toml; see `prover-client config --help`.
+config.toml; see `intent-check config --help`.
 
 Credentials are saved in credentials.json beside config.toml, scoped to the
 Prover origin, with mode 600 on Unix. Do not read this file into agent context.
 Config and login output never print a credential. If login expires, is stopped,
-or loses its one-time key response, run prover-client login again."#;
+or loses its one-time key response, run intent-check login again."#;
 
-pub const CONFIG: &str = r#"Run `prover-client config` to see effective settings and the configuration file location.
+pub const CONFIG: &str = r#"Run `intent-check config` to see effective settings and the configuration file location.
 To change settings, edit the TOML configuration file. Its location is the
 first applicable path:
-  $XDG_CONFIG_HOME/prover-client/config.toml
-  %APPDATA%/prover-client/config.toml (Windows)
-  ~/.config/prover-client/config.toml
+  $XDG_CONFIG_HOME/intent-check/config.toml
+  %APPDATA%/intent-check/config.toml (Windows)
+  ~/.config/intent-check/config.toml
 
 Settings:
   server_url                Prover HTTP endpoint.
@@ -70,11 +70,11 @@ Task-status polls retry connection errors, timeouts, and HTTP 408, 429, 500,
 resets this allowance. Authentication errors, invalid JSON and other HTTP
 errors fail immediately. Submissions and cancellation requests are not retried.
 If polling stops, the task may still run. Use task wait to reconnect, not prove
-or validate to resubmit. See `prover-client task --help`.
+or validate to resubmit. See `intent-check task --help`.
 Session counters live in sessions/<ID>/session.json beside config.toml; shared
 language sources live in semantics/<id>/<commit>/ there too.
 The same XDG_CONFIG_HOME / APPDATA / home-directory rules apply to all three.
-Working files and results live in <project>/.prover-client/sessions/<ID>/.
+Working files and results live in <project>/.intent-check/sessions/<ID>/.
 Existing project-local descriptors are left untouched and are not imported.
 
 Cancellation:
@@ -93,15 +93,15 @@ Cancellation:
   in that race.
   The client cancels only this command's task, not other tasks in the session."#;
 
-pub const HEALTH: &str = r#"Example: prover-client health
+pub const HEALTH: &str = r#"Example: intent-check health
 Returns the server health response and exits 0 only when status is ok.
-Use `prover-client config` to inspect the endpoint if the request fails."#;
+Use `intent-check config` to inspect the endpoint if the request fails."#;
 
 pub const TASK: &str = r#"Examples:
-  prover-client task list --status running
-  prover-client task show <TASK_ID>
-  prover-client task wait <TASK_ID> --session <SESSION_ID>
-  prover-client task cancel <TASK_ID>
+  intent-check task list --status running
+  intent-check task show <TASK_ID>
+  intent-check task wait <TASK_ID> --session <SESSION_ID>
+  intent-check task cancel <TASK_ID>
 
 These commands use the configured server and saved credential. They never
 submit a new task or increment any session counter, even at the attempt limit.
@@ -118,7 +118,7 @@ stdout, stderr and metrics without resubmitting. Its output and backend exit
 code follow run, validate or prove; budget reflects current session counts.
 Use it after the original waiting process has stopped. Logs and other remote
 files may already have expired; local evidence cannot reconstruct them.
-Polling and Ctrl-C cancellation follow `prover-client config --help`.
+Polling and Ctrl-C cancellation follow `intent-check config --help`.
 
 Cancel sends one cancellation request and checks confirmation for up to five
 seconds. It returns task and cancellation, including cancellationConfirmed,
@@ -126,15 +126,15 @@ and exits 0 only when terminal cancellation is confirmed. Otherwise it exits
 1; inspect the returned task, which may have completed during cancellation.
 Cancel does not update local evidence; use wait afterward to collect it."#;
 
-pub const SEMANTICS: &str = r#"Example: prover-client semantics
+pub const SEMANTICS: &str = r#"Example: intent-check semantics
 Lists the configured server's current {id, commit} identities.
-Use `prover-client semantics fetch --help` to download and select a revision.
+Use `intent-check semantics fetch --help` to download and select a revision.
 The returned ID selects a language definition for a new session."#;
 
-pub const SEMANTICS_FETCH: &str = r#"Example: prover-client semantics fetch <SEMANTICS_ID>
+pub const SEMANTICS_FETCH: &str = r#"Example: intent-check semantics fetch <SEMANTICS_ID>
 
 Downloads the current bundled sources from the configured Prover's authenticated
-/semantics/<id>/archive endpoint. Run `prover-client login` to connect first.
+/semantics/<id>/archive endpoint. Run `intent-check login` to connect first.
 The ZIP must match the catalog's semantics ID and commit before it is cached.
 Download or extraction failures leave existing cached sources unchanged.
 
@@ -146,9 +146,9 @@ It does not change existing session pins. Unsupported revisions are rejected
 by the server."#;
 
 pub const RUN: &str = r#"Start a session, then use its returned sessionId:
-  prover-client session start --semantics <SEMANTICS_ID>
-  prover-client run --session <SESSION_ID> \
-    --program .prover-client/sessions/<SESSION_ID>/inputs/program
+  intent-check session start --semantics <SEMANTICS_ID>
+  intent-check run --session <SESSION_ID> \
+    --program .intent-check/sessions/<SESSION_ID>/inputs/program
 
 Create session-specific programs in <workspaceDir>/inputs/.
 The program path resolves within the session's projectRoot.
@@ -164,11 +164,11 @@ result and exit code are not overwritten.
 task.result is success or error; the configuration is in saved stdout.
 Evidence is stored under <workspaceDir>/run-NNN/result.json, with inline
 stdout and stderr. The snapshot is updated from acceptance to completion.
-See `prover-client config --help` for timeout and cancellation behavior."#;
+See `intent-check config --help` for timeout and cancellation behavior."#;
 
 pub const SESSION: &str = r#"Examples:
-  prover-client session start --project /absolute/path/to/project --semantics <SEMANTICS_ID>
-  prover-client session show <SESSION_ID>
+  intent-check session start --project /absolute/path/to/project --semantics <SEMANTICS_ID>
+  intent-check session show <SESSION_ID>
 
 Start creates a fresh session ID with zero operation counters.
 The global session.json records only its ID, projectRoot, semantics identity,
@@ -199,7 +199,7 @@ const SOURCE_EXAMPLES: &str = r#"Source examples:
   --spec and --verification include the first two files. Supply both other
   files explicitly, including the indirect dependency lib/math.k:
 
-    prover-client validate --session <SESSION_ID> \
+    intent-check validate --session <SESSION_ID> \
       --spec inputs/spec.k --spec-module SPEC \
       --verification inputs/verification.k --verification-module VERIFICATION \
       --source inputs/helper.k --source inputs/lib/math.k
@@ -207,12 +207,12 @@ const SOURCE_EXAMPLES: &str = r#"Source examples:
   Repeat the same source options when proving; validation does not save an
   upload list for later commands:
 
-    prover-client prove --session <SESSION_ID> \
+    intent-check prove --session <SESSION_ID> \
       --spec inputs/spec.k --spec-module SPEC \
       --verification inputs/verification.k --verification-module VERIFICATION \
       --source inputs/helper.k --source inputs/lib/math.k
 
-  Start with `prover-client session start --semantics <id>` and use its sessionId.
+  Start with `intent-check session start --semantics <id>` and use its sessionId.
   Proof file paths are relative to workspaceDir, not the shell directory.
   This example assumes modules SPEC and VERIFICATION in the named files."#;
 
@@ -241,9 +241,9 @@ Parallel proofs:
   Start separate prove commands without waiting for the first to finish.
   Use the same session ID:
 
-    prover-client prove --session <SESSION_ID> \
+    intent-check prove --session <SESSION_ID> \
       --spec inputs/spec.k --spec-module SPEC --claim SPEC.first
-    prover-client prove --session <SESSION_ID> \
+    intent-check prove --session <SESSION_ID> \
       --spec inputs/spec.k --spec-module SPEC --claim SPEC.second
 
   Both commands count towards the same proof-attempt limit.
@@ -274,10 +274,10 @@ const EVIDENCE: &str = r#"Evidence:
   Task and saved backend evidence remain unchanged.
   CLI budget data is not duplicated in evidence files. Local errors include
   a message with the task ID and evidence location when available.
-  Recover an accepted task with task wait; see `prover-client task --help`.
+  Recover an accepted task with task wait; see `intent-check task --help`.
   A polling failure retains the last task response. A failed log download
   retains previously saved logs and records stdoutError or stderrError.
-  See `prover-client config --help` for timeouts and cancellation details."#;
+  See `intent-check config --help` for timeouts and cancellation details."#;
 
 pub fn validate() -> String {
     format!(

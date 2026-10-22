@@ -13,7 +13,7 @@ use std::{path::PathBuf, process};
 use uuid::Uuid;
 
 #[derive(Parser)]
-#[command(name = "prover-client", version, about = "Prover Client CLI for the remote Prover server", after_help = help::ROOT)]
+#[command(name = "intent-check", version, about = "intent-check CLI for the remote Prover server", after_help = help::ROOT)]
 struct Cli {
     /// Project for a new session; for execution, assert the saved project matches.
     #[arg(long, global = true)]
@@ -61,7 +61,7 @@ enum SemanticsCommand {
     /// Download reference sources for a supported language definition.
     #[command(after_help = help::SEMANTICS_FETCH)]
     Fetch {
-        /// Stable semantics ID returned by prover-client semantics.
+        /// Stable semantics ID returned by intent-check semantics.
         id: String,
     },
 }
