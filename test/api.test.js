@@ -165,14 +165,17 @@ test("the fake prover's task bodies carry the example tasks' fields", async () =
   }
 });
 
-test("an artifact whose hash does not match the task result is skipped, not written", async () => {
+test("an artifact that fails its hash check makes the poll transient, so no half-written unit", async () => {
   fp.state.pollsBeforeDone = 0;
   fp.state.corruptArtifact = true;
   try {
     const s = await api.submitJob(TEST_KEY, body, "corrupt-1");
     const d = await api.getJob(TEST_KEY, s.job_id);
-    assert.equal(d.job.status, "done");
-    assert.deepEqual(d.job.result.units[0].artifacts, {});
+    assert.deepEqual([d.ok, d.status, d.code], [false, 0, "artifact_fetch"]);
+    fp.state.corruptArtifact = false;
+    const again = await api.getJob(TEST_KEY, s.job_id);
+    assert.equal(again.job.status, "done");
+    assert.equal(again.job.result.units[0].artifacts["SPEC.k"], "module SPEC\nendmodule\n");
   } finally { fp.state.corruptArtifact = false; fp.state.pollsBeforeDone = 1; }
 });
 
