@@ -74,7 +74,7 @@ or validate to resubmit. See `intent-check task --help`.
 Session counters live in sessions/<ID>/session.json beside config.toml; shared
 language sources live in semantics/<id>/<commit>/ there too.
 The same XDG_CONFIG_HOME / APPDATA / home-directory rules apply to all three.
-Working files and results live in <project>/.intent-check/sessions/<ID>/.
+Working files and results live in <project>/.intent/prove/sessions/<ID>/.
 Existing project-local descriptors are left untouched and are not imported.
 
 Cancellation:
@@ -148,7 +148,7 @@ by the server."#;
 pub const RUN: &str = r#"Start a session, then use its returned sessionId:
   intent-check session start --semantics <SEMANTICS_ID>
   intent-check run --session <SESSION_ID> \
-    --program .intent-check/sessions/<SESSION_ID>/inputs/program
+    --program .intent/prove/sessions/<SESSION_ID>/inputs/program
 
 Create session-specific programs in <workspaceDir>/inputs/.
 The program path resolves within the session's projectRoot.

@@ -314,7 +314,7 @@ class Tests(unittest.TestCase):
         self.cli("semantics", "fetch", "test")
 
     def test_global_metadata_local_workspace(self):
-        self.assertEqual(self.workspace, self.root / ".intent-check/sessions" / self.session["sessionId"])
+        self.assertEqual(self.workspace, self.root / ".intent/prove/sessions" / self.session["sessionId"])
         self.assertEqual(self.session["projectRoot"], str(self.root))
         self.assertEqual(self.session["semantics"], IDENTITY)
         stored = json.loads((self.data / "sessions" / self.session["sessionId"] / "session.json").read_text())
@@ -330,7 +330,7 @@ class Tests(unittest.TestCase):
         result = self.cli("semantics", "fetch", "test", project=other)
         self.assertEqual(result["sourceDir"], str(self.source))
         self.assertEqual(second["semantics"], self.session["semantics"])
-        self.assertFalse((other / ".intent-check/semantics").exists())
+        self.assertFalse((other / ".intent/prove/semantics").exists())
         self.assertTrue(Path(result["entryFile"]).is_file())
 
     def test_unknown_id_preserves_sessions(self):
@@ -955,7 +955,7 @@ class Tests(unittest.TestCase):
             self.assertEqual(self.show()["attemptsUsed"], 2)
 
     def test_legacy_project_state_untouched(self):
-        legacy = self.root / ".intent-check/session.json"
+        legacy = self.root / ".intent/prove/session.json"
         legacy.write_text('{"legacy":true}')
         self.start()
         self.operation("prove")

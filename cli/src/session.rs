@@ -27,8 +27,18 @@ pub fn directory(id: Uuid) -> Result<PathBuf> {
 pub fn workspace(session: &Session) -> PathBuf {
     session
         .project_root
-        .join(".intent-check/sessions")
+        .join(".intent/prove/sessions")
         .join(session.session_id.to_string())
+}
+
+// Session state is scratch; specs and PROOF.md elsewhere under .intent/ are meant to be committed.
+fn ignore_sessions(session: &Session) -> Result<()> {
+    let dir = session.project_root.join(".intent/prove/sessions");
+    let file = dir.join(".gitignore");
+    if !file.exists() {
+        fs::write(file, "*\n")?;
+    }
+    Ok(())
 }
 
 pub fn start(semantics_id: &str) -> CommandResult {
@@ -43,6 +53,7 @@ pub fn start(semantics_id: &str) -> CommandResult {
     fs::create_dir_all(directory(session.session_id)?.parent().unwrap())?;
     fs::create_dir(directory(session.session_id)?)?;
     fs::create_dir_all(workspace(&session))?;
+    ignore_sessions(&session)?;
     save(&session)?;
     Ok((0, view(&session)?))
 }
