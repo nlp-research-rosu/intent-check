@@ -1,6 +1,11 @@
 # intent-check
 
-The `intent` plugin for Claude Code and Codex. It checks code your agent writes against what you asked for, in the background, and reports concerns with a link to a shareable report.
+The `intent` plugin for Claude Code and Codex. It checks code your agent writes against what you asked for, in the background, and reports concerns with a link to the result in the prover console. It has four modes:
+
+- **check**: reviews each turn that changed code, when the turn ends (`/intent:on`).
+- **live**: also reviews every edit as it happens (`/intent:live`).
+- **deepscan**: a review on demand of files, a folder or the whole repo (`/intent:deepscan`).
+- **prove**: formal proofs with K, for properties a review cannot settle (`/intent:prove`). KIT, the proof engine, runs behind this mode.
 
 Status: private pre-release, under construction.
 
@@ -10,7 +15,7 @@ Automatically, after each turn that changes code with logic (functions, state, c
 
 ## What is sent, and what stays local
 
-After a turn that changes source files, the plugin sends to the Intent Check service:
+After a turn that changes source files, the plugin sends to the prover service:
 
 - your last few prompts in the session (and the first one), the approved plan and todo items, and the agent's final message for the turn
 - the diff of each changed source file and the file itself (large files: only the changed regions)
@@ -19,7 +24,7 @@ After a turn that changes source files, the plugin sends to the Intent Check ser
 
 Obvious secrets (private keys, cloud and API tokens, `KEY=value` lines with random-looking values) are masked on your machine before anything is sent. Files such as `.env*`, `*.pem` and `id_rsa*` are never sent. Tests, styling and markup-only files, generated and vendored code, config and docs are not sent either.
 
-Every upload is listed in `.intent/.sent.log` in your repo (paths, sizes, time, URL; never contents). Results are written to `.intent/`, which is meant to be committed; its README explains how to keep it out of git.
+Every upload is listed in `.intent/.sent.log` in your repo (paths, sizes, time, URL; never contents). Everything the plugin writes in your repo goes under `.intent/`, which is meant to be committed; its README explains how to keep it out of git.
 
 Turn it off with `/intent:off` in Claude Code (back on with `/intent:on` or `/intent:live`), or set `INTENT_DISABLED=1` or `DO_NOT_TRACK=1` on either host. While off, nothing is sent.
 
@@ -43,7 +48,7 @@ claude plugin install intent --marketplace nlp-research-rosu/intent-check
 
 This needs Claude Code 2.1.292 or newer. On an older version, run `claude plugin marketplace add nlp-research-rosu/intent-check` and then `claude plugin install intent@intentcomputing`.
 
-Then restart Claude Code or run `/reload-plugins`. Your first prompt shows a link to connect your account; once you approve it, checks start. If anything looks wrong later, run `/intent:doctor`. The saved key lives in Claude Code's plugin data folder, which is removed when you uninstall the plugin.
+Then restart Claude Code or run `/reload-plugins`. Your first prompt shows a link to sign in to the prover console; once you approve it, checks start. If anything looks wrong later, run `/intent:doctor`. See [Signing in](#signing-in).
 
 ## Commands
 
@@ -53,6 +58,7 @@ Then restart Claude Code or run `/reload-plugins`. Your first prompt shows a lin
 | `/intent:live` | Turns Intent Check on in live mode: every edit is also checked as it happens. |
 | `/intent:off` | Nothing is sent until `/intent:on` or `/intent:live`. |
 | `/intent:deepscan [files or a folder] [fast\|balanced\|full]` | A review on demand: the whole repo, one folder, or specific files. See [DeepScan](#deepscan). |
+| `/intent:prove [what to prove]` | Formal proof with K. See [Prove](#prove). |
 | `/intent:doctor` | Shows the plugin's state and repairs what it can. See below. |
 
 **On and live.** While Intent Check is on, each turn that changed code is reviewed when it ends, and the result arrives as a note. Live mode adds a review of every edit as it happens: each Edit, Write, MultiEdit or Codex `apply_patch` is sent on its own and runs to completion, and files written through shell commands (`Bash`) are found by a background scan of the working tree against the start of the turn. Concerns reach the agent with its next edit or shell command, and anything still running at the end of the turn is picked up there. A file that a live check already covered is not sent again at the end of the turn. Shell-written files need a git repository. `/intent:on` goes back to end-of-turn reviews only.
@@ -61,15 +67,49 @@ The choice is saved in the plugin's `config.json` as `live`. `INTENT_LIVE=1` or 
 
 **Doctor.** `/intent:doctor` prints the version, the service, the account, whether checks are on, the last check and the last error, and then repairs what it can:
 
-- Not connected: it shows a fresh link to connect your account.
+- Not signed in: it shows a fresh sign-in link.
 - The service no longer accepts the saved key: it forgets the key and shows a fresh link.
 - A newer release: the first line names it ("v0.2.3 (v0.2.4 available)"). It reads the release tags of the marketplace the plugin was installed from, so it also works where the plugin cannot update itself.
 - An update: on Claude Code it runs `claude plugin marketplace update` and `claude plugin update` for you, and tells you to run `/reload-plugins` when a new version was installed. Where the `claude` command is not available (the desktop app, for example) it says how to update by hand.
 - Anything only you can fix (checks turned off, an environment variable, no network) is listed as a "To do" line.
 
-To revoke a machine's key, use your account page on the service; uninstalling the plugin removes the saved key from the machine.
+To revoke a machine's key, use the prover console. Uninstalling the plugin does not remove the saved key, because the `intent-check` command shares it; delete `credentials.json` (see below) to sign out.
 
 On Codex, ask the agent ("turn live mode on", "run the Intent Check doctor"); it runs the plugin's `hooks.js live`, `on`, `off` or `doctor`, which may need your approval to write outside the sandbox. Hooks run `node` directly (Node.js 18+ on your PATH).
+
+## Signing in
+
+The first prompt shows one link. Open it in the prover console and approve; the plugin saves the key in `~/.config/intent-check/credentials.json` (`$XDG_CONFIG_HOME/intent-check/` when set, `%APPDATA%\intent-check\` on Windows). Keys are stored per API origin. The standalone `intent-check` command reads the same file, so you sign in once for both.
+
+In the cloud and in CI, where nobody can open a link, set `INTENT_API_KEY` to a key from the prover console. It takes precedence over the saved key.
+
+## Prove
+
+`/intent:prove [what to prove]` proves a program correct with K: partial correctness (if it terminates and the precondition holds, the postcondition holds). The first run downloads the `intent-check` CLI for this plugin version and prints its path; the agent then follows the proof skills (`using-kit` and the skills it points to). On Codex, ask the agent to prove something.
+
+Proof files go under `.intent/prove/<target>/`, one folder per program or function (spec, scope, `PROOF.md`, scripts). Commit them. The CLI's session state is in `.intent/prove/sessions/`; do not commit that folder. Results are shown in the prover console.
+
+## The `intent-check` command
+
+The same CLI the prove mode downloads can be installed on its own, for use outside an agent session. Each release has the binary for macOS, Linux and Windows (x64 and arm64), with checksums, and an installer:
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/nlp-research-rosu/intent-check/releases/latest/download/install-intent-check.sh | sh
+```
+
+On Windows, download `install-intent-check.ps1` from the same release and run it in PowerShell. Then run `intent-check login`, `intent-check health` and `intent-check semantics`.
+
+## Environment variables
+
+| Variable | Effect |
+|---|---|
+| `INTENT_API_URL` | The prover API the plugin and the CLI talk to (default `https://prover.intentcomputing.org`). |
+| `INTENT_CONSOLE_URL` | The prover console that sign-in and result links open in. |
+| `INTENT_API_KEY` | The API key, instead of the saved one. For cloud sessions and CI. |
+| `INTENT_DISABLED=1` | Turns the plugin off; nothing is sent. |
+| `DO_NOT_TRACK=1` | The same. |
+| `INTENT_LIVE=1` or `0` | Sets live mode, overriding the saved choice. |
+| `INTENT_CLI_PATH` | Development only: use this `intent-check` binary instead of downloading one. |
 
 ## Updating
 
@@ -90,11 +130,11 @@ codex plugin add intent@intentcomputing
 
 The Codex IDE extension (VS Code) and the Codex desktop app load the same plugins. Run these commands in a terminal, then restart the extension or app.
 
-Then start `codex` and choose "Trust all and continue" when it says the plugin's hooks need review (or trust them in `/hooks`). Your first prompt shows the link to connect your account.
+Then start `codex` and choose "Trust all and continue" when it says the plugin's hooks need review (or trust them in `/hooks`). Your first prompt shows the link to sign in to the prover console.
 
 Intent Check 0.2.0 updated its edit hook (it now also runs after `apply_patch` and shell commands in live mode). If Codex lists it as Modified, approve it in `/hooks` (or the app's hook review); the first session after the update says so once.
 
-Codex hooks are plain command strings, so the same `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" ...` line serves every OS;
+Codex hooks are plain command strings, so the same `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" ...` line serves every OS.
 - Codex cannot wake an idle session, so concerns reach the agent with your next message (or at the end of the same turn, if the check already finished). Clean checks show one short "no concerns" line the next time you prompt.
 - Codex does not load plugin slash commands. Ask the agent instead ("turn Intent Check off", "turn live mode on", "run the Intent Check doctor"); it runs the plugin's `hooks.js off`, `live` or `doctor`, which may need your approval to write outside the sandbox. `INTENT_DISABLED=1` when starting Codex also turns checks off.
 - To ask for a review, ask the agent to check specific files ("check auth.py with Intent Check"), or for a whole-repo scan, ask for a DeepScan.
@@ -102,12 +142,12 @@ Codex hooks are plain command strings, so the same `node "${CLAUDE_PLUGIN_ROOT}/
 
 ## DeepScan
 
-`/intent:deepscan` is the one command for a review on demand (Codex: ask the agent, it runs `intent deepscan`). What it does depends on what you name:
+`/intent:deepscan` is the one command for a review on demand (Codex: ask the agent, it runs `hooks.js deepscan`). What it does depends on what you name:
 
     /intent:deepscan [files or a folder] [fast|balanced|full]
 
 - **Files** (at most 10): the fast review. The request is queued, runs when the turn ends and takes a few minutes; the result arrives as a note. You can also just ask the agent ("check auth.py with Intent Check"). In a project without git, run it from the project root (the folder the session started in).
-- **Nothing, or one folder**: a scan of the whole repo, or of that part of it, for behaviour that breaks what the code is meant to do. It runs on the service, so it does not hold up your session. Pick a depth:
+- **Nothing, or one folder**: a scan of the whole repo, or of that part of it, for behaviour that breaks what the code is meant to do. It runs on the prover API, so it does not hold up your session. Pick a depth:
 
 | Depth | Takes | Best for |
 |---|---|---|
@@ -119,19 +159,17 @@ For a whole-repo or folder scan:
 
 - What is sent: a snapshot of the files git tracks plus untracked files that are not ignored, as one compressed upload. Left out: files git ignores, binary files, lockfiles, vendored and generated folders (node_modules, vendor, dist, build, ...), files over 512 KB, and anything that looks like a secrets file. Obvious secrets inside the files are masked first. The limits are 3000 files and 15 MB of text; when a repo is larger, the least relevant files are dropped first and the command says so. Name a folder to scan one part of a big repo.
 - DeepScan reads your code, not Intent Check's own `.intent/` results (except `.intent/NOTES.md`).
-- The upload is listed in `.intent/.sent.log` (paths and sizes, never contents). Intent Check must be on and connected; `INTENT_DISABLED=1` stops DeepScan too.
+- The upload is listed in `.intent/.sent.log` (paths and sizes, never contents). Intent Check must be on and signed in; `INTENT_DISABLED=1` stops DeepScan too.
 - The command prints the report link and returns. When the scan finishes, a short summary with the top findings appears at your next message in that repo (also in a new session), once. The link shows the full report and live progress.
 - Findings are flagged, not reproduced. Ask the agent to reproduce the ones you care about.
 
 Earlier versions had a separate `check` command for files, and `--depth` and `--scope` flags; both are now plain arguments of `deepscan`.
 
-## Reports
-
-Results open in the prover console, at the link Intent Check shows with each result.
-
 ## Development
 
 - Zero runtime dependencies. Plain ESM JavaScript, Node 18 syntax.
 - `npm test` (node:test). `npm run test:integration` runs the real `claude -p` and `codex exec` against a mock model API and the fake prover (no LLM, no secrets; skips a CLI that is not installed); CI runs it on Linux, macOS and Windows. `test/e2e/claude-e2e.sh` drives a real Claude Code session through tmux; `test/e2e/codex-e2e.sh` runs `codex exec` in an isolated `CODEX_HOME`.
-- Config: `INTENT_API_URL` overrides the service URL, `INTENT_API_KEY` the saved key. `INTENT_DEBUG=1` adds one line per hook call to `intent.log` in the plugin data folder. Test-only: `INTENT_PIPELINE=llm|canned` (honoured only where the server allows overrides), `INTENT_DEEPSCAN_POLL_MS` and `INTENT_DEEPSCAN_BUSY_MS` (waits in tests).
+- Backend: the prover API (`nlp-research-rosu/prover`). Its `openapi.yaml` is the contract; `test/helpers/fake-prover.js` mirrors it for tests.
+- CLI: `cli/` (Rust). `cargo fmt --check`, `cargo clippy --locked -- -D warnings`, `cargo test --locked`, and the scripts in `cli/tests/` (each takes the binary path).
+- `INTENT_DEBUG=1` adds one line per hook call to `intent.log` in the plugin data folder. Test-only: `INTENT_PIPELINE=llm|canned` (honoured only where the server allows overrides), `INTENT_DEEPSCAN_POLL_MS` and `INTENT_DEEPSCAN_BUSY_MS` (waits in tests).
 - `NOTICE` lists the Apache-2.0 code this plugin ports from Anthropic's security-guidance plugin.
