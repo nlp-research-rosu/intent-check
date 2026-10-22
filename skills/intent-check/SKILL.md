@@ -17,6 +17,7 @@ Claude Code has five slash commands. Each runs one subcommand of the plugin's sc
 | `/intent:live` | `live` | Turns checks on in live mode: every edit is also reviewed as it happens. |
 | `/intent:off` | `off` | Nothing is sent until `on` or `live`. |
 | `/intent:deepscan` | `deepscan [files or a folder] [fast\|balanced\|full]` | A review on demand (below). |
+| `/intent:prove` | `prove` | Gets the `intent-check` CLI (downloaded once per plugin version) and prints its path. Then follow the `using-kit` skill for formal proofs with K. |
 | `/intent:doctor` | `doctor` | Says what state the plugin is in and repairs what it can: connects the account, replaces a rejected key, updates the plugin. |
 
 Run a subcommand with:
