@@ -174,7 +174,7 @@ recover:
 - Consider focused claims before the unfiltered run, so one stuck task costs
   one server execution limit, not the session.
 - On every `proved`, copy the exact submitted `spec.k` and `verification.k`
-  aside as the proved snapshot. Deliver files byte-identical to the latest
+  aside as the proved snapshot, in `.intent/prove/<target>/`. Deliver files byte-identical to the latest
   snapshot. Make no edit after the last proved check; if an edit cannot be
   proved again before the deadline, restore the snapshot.
 - If a cap suggests a mismatch between execution and the claim, concrete

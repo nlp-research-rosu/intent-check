@@ -33,7 +33,8 @@ the shared reference sources. Create `workspaceDir/inputs/` for session input
 files: `spec.k`, `verification.k`, local dependencies, and concrete test
 programs.
 Keep reports, scripts, and operation results outside `inputs/`; the original
-program stays in the project. Pass the session ID to each live command; command
+program stays in the project. Your own files (`spec.k`, `verification.k`,
+`SCOPE.md`, `prove.sh`, `PROOF.md`) go in `.intent/prove/<target>/`. Pass the session ID to each live command; command
 help defines input paths. `intent-check run --program` takes a path relative to
 the
 session's project directory, not an absolute path.

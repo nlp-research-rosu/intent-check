@@ -50,7 +50,8 @@ value to the user without evidence. Changes apply to all sessions using that
 configuration; each session tracks its own attempt counts.
 
 Session counters and downloaded semantics are stored beside the configuration.
-Working files and results live under the project's `.intent-check/sessions/`.
+Session state (working files and results) lives under the project's
+`.intent/prove/sessions/<id>/`; it is not meant to be committed.
 `intent-check session show <ID>` reports a session's paths and counters.
 
 ## Attempt limits

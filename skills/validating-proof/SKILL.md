@@ -250,6 +250,8 @@ review or replay; disclose the assurance measures actually performed.
 
 ## Write PROOF.md
 
+Write it to `.intent/prove/<target>/PROOF.md`, beside `spec.k` and `prove.sh`.
+
 Begin with the exact status. Include, in order: what is proven; formal claim;
 proof-extension inventory; exact commands and actual outputs; per-gate results;
 trust boundary; empirically supported facts; and excluded behavior.

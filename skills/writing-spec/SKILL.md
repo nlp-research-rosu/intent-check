@@ -8,7 +8,8 @@ description: 'Use for formal proofs with K: draft or revise K reachability claim
 This stage states the theorem. It produces three artifacts: `spec.k`
 (the reachability claims), the `VERIFICATION-SUMMARIES` module of
 `verification.k` (the summary definitions the claims reference), and
-`SCOPE.md` (the scope record the spec audit reads).
+`SCOPE.md` (the scope record the spec audit reads). Write all three in
+`.intent/prove/<target>/`.
 
 `spec.k` and `verification.k` compile against the immutable semantics selected
 by the session ID. Inspect it with `intent-check session show` first:

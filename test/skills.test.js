@@ -28,6 +28,10 @@ test("skills: KIT skills are scoped to formal proofs with K and leave review to 
   }
 });
 
+test("skills and prove.md: no .intent-check/ project path (the project folder is .intent/prove/)", () => {
+  for (const f of [...mdFiles(SKILLS), path.join(ROOT, "commands", "prove.md")]) assert.doesNotMatch(fs.readFileSync(f, "utf8"), /(^|[^/\w])\.intent-check\//, f);
+});
+
 test("skills: no prover-client left, and relative markdown links resolve", () => {
   for (const f of mdFiles(SKILLS)) {
     const src = fs.readFileSync(f, "utf8");

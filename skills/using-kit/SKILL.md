@@ -14,6 +14,15 @@ semantics. Choose a proof strategy suited to the target, inspect the
 resulting evidence, and address gaps within the available budget. Report
 what is proved, what depends on assumptions, and what remains unresolved.
 
+## Where files go
+
+Everything you write for a proof lives in `.intent/prove/<target>/`, one folder
+per program or function being proved. Pick a short kebab-case name, for example
+`.intent/prove/should-strip-auth/`. Put `spec.k`, `verification.k`, `SCOPE.md`,
+`prove.sh`, `PROOF.md`, the program copy and any differential test there. These
+files are meant to be committed; the CLI's session state in
+`.intent/prove/sessions/` is not.
+
 ## Start live verification
 
 Live verification is the default. Run `node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" prove --data "${CLAUDE_PLUGIN_DATA}"` first (if you cannot, ask the user to run
