@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { symlink, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, readSessionFiles, waitFor, BIN, ROOT } from "./helpers/env.js";
+import { symlink, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, readSessionFiles, waitFor, BIN, ROOT, xdgDir } from "./helpers/env.js";
 import { writeUnit, syncUnits } from "../lib/intentdir.js";
 import { redact } from "../lib/redact.js";
 import { sanitize } from "../lib/render.js";
@@ -30,7 +30,7 @@ function setup({ key = true, git = true, env = {} } = {}) {
 function cli(args, cwd, data, extraEnv = {}) {
   return new Promise((resolve) => {
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("CLAUDE_") && !k.startsWith("INTENT_") && k !== "DO_NOT_TRACK"));
-    const c = spawn(process.execPath, [BIN, "deepscan", ...args, "--data", data], { cwd, env: { ...env, HOME: tmpdir("intent-home-"), INTENT_API_URL: fp.url, ...extraEnv } });
+    const c = spawn(process.execPath, [BIN, "deepscan", ...args, "--data", data], { cwd, env: { ...env, HOME: tmpdir("intent-home-"), XDG_CONFIG_HOME: xdgDir(data), INTENT_API_URL: fp.url, ...extraEnv } });
     let out = "";
     c.stdout.on("data", (d) => { out += d; });
     c.on("close", () => resolve(out.trim()));
@@ -91,8 +91,10 @@ test("4. intent deepscan <files> says so when off, not connected or paused, and 
   fs.writeFileSync(path.join(paused.repo, "a.py"), "A = 1\n");
   const { pause } = await import("../lib/pause.js");
   process.env.CLAUDE_PLUGIN_DATA = paused.data;
+  process.env.XDG_CONFIG_HOME = xdgDir(paused.data);
   pause(TEST_KEY, 401);
   delete process.env.CLAUDE_PLUGIN_DATA;
+  delete process.env.XDG_CONFIG_HOME;
   assert.match(await cli(["a.py"], paused.repo, paused.data), /paused/);
   for (const c of [off, nokey, paused]) assert.equal(queueFiles(c.repo).length, 0);
   // Queued while on, then turned off: the Stop discards it.

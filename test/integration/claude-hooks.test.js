@@ -44,6 +44,7 @@ async function session({ key = null, prompt = "write the file" } = {}) {
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
     DISABLE_AUTOUPDATER: "1",
     INTENT_API_URL: fp.url,
+    INTENT_CONSOLE_URL: fp.url,
     ...(key ? { INTENT_API_KEY: key } : {}),
   });
   const args = ["-p", prompt, "--plugin-dir", ROOT, "--permission-mode", "acceptEdits", "--output-format", "stream-json", "--verbose", "--include-hook-events"];
@@ -78,7 +79,7 @@ test("claude -p without a key: every hook runs, the connect note reaches the mod
   assert.match(s.mockBodies, /Intent Check is not connected, so nothing is checked; the user can connect at/, note(s, "connect note missing from the model request"));
   assert.doesNotMatch(s.mockBodies, /do not start on their request until they reply/, "headless gets the soft note, not the wait gate");
   assert.equal(fp.jobRequests().length, 0);
-  assert.ok(fp.state.requests.some((q) => q.method === "POST" && q.path === "/v1/connect"), "SessionStart asked the service for a connect link");
+  assert.ok(fp.state.requests.some((q) => q.method === "POST" && q.path === "/api/cli-connect"), "SessionStart asked the service for a connect link");
 });
 
 test("claude -p with a seeded key: the edit is uploaded to the prover as a job", { skip, timeout: 60000 }, async () => {

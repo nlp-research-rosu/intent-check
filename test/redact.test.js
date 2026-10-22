@@ -1,4 +1,7 @@
 import { test } from "node:test";
+import fs from "node:fs";
+import path from "node:path";
+import { tmpdir } from "./helpers/env.js";
 import assert from "node:assert/strict";
 import { redact, neverUpload } from "../lib/redact.js";
 
@@ -6,7 +9,6 @@ import { redact, neverUpload } from "../lib/redact.js";
 const rep = (c, n) => c.repeat(n);
 const SECRETS = {
   "private-key": ["-----BEGIN RSA PRIVATE KEY-----", "MIIEowIBAAKCAQEA" + rep("x", 40), rep("y", 60), "-----END RSA PRIVATE KEY-----"].join("\n"),
-  "intent-key": "ic_" + rep("Q", 32) + "Zx9Yw8",
   "aws-key": "AKIA" + "QWERTYUIOPASDFGH",
   "github-token": "ghp_" + "aB3dE5fG7hI9jK1lM3nO5pQ7rS9tU1vW3xY5",
   "anthropic-key": "sk-ant-api03-" + rep("Ab1_", 22),
@@ -29,6 +31,24 @@ for (const [rule, secret] of Object.entries(SECRETS)) {
     assert.match(text, /‹redacted:/);
   });
 }
+
+// Service keys are opaque, so the stored values themselves are masked wherever they appear.
+test("redacts the exact keys this machine holds (environment and credentials file), whatever their shape", () => {
+  const dir = tmpdir("intent-redact-");
+  fs.mkdirSync(path.join(dir, "intent-check"));
+  fs.writeFileSync(path.join(dir, "intent-check", "credentials.json"), JSON.stringify({ keys: { "https://a.test": "plain-opaque-key-1", "https://b.test": "short" } }), { mode: 0o600 });
+  const keep = { x: process.env.XDG_CONFIG_HOME, k: process.env.INTENT_API_KEY };
+  process.env.XDG_CONFIG_HOME = dir;
+  process.env.INTENT_API_KEY = "another opaque value";
+  try {
+    const input = "a = plain-opaque-key-1\nb = another opaque value\nc = short\nd = plain-opaque-key-1\n";
+    const { text, count } = redact(input);
+    assert.equal(count, 3);
+    assert.equal(text, "a = ‹redacted:intent-key›\nb = ‹redacted:intent-key›\nc = short\nd = ‹redacted:intent-key›\n", "values under 8 characters are left alone");
+  } finally {
+    for (const [k, v] of [["XDG_CONFIG_HOME", keep.x], ["INTENT_API_KEY", keep.k]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
+});
 
 test("redacts the password in a URL but keeps the host", () => {
   const { text } = redact('DB = "postgres://admin:s3cr3tP4ss@db.internal:5432/app"');

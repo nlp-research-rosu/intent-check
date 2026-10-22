@@ -4,7 +4,6 @@
   "title": "Intent Check job API, contract v1",
   "description": "Shared by the intent plugin and the prover. Changes are additive only.",
   "$defs": {
-    "ApiKey": { "type": "string", "pattern": "^ic_[A-Za-z0-9]{38}$" },
     "Host": { "enum": ["claude-code", "codex"] },
     "Mode": { "enum": ["edit", "request", "repo"] },
     "Verdict": { "enum": ["no_concerns", "concerns"] },
@@ -173,66 +172,12 @@
         "agent_concerns": { "type": "array", "items": { "$ref": "#/$defs/AgentConcern" } },
         "units": { "type": "array", "items": { "$ref": "#/$defs/UnitResult" } }
       }
-    },
-
-
-    "ConnectStart": {
-      "description": "POST /v1/connect request body (no auth, per-IP limited).",
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["host", "host_version", "plugin_version", "os"],
-      "properties": {
-        "host": { "$ref": "#/$defs/Host" },
-        "host_version": { "type": "string", "maxLength": 40 },
-        "plugin_version": { "type": "string", "maxLength": 40 },
-        "os": { "type": "string", "maxLength": 20 },
-        "machine_name": { "type": ["string", "null"], "maxLength": 80 }
-      }
-    },
-
-    "ConnectCreated": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["device_code", "user_code", "verification_url", "expires_in", "interval"],
-      "properties": {
-        "device_code": { "description": "Secret; only the plugin knows it. Used to poll.", "type": "string", "pattern": "^[A-Za-z0-9]{32}$" },
-        "user_code": { "description": "Short code shown in the URL and on the approve page, e.g. KDRT-MWQX.", "type": "string", "pattern": "^[A-Z]{4}-[A-Z]{4}$" },
-        "verification_url": { "type": "string", "format": "uri" },
-        "expires_in": { "type": "integer", "description": "Seconds." },
-        "interval": { "type": "integer", "description": "Minimum poll interval in seconds." }
-      }
-    },
-
-    "ConnectPoll": {
-      "description": "GET /v1/connect/{device_code}. api_key is returned exactly once, on the first poll after approval; later polls return consumed.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["status"],
-      "properties": {
-        "status": { "enum": ["pending", "approved", "denied", "expired", "consumed"] },
-        "api_key": { "$ref": "#/$defs/ApiKey" },
-        "handle": { "description": "Handle of the approving account; sent with api_key. Same value as account.handle.", "type": "string", "maxLength": 120 },
-        "account": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["handle"],
-          "properties": { "handle": { "type": "string", "maxLength": 120 } }
-        }
-      }
-    },
-
-    "Me": {
-      "description": "GET /v1/me (Bearer): who the calling key belongs to.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["handle", "machine_name", "key_last4", "environment"],
-      "properties": {
-        "handle": { "type": "string", "maxLength": 120 },
-        "machine_name": { "type": ["string", "null"], "maxLength": 80 },
-        "key_last4": { "type": "string", "minLength": 4, "maxLength": 4 },
-        "environment": { "description": "Deployment the key is for, e.g. production or staging.", "type": "string", "maxLength": 40 }
-      }
     }
+
+
+
+
+
 
 
   }

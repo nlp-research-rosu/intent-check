@@ -7,12 +7,6 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const fx = join(root, "test", "fixtures", "api");
 
-test("api key redaction regex catches an example key", () => {
-  const c = JSON.parse(readFileSync(join(root, "lib", "constants.json"), "utf8"));
-  const key = JSON.parse(readFileSync(join(fx, "examples", "connect-approved.json"), "utf8")).api_key;
-  assert.match(`INTENT_API_KEY=${key}`, new RegExp(c.api_key.redaction_regex));
-});
-
 test("JobRequest declares per_edit, the boolean per-edit bodies send", () => {
   const schema = JSON.parse(readFileSync(join(fx, "job-v1.schema.json"), "utf8"));
   const req = schema.$defs.JobRequest;

@@ -162,8 +162,8 @@ test("not connected: the connect link arrives as context (Codex shows it), host 
   const r = await run("prompt", cfx("prompt", ctx.repo, ctx.transcript), ctx.env, { hostFlag: false });
   assert.equal(r.stdout, "", "the prompt hook only reads; the request is made by a detached child");
   assert.ok(await waitFor(() => fs.existsSync(path.join(ctx.data, "connect.json")), { timeoutMs: 10000 }));
-  const start = fp.state.requests.slice(n).find((x) => x.path === "/v1/connect");
-  assert.equal(start.body.host, "codex");
+  const start = fp.state.requests.slice(n).find((x) => x.path === "/api/cli-connect");
+  assert.deepEqual(start.body, { action: "start" });
   const r2 = await run("prompt", cfx("prompt", ctx.repo, ctx.transcript), ctx.env, { hostFlag: false });
   assert.equal(r2.json.systemMessage, undefined);
   assert.match(r2.json.hookSpecificOutput.additionalContext, /connect your account → http/);

@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, readSessionFiles, saveKey, waitFor, sleep, BIN, ROOT } from "./helpers/env.js";
+import { QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, readSessionFiles, saveKey, savedKey, waitFor, sleep, BIN, ROOT } from "./helpers/env.js";
 import { validateDef } from "./helpers/schema.js";
 
 const PRICING = "# pricing.py\ndef apply_discount(price_cents: int, percent: int) -> int:\n    return price_cents - price_cents * percent // 100\n";
@@ -238,11 +238,10 @@ test("spend cap (429): nothing during the turn, one user-visible line at the nex
 
 test("a rejected saved key (401) is dropped, so the next prompt offers the connect link", async () => {
   const ctx = setup();
-  fs.writeFileSync(path.join(ctx.data, "config.json"), JSON.stringify({ keys: { [fp.url]: "ic_" + "Z".repeat(38) } }));
+  saveKey(ctx.data, "ak_wrong_" + "Z".repeat(30), fp.url);
   const r = await turn(ctx, { "pricing.py": PRICING });
   assert.equal(r.code, 0);
-  const cfg = JSON.parse(fs.readFileSync(path.join(ctx.data, "config.json"), "utf8"));
-  assert.ok(!cfg.keys || !cfg.keys[fp.url], "no per-service key");
+  assert.ok(await waitFor(() => !savedKey(ctx.data, fp.url)), "the rejected key is gone from the credentials file");
   const cfile = path.join(ctx.data, "connect.json");
   assert.ok(await waitFor(() => fs.existsSync(cfile) && JSON.parse(fs.readFileSync(cfile, "utf8")).status === "pending", { timeoutMs: 10000 }));
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "ok" }), ctx.env);
@@ -272,14 +271,10 @@ for (const [name, env, off] of [["INTENT_DISABLED=1", { INTENT_DISABLED: "1" }, 
       assert.match(o.stdout, /Intent Check is off/);
     }
     // Connect pollers left running by other tests' data dirs are not ours; count everything else.
-    const ours = () => fp.state.requests.filter((x) => !(x.method === "GET" && x.path.startsWith("/v1/connect/"))).length;
+    const ours = () => fp.state.requests.filter((x) => x.path !== "/api/cli-connect").length;
     const n = ours();
     const s = await runHook("session-start", fixture("session-start", ctx.repo), ctx.env);
     saveKey(ctx.data, TEST_KEY, fp.url);
-    if (off) {
-      const c = JSON.parse(fs.readFileSync(path.join(ctx.data, "config.json"), "utf8"));
-      fs.writeFileSync(path.join(ctx.data, "config.json"), JSON.stringify({ ...c, disabled: true }));
-    }
     const r = await turn(ctx, { "pricing.py": PRICING });
     assert.equal(s.stdout + r.stdout + r.stderr, "");
     assert.equal(r.code, 0);

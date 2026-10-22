@@ -2,7 +2,7 @@
 # Live end-to-end test of the intent plugin in a real interactive Claude Code session, driven
 # through tmux. For the orchestrator (Gate A); it is not part of `npm test`.
 #
-#   INTENT_API_URL=https://web-staging-7e1c.up.railway.app E2E_APPROVE_SECRET=... test/e2e/claude-e2e.sh
+#   INTENT_API_URL=https://staging-prover.intentcomputing.org INTENT_CONSOLE_URL=https://staging-prover-console.intentcomputing.org E2E_APPROVE_CMD='...' test/e2e/claude-e2e.sh
 #
 # Staging runs the canned pipeline, which reports a concern only for the apply_discount bug
 # without a clamp (or the marker intent-check:seed-bug), so the seeded edit below triggers it and
@@ -16,8 +16,8 @@
 # Env:
 #   INTENT_API_URL       required. A 127.0.0.1 URL means the fake prover (test/helpers/fake-prover.js).
 #   INTENT_CONSOLE_URL   where report links point; defaults to INTENT_API_URL (right for the fake prover only).
-#   E2E_APPROVE_SECRET   required unless the fake prover is used (POST /v1/e2e/approve/<user_code>, X-E2E-Secret).
-#   E2E_APPROVE_CMD      optional shell command that approves $USER_CODE (overrides the default below).
+#   E2E_APPROVE_CMD      required unless the fake prover is used: a shell command that approves $USER_CODE
+#                        in the console (a Clerk-signed-in action; staging needs a Clerk account).
 #   INTENT_PIPELINE      optional: canned (default here) or llm, sent as X-Intent-Pipeline.
 #   MODEL                default haiku.  PLUGIN_DIR  default: this repo.  KEEP=1 keeps the work dir.
 #
@@ -33,7 +33,7 @@ PLUGIN_DIR="${PLUGIN_DIR:-$(cd "$HERE/../.." && pwd)}"
 export INTENT_PIPELINE="${INTENT_PIPELINE:-canned}"
 FAKE=0
 case "$INTENT_API_URL" in http://127.0.0.1:*|http://localhost:*) FAKE=1 ;; esac
-if [ "$FAKE" = 0 ]; then : "${E2E_APPROVE_SECRET:?set E2E_APPROVE_SECRET}"; fi
+if [ "$FAKE" = 0 ]; then : "${E2E_APPROVE_CMD:?set E2E_APPROVE_CMD}"; fi
 
 S="intent-e2e-$$"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/intent-e2e-XXXXXX")"
@@ -66,13 +66,7 @@ trap cleanup EXIT
 approve() {
   local code=$1
   if [ -n "${E2E_APPROVE_CMD:-}" ]; then USER_CODE="$code" bash -c "$E2E_APPROVE_CMD"; return; fi
-  if [ "$FAKE" = 1 ]; then
-    curl -fsS -X POST "$INTENT_API_URL/_control" -H 'content-type: application/json' -d '{"connectApproved":true}' >/dev/null
-  else
-    # Staging-only approve route: creates or reuses an e2e account and approves the connect request.
-    curl -fsS -X POST "$INTENT_API_URL/v1/e2e/approve/$code" -H "X-E2E-Secret: $E2E_APPROVE_SECRET" \
-      -H 'content-type: application/json' -d '{"handle":"e2e"}' >/dev/null
-  fi
+  curl -fsS -X POST "$INTENT_API_URL/_control" -H 'content-type: application/json' -d '{"connectApproved":true}' >/dev/null
 }
 
 mkdir -p "$REPO"
@@ -80,11 +74,11 @@ git -C "$REPO" init -q
 printf '# e2e\n' > "$REPO/README.md"
 git -C "$REPO" add -A
 git -C "$REPO" -c user.email=e2e@example.com -c user.name=e2e commit -qm init
-rm -f "$DATA/config.json" "$DATA/connect.json" 2>/dev/null || true
+rm -f "$DATA/connect.json" 2>/dev/null || true
 
 log "starting claude in tmux session $S (plugin: $PLUGIN_DIR, api: $INTENT_API_URL)"
 tmux new-session -d -s "$S" -x 220 -y 60 \
-  "cd '$REPO' && INTENT_API_URL='$INTENT_API_URL' INTENT_CONSOLE_URL='${INTENT_CONSOLE_URL:-$INTENT_API_URL}' INTENT_PIPELINE='$INTENT_PIPELINE' claude --plugin-dir '$PLUGIN_DIR' \
+  "cd '$REPO' && XDG_CONFIG_HOME='$WORK/xdg' INTENT_API_URL='$INTENT_API_URL' INTENT_CONSOLE_URL='${INTENT_CONSOLE_URL:-$INTENT_API_URL}' INTENT_PIPELINE='$INTENT_PIPELINE' claude --plugin-dir '$PLUGIN_DIR' \
    --settings '{\"enabledPlugins\":{\"security-guidance@claude-plugins-official\":false}}' --model '$MODEL' --permission-mode acceptEdits; sleep 600"
 
 # Folder-trust dialog, then the input box.
@@ -105,8 +99,9 @@ USER_CODE="$(node -e 'try{console.log(JSON.parse(require("fs").readFileSync(proc
 
 # 2. Approve and wait for the key.
 approve "$USER_CODE" || bad "approve command failed"
-if wait_for 60 grep -q '"keys"' "$DATA/config.json" 2>/dev/null; then ok "key saved by the background poller"; else bad "key not saved"; fi
-[ "$(stat -c %a "$DATA/config.json" 2>/dev/null || stat -f %Lp "$DATA/config.json")" = 600 ] && ok "config.json is mode 600" || bad "config.json mode"
+CRED="$WORK/xdg/intent-check/credentials.json"
+if wait_for 60 grep -q '"keys"' "$CRED" 2>/dev/null; then ok "key saved by the background poller"; else bad "key not saved"; fi
+[ "$(stat -c %a "$CRED" 2>/dev/null || stat -f %Lp "$CRED")" = 600 ] && ok "credentials.json is mode 600" || bad "credentials.json mode"
 send "Reply with just: ready"
 if wait_for 60 pane_has 'Intent Check: connected\.'; then ok "connected line shown"; else bad "connected line not visible"; fi
 

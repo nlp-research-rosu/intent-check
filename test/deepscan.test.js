@@ -8,7 +8,7 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { symlink, SKIP_FILE_SYMLINKS, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT } from "./helpers/env.js";
+import { symlink, SKIP_FILE_SYMLINKS, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT, xdgDir } from "./helpers/env.js";
 import { validateDeepscan } from "./helpers/schema.js";
 import { C } from "../lib/config.js";
 import { buildSnapshot, normaliseRemote, pathReason, isIntentOutput, byPriority, tierOf, decodeText, unstorable } from "../lib/snapshot.js";
@@ -43,7 +43,7 @@ function setup({ key = true } = {}) {
 // Run the CLI the way an agent's shell would.
 function cli(args, ctx, extraEnv = {}) {
   return new Promise((resolve) => {
-    const env = { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("CLAUDE_") && !k.startsWith("INTENT_") && k !== "PLUGIN_ROOT")), HOME: tmpdir("intent-home-"), INTENT_API_URL: fp.url, INTENT_CONSOLE_URL: fp.url, INTENT_DEEPSCAN_POLL_MS: "50", INTENT_DEEPSCAN_BUSY_MS: "20", ...extraEnv };
+    const env = { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("CLAUDE_") && !k.startsWith("INTENT_") && k !== "PLUGIN_ROOT")), HOME: tmpdir("intent-home-"), XDG_CONFIG_HOME: xdgDir(ctx.data), INTENT_API_URL: fp.url, INTENT_CONSOLE_URL: fp.url, INTENT_DEEPSCAN_POLL_MS: "50", INTENT_DEEPSCAN_BUSY_MS: "20", ...extraEnv };
     const c = spawn(process.execPath, [BIN, "deepscan", ...args, "--data", ctx.data], { cwd: ctx.repo, env });
     let out = "";
     c.stdout.on("data", (d) => { out += d; });
@@ -429,9 +429,10 @@ const getsFor = (id) => fp.state.requests.filter((x) => x.method === "GET" && x.
 
 // Run the in-process delivery against a data dir.
 async function inProcess(ctx, fn, extra = {}) {
-  const keys = ["CLAUDE_PLUGIN_DATA", "INTENT_API_URL", ...Object.keys(extra)];
+  const keys = ["CLAUDE_PLUGIN_DATA", "XDG_CONFIG_HOME", "INTENT_API_URL", ...Object.keys(extra)];
   const keep = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
   process.env.CLAUDE_PLUGIN_DATA = ctx.data;
+  process.env.XDG_CONFIG_HOME = xdgDir(ctx.data);
   process.env.INTENT_API_URL = fp.url;
   Object.assign(process.env, extra);
   try { return await fn(); } finally {

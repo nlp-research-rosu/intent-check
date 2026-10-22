@@ -8,10 +8,12 @@ import { tmpdir, ROOT } from "./helpers/env.js";
 import { isInteractiveEntrypoint } from "../lib/config.js";
 
 // Evaluate config in a child process so env changes do not leak between cases.
-function probe(env, files = {}) {
+function probe({ XDG, ...env }, files = {}, setup = null) {
   const data = tmpdir("intent-cfg-");
   for (const [f, v] of Object.entries(files)) fs.writeFileSync(path.join(data, f), JSON.stringify(v));
-  const code = `import(${JSON.stringify(pathToFileURL(path.join(ROOT, "lib", "config.js")).href)}).then((c) => console.log(JSON.stringify({ url: c.apiUrl(), console: c.consoleUrl(), key: c.apiKey(), off: c.disabledReason(), v: c.pluginVersion() })))`;
+  if (setup) setup(data);
+  if (XDG) env = { ...env, XDG_CONFIG_HOME: path.join(data, "xdg") };
+  const code = `import(${JSON.stringify(pathToFileURL(path.join(ROOT, "lib", "config.js")).href)}).then((c) => console.log(JSON.stringify({ url: c.apiUrl(), console: c.consoleUrl(), key: c.apiKey(), problem: c.credentialsProblem(), off: c.disabledReason(), v: c.pluginVersion() })))`;
   const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("INTENT_") && k !== "DO_NOT_TRACK"));
   return JSON.parse(execFileSync(process.execPath, ["-e", code], { env: { ...clean, CLAUDE_PLUGIN_DATA: data, ...env } }).toString());
 }
@@ -27,18 +29,40 @@ test("console base: INTENT_CONSOLE_URL, then the compiled default", () => {
   assert.equal(probe({ INTENT_CONSOLE_URL: "https://staging-prover-console.intentcomputing.org/" }).console, "https://staging-prover-console.intentcomputing.org");
 });
 
-test("API key: INTENT_API_KEY, then config.json keys", () => {
-  assert.deepEqual(probe({}).key, { key: null, source: null });
-  assert.deepEqual(probe({ INTENT_API_KEY: "ic_env" }).key, { key: "ic_env", source: "env" });
+const creds = (keys, mode = 0o600) => (dir) => {
+  fs.mkdirSync(path.join(dir, "xdg", "intent-check"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "xdg", "intent-check", "credentials.json"), JSON.stringify({ keys }), { mode });
+};
+
+test("API key: INTENT_API_KEY, then the credentials file entry for the API origin", () => {
+  const u = "http://127.0.0.1:1";
+  const files = creds({ [u]: "opaque-one", "http://other": "opaque-two" });
+  const at = (env, f) => probe({ XDG: true, ...env }, {}, f).key;
+  assert.deepEqual(at({}), { key: null, source: null });
+  assert.deepEqual(at({ INTENT_API_URL: u }, files), { key: "opaque-one", source: "file" });
+  assert.deepEqual(at({ INTENT_API_URL: `${u}/` }, files), { key: "opaque-one", source: "file" }, "keyed by origin");
+  assert.deepEqual(at({ INTENT_API_URL: "http://third" }, files), { key: null, source: null });
+  assert.deepEqual(at({ INTENT_API_URL: u, INTENT_API_KEY: "from-env" }, files), { key: "from-env", source: "env" });
 });
 
-test("API key is per service: keys[api_url], env still wins", () => {
+test("a credentials file others can read is not used, and the problem is named", { skip: process.platform === "win32" }, () => {
   const u = "http://127.0.0.1:1";
-  const files = { "config.json": { keys: { [u]: "ic_one", "http://other": "ic_two" } } };
-  assert.deepEqual(probe({ INTENT_API_URL: u }, files).key, { key: "ic_one", source: "config" });
-  assert.deepEqual(probe({ INTENT_API_URL: "http://other" }, files).key, { key: "ic_two", source: "config" });
-  assert.deepEqual(probe({ INTENT_API_URL: "http://third" }, files).key, { key: null, source: null });
-  assert.deepEqual(probe({ INTENT_API_URL: u, INTENT_API_KEY: "ic_env" }, files).key, { key: "ic_env", source: "env" });
+  const p = probe({ XDG: true, INTENT_API_URL: u }, {}, (dir) => { creds({ [u]: "opaque-one" }, 0o644)(dir); fs.chmodSync(path.join(dir, "xdg", "intent-check", "credentials.json"), 0o644); });
+  assert.deepEqual(p.key, { key: null, source: null });
+  assert.match(p.problem, /readable by others/);
+});
+
+test("saving a key writes the folder 700 and the file 600, keeps other origins, and clearing removes only this origin", () => {
+  const data = tmpdir("intent-cfg-");
+  const code = `import(${JSON.stringify(pathToFileURL(path.join(ROOT, "lib", "config.js")).href)}).then((c) => { c.saveApiKey("k-one"); process.env.INTENT_API_URL = "http://other"; c.saveApiKey("k-two"); c.clearSavedApiKey("not-it"); c.clearSavedApiKey("k-two"); })`;
+  const env = { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("INTENT_"))), CLAUDE_PLUGIN_DATA: data, XDG_CONFIG_HOME: path.join(data, "xdg"), INTENT_API_URL: "http://127.0.0.1:1" };
+  execFileSync(process.execPath, ["-e", code], { env });
+  const file = path.join(data, "xdg", "intent-check", "credentials.json");
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), { keys: { "http://127.0.0.1:1": "k-one" } });
+  if (process.platform !== "win32") {
+    assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+    assert.equal(fs.statSync(path.dirname(file)).mode & 0o777, 0o700);
+  }
 });
 
 test("off switches and plugin version", () => {
