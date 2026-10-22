@@ -25,7 +25,7 @@ files are meant to be committed; the CLI's session state in
 
 ## Start live verification
 
-Live verification is the default. Run `node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" prove --data "${CLAUDE_PLUGIN_DATA}"` first (if you cannot, ask the user to run
+Live verification is the default. Run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" prove --data "${CLAUDE_PLUGIN_DATA}"` first (if you cannot, ask the user to run
 `/intent:prove`): it prints the absolute path of the
 `intent-check` CLI, which stands for `intent-check` in every command below.
 See [running-k.md](../shared/running-k.md#shell-setup).

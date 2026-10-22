@@ -16,7 +16,7 @@ answering questions about the components, settings or saved data.
 
 ## Get the CLI
 
-Run `node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" prove --data "${CLAUDE_PLUGIN_DATA}"` (in Codex, follow how the
+Run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" prove --data "${CLAUDE_PLUGIN_DATA}"` (in Codex, follow how the
 `intent-check` skill runs subcommands; if you cannot run it, ask the user to run
 `/intent:prove`). It downloads `intent-check` for this plugin version if
 needed and prints its absolute path. Use that path for every `intent-check`
