@@ -100,7 +100,7 @@ test("a DeepScan task maps to the summary the renderer reads", async () => {
   assert.equal(s.ok, true);
   const g = await api.getDeepscan(TEST_KEY, s.job_id);
   assert.equal(g.scan.status, "done");
-  assert.equal(g.scan.budget_s, 900);
+  assert.equal(g.scan.budget_s, 3600, "balanced when the upload names no depth");
   assert.equal(g.scan.summary.cards[0].repro_sketch, "Call apply_discount(1000, 150).");
   assert.deepEqual(g.scan.summary.one_liners, []);
 });
@@ -132,4 +132,25 @@ test("the fake prover's task bodies carry the example tasks' fields", async () =
   } finally {
     fp.state.pollsBeforeDone = 1;
   }
+});
+
+test("an artifact whose hash does not match the task result is skipped, not written", async () => {
+  fp.state.pollsBeforeDone = 0;
+  fp.state.corruptArtifact = true;
+  try {
+    const s = await api.submitJob(TEST_KEY, body, "corrupt-1");
+    const d = await api.getJob(TEST_KEY, s.job_id);
+    assert.equal(d.job.status, "done");
+    assert.deepEqual(d.job.result.units[0].artifacts, {});
+  } finally { fp.state.corruptArtifact = false; fp.state.pollsBeforeDone = 1; }
+});
+
+test("426 below the minimum plugin version, and a 400 task id counts as dead", async () => {
+  fp.state.minVersion = "99.0.0";
+  try {
+    const r = await api.submitJob(TEST_KEY, body, "old-1");
+    assert.deepEqual([r.ok, r.status, r.code], [false, 426, "UPGRADE_REQUIRED"]);
+  } finally { fp.state.minVersion = "0.1.0"; }
+  const dead = await api.getJob(TEST_KEY, "A".repeat(22));
+  assert.deepEqual([dead.ok, dead.status], [false, 404]);
 });

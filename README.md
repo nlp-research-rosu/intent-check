@@ -125,13 +125,9 @@ For a whole-repo or folder scan:
 
 Earlier versions had a separate `check` command for files, and `--depth` and `--scope` flags; both are now plain arguments of `deepscan`.
 
-## Sample reports
+## Reports
 
-Reports from https://check.intentcomputing.org:
-
-- [orders.ts: pagination](https://check.intentcomputing.org/r/Ri36hNtU302qOdWTVLCukw)
-- [dedupe.go: order of results](https://check.intentcomputing.org/r/rgAroTW9Bvv1333vlPRUwm)
-- [Proration rounding](https://check.intentcomputing.org/r/r1XfQRd9dhvI0LlcdttHHN)
+Results open in the prover console, at the link Intent Check shows with each result.
 
 ## Development
 

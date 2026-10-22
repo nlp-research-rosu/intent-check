@@ -281,7 +281,9 @@ test("deepscan: command errors are one line and nothing is recorded", async () =
     [{ status: 404, code: "NOT_FOUND" }, /not enabled/],
     [{ status: 413, code: "PAYLOAD_TOO_LARGE" }, /too large.*one folder/],
     [{ status: 429, code: "SPEND_CAP", reason: "global_daily_spend" }, /daily limit/],
-    [{ status: 429, code: "RATE_LIMITED", reason: "deepscan_account_daily" }, /Too many/],
+    [{ status: 429, code: "RATE_LIMITED", reason: "deepscan_account_daily" }, /daily DeepScan limit for your account.*00:00 UTC/],
+    [{ status: 429, code: "BLOCKED", reason: "blocklist_user" }, /not available for this account/],
+    [{ status: 429, code: "TOO_MANY_FAILED_AUTHENTICATIONS" }, /\/intent:doctor/],
     [{ status: 400, code: "INVALID_REQUEST", message: "A file has odd text." }, /did not accept the snapshot: A file has odd text\./],
   ]) {
     fp.state.deepscan.submit = [fail];

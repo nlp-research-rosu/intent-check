@@ -15,6 +15,7 @@ export function createFakeProver(opts = {}) {
     key: TEST_KEY,
     scenario: "concerns", // "concerns" | "no_concerns" | "partial" | "failed" | "superseded" | "data_expired" (data_expired keeps the verdict, no artifacts)
     pollsBeforeDone: 1,
+    minVersion: "0.1.0", // X-Intent-Version below this (or missing) gets 426
     submitStatus: null, // e.g. { status: 429, code: "spend_cap" }
     concern: null, // override the agent concern
     connectApproved: false,
@@ -25,13 +26,22 @@ export function createFakeProver(opts = {}) {
   };
   let base = "";
 
+  const vparts = (v) => String(v).split("-")[0].split(".").map(Number);
+  const belowMin = (v) => {
+    const a = /^\d+\.\d+\.\d+/.test(v || "") ? vparts(v) : null;
+    const m = vparts(st.minVersion);
+    return !a || [0, 1, 2].some((i) => { const d = a[i] - m[i]; return d !== 0 && [0, 1, 2].slice(0, i).every((j) => a[j] === m[j]) && d < 0; });
+  };
+  const upgrade = (res) => json(res, 426, { code: "UPGRADE_REQUIRED", message: `Intent Check needs plugin version ${st.minVersion} or later. Update the plugin.`, details: { reason: "plugin_version" } });
+  const taskStatusOf = (job) => (job.finished ? "completed" : job.polls > 0 ? "running" : "queued");
+
   function json(res, status, body) {
     const b = JSON.stringify(body);
     res.writeHead(status, { "content-type": "application/json", "content-length": Buffer.byteLength(b) });
     res.end(b);
   }
 
-  const ART_TEXT = { "INTENT.md": (u) => `# ${u.path}\n`, "SPEC.k": () => "module SPEC\nendmodule\n", "SEMANTICS.k": () => "module SEM\nendmodule\n", "VERDICT.md": (u, i, bad) => (bad ? "Concerns (1)\n" : "No concerns\n") };
+  const ART_TEXT = { "INTENT.md": (u) => `# ${u.path}\n`, "SPEC.k": () => "module SPEC\nendmodule\n", "SEMANTICS.k": () => "module SEM\nendmodule\n", "VERDICT.md": (u, i, bad) => (bad ? "Concerns (1)\n" : "No concerns\n"), "VERIFICATION.k": () => "module VERIFICATION\nendmodule\n", "REASONING.md": () => "# Reasoning\n" };
   const artifactText = (job, i, name) => ART_TEXT[name](job.request.units[i], i, i === 0 && concernsOf(job).length > 0);
 
   function concernsOf(job) {
@@ -55,7 +65,7 @@ export function createFakeProver(opts = {}) {
         checkedSha256: u.sha256,
         verdict: i === 0 && concerns.length ? "concerns" : "noConcerns",
         partial: false,
-        claims: [],
+        claims: [{ id: "k1", function: "apply_discount", status: i === 0 && concerns.length ? "concern" : "noConflictFound" }],
         artifacts: Object.fromEntries(Object.keys(ART_TEXT).map((name) => {
           const text = artifactText(job, i, name);
           return [name, { name, size: Buffer.byteLength(text), sha256: crypto.createHash("sha256").update(text).digest("hex"), url: `/tasks/${id}/artifacts/${i}/${name}` }];
@@ -73,9 +83,9 @@ export function createFakeProver(opts = {}) {
     };
   }
 
-  const defaultSummary = () => ({
-    depth: "fast",
-    budgetSeconds: 900,
+  const defaultSummary = (depth) => ({
+    depth,
+    budgetSeconds: depth === "fast" ? 1800 : 3600,
     counts: { CRITICAL: 0, HIGH: 1, MODERATE: 0, LOW: 0, MARGINAL: 0 },
     cards: [{ id: "F1", criticality: "HIGH", title: "A discount above 100 percent makes the price negative", property: "Price is never negative.", cause: [{ path: "src/pricing.py", line: 3 }], reproSketch: "Call apply_discount(1000, 150).", control: "apply_discount(1000, 100) returns 0." }],
     oneLiners: [],
@@ -104,12 +114,15 @@ export function createFakeProver(opts = {}) {
         return json(res, 200, { requests: st.requests.map((r) => ({ method: r.method, path: r.path })), jobs: [...st.jobs.keys()] });
       }
       // The signed link an artifact redirects to: no API key needed, and none must arrive.
-      const fm = url.pathname.match(/^\/_files\/([^/]+)\/(\d+)\/([A-Za-z.]+)$/);
+      const fm = url.pathname.match(/^\/_files\/([^/]+)\/(.+)$/);
       if (req.method === "GET" && fm) {
         st.fileAuth = req.headers.authorization || null;
+        const unit = fm[2].match(/^(\d+)\/([A-Za-z.]+)$/);
         const job = st.jobs.get(fm[1]);
-        if (!job || !ART_TEXT[fm[3]]) return json(res, 404, { code: "NOT_FOUND", message: "x" });
-        const t = artifactText(job, Number(fm[2]), fm[3]);
+        let t;
+        if (unit && job && ART_TEXT[unit[2]]) t = artifactText(job, Number(unit[1]), unit[2]) + (st.corruptArtifact ? "x" : "");
+        else if (!unit && st.scans && st.scans.has(fm[1])) t = "{}";
+        else return json(res, 404, { code: "NOT_FOUND", message: "x" });
         res.writeHead(200, { "content-type": "text/plain", "content-length": Buffer.byteLength(t) });
         return res.end(t);
       }
@@ -147,7 +160,8 @@ export function createFakeProver(opts = {}) {
       }
       if (req.method === "POST" && url.pathname === "/intent-checks") {
         if (!authed) return json(res, 401, ERR.unauthorized);
-        if (st.submitStatus) return json(res, st.submitStatus.status, { code: st.submitStatus.code, message: "x" });
+        if (belowMin(req.headers["x-intent-version"])) return upgrade(res);
+        if (st.submitStatus) return json(res, st.submitStatus.status, { code: st.submitStatus.code, message: "x", ...(st.submitStatus.reason ? { details: { reason: st.submitStatus.reason } } : {}) });
         if (st.failPath && body && Array.isArray(body.units) && body.units.some((u) => u.path === st.failPath)) {
           return json(res, 500, { code: "INTERNAL_ERROR", message: "x" });
         }
@@ -155,6 +169,8 @@ export function createFakeProver(opts = {}) {
         const idem = req.headers["idempotency-key"];
         st.idem = st.idem || new Map();
         let id = idem && st.idem.get(idem);
+        if (idem && !id && st.deepscan && st.deepscan.idem && st.deepscan.idem.has(idem)) return json(res, 400, { code: "INVALID_REQUEST", message: "That Idempotency-Key was used for a DeepScan." });
+        const replay = !!id;
         if (!id) {
           id = newId();
           // Server behavior: a check supersedes the caller's unfinished checks of the same files
@@ -168,7 +184,7 @@ export function createFakeProver(opts = {}) {
           st.jobs.set(id, { request: body, polls: 0, created: Date.now() });
           if (idem) st.idem.set(idem, id);
         }
-        const reply = () => json(res, 202, { id, kind: "intentCheck", status: "queued", semantics: null, createdAt: new Date().toISOString() });
+        const reply = () => json(res, 202, { id, kind: "intentCheck", status: replay ? taskStatusOf(st.jobs.get(id)) : "queued", semantics: null, createdAt: new Date().toISOString() });
         if (st.submitDelayMs) return void setTimeout(reply, st.submitDelayMs);
         return reply();
       }
@@ -177,34 +193,44 @@ export function createFakeProver(opts = {}) {
       if (req.method === "POST" && url.pathname === "/deepscans") {
         if (!authed) return json(res, 401, ERR.unauthorized);
         const ds = (st.deepscan = st.deepscan || {});
+        if (belowMin(req.headers["x-intent-version"])) return upgrade(res);
         st.deepscanContentType = req.headers["content-type"];
+        if (req.headers["content-type"] !== "application/gzip") return json(res, 400, { code: "INVALID_REQUEST", message: "The snapshot must be sent as application/gzip." });
         const fail = (ds.submit || []).shift();
         if (fail && fail.drop) return void req.socket.destroy();
         if (fail) {
           const b = JSON.stringify({ code: fail.code || "x", message: fail.message || "x", ...(fail.reason ? { details: { reason: fail.reason } } : {}) });
-          res.writeHead(fail.status, { "content-type": "application/json", ...(fail.retryAfter ? { "retry-after": String(fail.retryAfter) } : {}) });
+          res.writeHead(fail.status, { "content-type": "application/json", ...(fail.retryAfter && fail.reason === "deepscan_ingest_busy" ? { "retry-after": String(fail.retryAfter) } : {}) });
           return res.end(b);
         }
         const idem = req.headers["idempotency-key"];
         ds.idem = ds.idem || new Map();
         let id = idem && ds.idem.get(idem);
+        if (idem && !id && st.idem && st.idem.has(idem)) return json(res, 400, { code: "INVALID_REQUEST", message: "That Idempotency-Key was used for an intent check." });
+        const replay = !!id;
         if (!id) {
           id = newId();
           st.scans = st.scans || new Map();
           st.scans.set(id, { request: body, polls: 0 });
           if (idem) ds.idem.set(idem, id);
         }
-        return json(res, 202, { id, kind: "deepscan", status: "queued", semantics: null, createdAt: new Date().toISOString() });
+        return json(res, 202, { id, kind: "deepscan", status: replay ? (st.scans.get(id).done ? "completed" : st.scans.get(id).polls > 0 ? "running" : "queued") : "queued", semantics: null, createdAt: new Date().toISOString() });
       }
       if (req.method === "GET" && url.pathname === "/tasks") {
         if (!authed) return json(res, 401, ERR.unauthorized);
         return json(res, 200, { tasks: [], hasMore: false });
       }
       // Artifacts answer 302 to a signed link on a host that wants no API key (here: this server's /_files).
-      const am = url.pathname.match(/^\/tasks\/([^/]+)\/artifacts\/(\d+\/[A-Za-z.]+)$/);
+      const am = url.pathname.match(/^\/tasks\/([^/]+)\/artifacts\/((?:report|progress)\.json|\d+\/[A-Za-z.]+)$/);
       if (req.method === "GET" && am) {
         if (!authed) return json(res, 401, ERR.unauthorized);
-        if (!st.jobs.has(am[1])) return json(res, 404, { code: "NOT_FOUND", message: "Task was not found." });
+        const job = st.jobs.get(am[1]);
+        const scan = st.scans && st.scans.get(am[1]);
+        if (!job && !scan) return json(res, 404, { code: "NOT_FOUND", message: "Task was not found." });
+        if (st.scenario === "data_expired" && job) return json(res, 410, { code: "TASK_FILES_EXPIRED", message: "The task's logs and artifacts have expired." });
+        // Only a completed task has artifacts; a scan's progress.json is there while it runs too.
+        const ready = job ? job.finished && ["concerns", "no_concerns", "partial"].includes(st.scenario) : scan.done || am[2] === "progress.json";
+        if (!ready) return json(res, 409, { code: "ARTIFACT_NOT_AVAILABLE", message: "The task has not completed." });
         res.writeHead(302, { location: `${base}/_files/${am[1]}/${am[2]}` });
         return res.end();
       }
@@ -212,6 +238,7 @@ export function createFakeProver(opts = {}) {
       if (req.method === "GET" && tm) {
         if (!authed) return json(res, 401, ERR.unauthorized);
         const id = tm[1];
+        if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id)) return json(res, 400, { code: "INVALID_REQUEST", message: "The task ID is not a UUID." });
         const scan = st.scans && st.scans.get(id);
         if (scan) {
           const ds = st.deepscan || {};
@@ -221,8 +248,9 @@ export function createFakeProver(opts = {}) {
           if (status === "queued" || status === "running") return json(res, 200, task(id, "deepscan", status));
           if (status === "superseded") return json(res, 200, task(id, "deepscan", "cancelled", { error: { code: "SUPERSEDED", message: "A newer scan replaced this one." } }));
           if (status === "failed") return json(res, 200, task(id, "deepscan", "failed", { error: ds.error || { code: "DEEPSCAN_FAILED", message: "The scan ran out of time." } }));
-          const sum = ds.summary || defaultSummary();
-          const budget = ds.getBudget_s === undefined ? ds.budget_s ?? 900 : ds.getBudget_s;
+          scan.done = true;
+          const sum = ds.summary || defaultSummary((scan.request && scan.request.depth) || "balanced");
+          const budget = ds.getBudget_s === undefined ? ds.budget_s ?? sum.budgetSeconds : ds.getBudget_s;
           const { budgetSeconds, ...rest } = sum;
           return json(res, 200, task(id, "deepscan", "completed", { result: { ...rest, ...(budget === null ? {} : { budgetSeconds: budget }) } }));
         }
