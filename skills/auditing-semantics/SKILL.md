@@ -36,8 +36,7 @@ own understanding. Check at minimum:
 - guards: what falls outside every rule's side condition, and whether
   execution stops visibly there.
 
-Flag any rule shaped around the target program's specific computation
-,  a rule that pre-computes its answer or accelerates its loop poisons
+Flag any rule shaped around the target program's specific computation, a rule that pre-computes its answer or accelerates its loop poisons
 every later proof, and this audit is the only stage positioned to
 catch it.
 

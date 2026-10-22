@@ -12,13 +12,14 @@ const posix = process.platform !== "win32" ? {} : { skip: "the fake CLI is a she
 const V = "9.9.9";
 
 // Serves a tar.gz holding a shell script that answers --version, and counts the requests.
-async function fakeRelease({ version = V, badSum = false } = {}) {
+async function fakeRelease({ version = V, badSum = false, content = null, corrupt = false } = {}) {
   const work = tmpdir("intent-cli-");
   const asset = assetName();
   const bin = path.join(work, "intent-check");
   fs.writeFileSync(bin, `#!/bin/sh\necho "intent-check ${version}"\n`, { mode: 0o755 });
-  execFileSync("tar", ["-czf", path.join(work, asset), "-C", work, "intent-check"]);
-  const archive = fs.readFileSync(path.join(work, asset));
+  fs.writeFileSync(path.join(work, "other"), "x");
+  execFileSync("tar", ["-czf", path.join(work, asset), "-C", work, content || "intent-check"]);
+  const archive = corrupt ? Buffer.from("not an archive") : fs.readFileSync(path.join(work, asset));
   const files = { [`/${asset}`]: archive, [`/${asset}.sha256`]: Buffer.from(`${badSum ? "0".repeat(64) : sha256(archive)}  ${asset}\n`) };
   const hits = [];
   const server = http.createServer((req, res) => {
@@ -96,5 +97,26 @@ test("prove: INTENT_CLI_BASE_URL is only honoured for http://127.0.0.1", async (
     await assert.rejects(proveCommand({ version: V }), /INTENT_CLI_BASE_URL/);
   } finally {
     delete process.env.INTENT_CLI_BASE_URL;
+  }
+});
+
+test("prove: an archive without the binary, or one tar cannot read, installs nothing and says so", posix, async () => {
+  for (const [opts, msg] of [[{ content: "other" }, /missing from/], [{ corrupt: true }, /could not unpack/]]) {
+    const rel = await fakeRelease(opts);
+    try {
+      await assert.rejects(proveCommand({ version: V }), msg);
+      assert.equal(fs.existsSync(path.join(process.env.CLAUDE_PLUGIN_DATA, "bin", "intent-check")), false);
+    } finally {
+      rel.close();
+    }
+  }
+});
+
+test("prove: INTENT_CLI_PATH must be a file, not a folder", async () => {
+  process.env.INTENT_CLI_PATH = tmpdir();
+  try {
+    await assert.rejects(proveCommand({ version: V }), /INTENT_CLI_PATH/);
+  } finally {
+    delete process.env.INTENT_CLI_PATH;
   }
 });

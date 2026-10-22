@@ -49,7 +49,7 @@ entailed; see
 
 Over sequences, state summaries as **structural recursion** (guarded total
 recursion over the constructors), never index arithmetic over positions.
-When a result must start at a fixed element, pin that head positionally , 
+When a result must start at a fixed element, pin that head positionally,
 e.g. two mutually recursive helpers, one per position class, never derive
 it from the parity of the *remaining* length: that construction silently
 flips the head for one parity of the total length. When a loop body

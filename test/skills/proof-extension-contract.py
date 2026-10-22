@@ -218,7 +218,7 @@ REQUIRED = {
     ),
     "skills/using-kit/SKILL.md": (
         "Discover available semantics with `intent-check semantics`",
-        "Run `/intent:prove` first",
+        "ask the user to run `/intent:prove`)",
         "Start one bounded session before construction",
         "Same-agent evidence review is the default",
         "Load specialist skills and references as needed",

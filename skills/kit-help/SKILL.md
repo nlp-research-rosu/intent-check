@@ -7,7 +7,7 @@ description: 'Explain formal-proof (K) commands of the intent-check CLI: setting
 
 KIT is the plugin bundle of agent skills and Prover Client. Prover Client is
 the local CLI; Prover is the remote service that runs tasks.
-The CLI comes from `/intent:prove`. For setup or reconnection, use
+The CLI comes from the `prove` command of the plugin script (`/intent:prove`). For setup or reconnection, use
 [kit-onboarding](../kit-onboarding/SKILL.md). Answer setup questions without
 repeating onboarding or starting a verification task.
 

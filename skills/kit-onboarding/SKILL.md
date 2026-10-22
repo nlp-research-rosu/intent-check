@@ -1,6 +1,6 @@
 ---
 name: kit-onboarding
-description: 'Set up formal proofs with K when the intent-check CLI is missing or not connected, or when the user asks to set up, update or reconnect it. Covers getting the CLI through /intent:prove, sign-in and initial settings. Not for ordinary code review.'
+description: 'Set up formal proofs with K when the intent-check CLI is missing or not connected, or when the user asks to set up, update or reconnect it. Covers getting the CLI through the plugin's prove command, sign-in and initial settings. Not for ordinary code review.'
 ---
 
 ## KIT onboarding
@@ -16,7 +16,9 @@ answering questions about the components, settings or saved data.
 
 ## Get the CLI
 
-Run `/intent:prove`. It downloads `intent-check` for this plugin version if
+Run `node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" prove --data "${CLAUDE_PLUGIN_DATA}"` (in Codex, follow how the
+`intent-check` skill runs subcommands; if you cannot run it, ask the user to run
+`/intent:prove`). It downloads `intent-check` for this plugin version if
 needed and prints its absolute path. Use that path for every `intent-check`
 command; it is not on `PATH` and nothing edits `PATH`. Check it with
 `<path> --version`.
@@ -25,8 +27,8 @@ command; it is not on `PATH` and nothing edits `PATH`. Check it with
 
 The CLI uses the account saved by the Intent Check sign-in link, or the
 `INTENT_API_KEY` environment variable. If a command returns an authentication
-or permission error, show the user the Intent Check sign-in link (run
-`/intent:doctor` if none is shown) and wait for them to approve it. Never ask
+or permission error, show the user the Intent Check sign-in link (run the same command with `doctor` in place of
+`prove` if none is shown; or ask the user to run `/intent:doctor`) and wait for them to approve it. Never ask
 for a key in chat or read credential files into context. If the user
 declines, stop setup.
 

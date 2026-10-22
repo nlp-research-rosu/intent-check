@@ -15,7 +15,7 @@ class the fixed semantics represents, not the classes the examples happen to
 use. Integer-only examples do not narrow an untyped `list` to integer lists:
 cover each representable element class the reference computation is defined
 on (dispatching per class with guarded projections where needed), exclude
-classes only where the specified computation itself is undefined on them , 
+classes only where the specified computation itself is undefined on them,
 identically in the program, and route classes the fixed model cannot
 represent through the B2 model-boundary procedure below.
 
@@ -71,7 +71,7 @@ residual gap is a value class or behavior the fixed semantics cannot
 represent (a text-encoding subset, a numeric identification the model does
 not make, an unmodeled value kind), the required response is:
 
-1. prove the full contract over every value the fixed semantics represents , 
+1. prove the full contract over every value the fixed semantics represents,
    no additional restriction of the candidate's own making;
 2. record the model boundary explicitly in the trust ledger, with a concrete
    witness of the divergence where one exists;

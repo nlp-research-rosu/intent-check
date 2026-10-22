@@ -16,7 +16,8 @@ what is proved, what depends on assumptions, and what remains unresolved.
 
 ## Start live verification
 
-Live verification is the default. Run `/intent:prove` first: it prints the absolute path of the
+Live verification is the default. Run `node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" prove --data "${CLAUDE_PLUGIN_DATA}"` first (if you cannot, ask the user to run
+`/intent:prove`): it prints the absolute path of the
 `intent-check` CLI, which stands for `intent-check` in every command below.
 See [running-k.md](../shared/running-k.md#shell-setup).
 Use [kit-onboarding](../kit-onboarding/SKILL.md) when setup or authentication

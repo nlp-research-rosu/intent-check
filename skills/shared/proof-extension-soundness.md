@@ -21,7 +21,7 @@ not reclassify it as an external primitive because proving it is difficult.
 
 **A derived lemma must be derived.** A simplification whose conclusion is the
 requested postcondition itself, the aggregate value, ordering, primality,
-membership, or any other human-facing property of the program's own result , 
+membership, or any other human-facing property of the program's own result,
 installed with only an informal or on-paper justification is not a lemma; it
 is the theorem assumed as an axiom, and no amount of reconstruction,
 non-vacuity, or finite differential evidence legitimizes it. The test:

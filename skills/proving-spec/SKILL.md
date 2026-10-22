@@ -227,9 +227,9 @@ claim without the bound for the final proof.
 
 ## References
 
-- [Proof-extension soundness contract](../shared/proof-extension-soundness.md) , 
+- [Proof-extension soundness contract](../shared/proof-extension-soundness.md):
   construction-time classification and extension-record requirements.
-- [K functions, claims, and proof modules](../shared/k-claims.md) , 
+- [K functions, claims, and proof modules](../shared/k-claims.md):
   `[function]`/`[simplification]`, claim syntax, and labels.
 - [Running K through Prover](../shared/running-k.md), command discovery and
   evidence rules.

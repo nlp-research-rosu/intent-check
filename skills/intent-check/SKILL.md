@@ -9,7 +9,7 @@ Intent Check compares code with what the user asked for. It runs in the backgrou
 
 ## Commands
 
-Claude Code has five slash commands. Each runs one subcommand of the plugin's script:
+Claude Code has six slash commands. Each runs one subcommand of the plugin's script:
 
 | Slash command | Subcommand | What it does |
 |---|---|---|
