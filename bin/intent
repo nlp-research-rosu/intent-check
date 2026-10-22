@@ -1,9 +1,9 @@
 #!/bin/sh
 # POSIX launcher (issue #22): every hook and command routes through this script instead of
-# calling `node .../bin/intent.js` directly, so a machine without Node degrades gracefully
+# calling `node .../bin/hooks.js` directly, so a machine without Node degrades gracefully
 # instead of every hook failing silently. No bash, no dependencies.
 #
-# - Node >=18 on PATH: exec bin/intent.js, replacing this process so stdin, stdout, stderr and
+# - Node >=18 on PATH: exec bin/hooks.js, replacing this process so stdin, stdout, stderr and
 #   the exit code (including the asyncRewake exit 2 + stderr) pass through unchanged.
 # - Otherwise: print a short, host-aware message for the subcommands a person can see
 #   (session-start, prompt, deepscan, doctor) and exit 0 silently for everything else.
@@ -13,7 +13,7 @@ dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 sub="${1:-}"
 
 node_major() {
-  # Old syntax only (matches bin/intent.js line 1): must not throw on odd/ancient builds.
+  # Old syntax only (matches bin/hooks.js line 1): must not throw on odd/ancient builds.
   "$1" -e 'var v=process.versions&&process.versions.node; console.log(v?v.split(".")[0]:"0")' 2>/dev/null
 }
 
@@ -24,7 +24,7 @@ if [ -n "$node_bin" ]; then
     '' | *[!0-9]*) major=0 ;;
   esac
   if [ "$major" -ge 18 ] 2>/dev/null; then
-    exec "$node_bin" "$dir/intent.js" "$@"
+    exec "$node_bin" "$dir/hooks.js" "$@"
   fi
 fi
 

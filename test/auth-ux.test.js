@@ -452,22 +452,22 @@ test("a hook that throws prints one user-visible line per session, and doctor sh
   assert.match(st.stdout, /Last error: session-start: /);
 });
 
-test("bin/intent.js says so on stderr when the plugin cannot start, and still exits 0", async () => {
+test("bin/hooks.js says so on stderr when the plugin cannot start, and still exits 0", async () => {
   const dir = tmpdir("intent-bin-");
   fs.mkdirSync(path.join(dir, "bin"));
-  fs.copyFileSync(path.join(ROOT, "bin", "intent.js"), path.join(dir, "bin", "intent.js"));
+  fs.copyFileSync(path.join(ROOT, "bin", "hooks.js"), path.join(dir, "bin", "hooks.js"));
   const { spawnSync } = await import("node:child_process");
-  const r = spawnSync(process.execPath, [path.join(dir, "bin", "intent.js"), "prompt"], { input: "{}", encoding: "utf8" });
+  const r = spawnSync(process.execPath, [path.join(dir, "bin", "hooks.js"), "prompt"], { input: "{}", encoding: "utf8" });
   assert.equal(r.status, 0);
   assert.match(r.stderr, /^Intent Check could not start \(\w+\), so it is not running\./);
 });
 
-test("bin/intent.js on Node < 18: the stderr line appears once per data dir, exit 0 every time", async () => {
+test("bin/hooks.js on Node < 18: the stderr line appears once per data dir, exit 0 every time", async () => {
   const { spawnSync } = await import("node:child_process");
   const { pathToFileURL } = await import("node:url");
   const data = path.join(tmpdir("intent-oldnode-"), "data");
   const shim = path.join(tmpdir("intent-oldnode-shim-"), "shim.mjs");
-  fs.writeFileSync(shim, `Object.defineProperty(process.versions, "node", { value: "16.1.0" });\nawait import(${JSON.stringify(pathToFileURL(path.join(ROOT, "bin", "intent.js")).href)});\n`);
+  fs.writeFileSync(shim, `Object.defineProperty(process.versions, "node", { value: "16.1.0" });\nawait import(${JSON.stringify(pathToFileURL(path.join(ROOT, "bin", "hooks.js")).href)});\n`);
   const run = (env) => spawnSync(process.execPath, [shim, "prompt"], { input: "{}", encoding: "utf8", env: { ...process.env, ...env } });
   const a = run({ CLAUDE_PLUGIN_DATA: data });
   assert.equal(a.status, 0);
@@ -496,8 +496,8 @@ test("bin/intent.js on Node < 18: the stderr line appears once per data dir, exi
   assert.match(c.stderr, /needs Node 18 or newer/);
 });
 
-test("bin/intent.js names the Node requirement in the same stderr line style", () => {
-  const src = fs.readFileSync(path.join(ROOT, "bin", "intent.js"), "utf8");
+test("bin/hooks.js names the Node requirement in the same stderr line style", () => {
+  const src = fs.readFileSync(path.join(ROOT, "bin", "hooks.js"), "utf8");
   assert.match(src.split("\n")[0], /Intent Check needs Node 18 or newer/);
   assert.doesNotMatch(src.split("\n")[0], /\?\.|\?\?/, "line 1 stays old syntax");
 });

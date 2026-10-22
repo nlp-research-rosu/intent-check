@@ -192,7 +192,7 @@ test("r2-2: imperative 'without asking' and new system prompts are removed; desc
   }
 });
 
-test("r2-3: intent.js off fails loudly when the data folder is not writable", async () => {
+test("r2-3: hooks.js off fails loudly when the data folder is not writable", async () => {
   const file = path.join(tmpdir(), "not-a-dir");
   fs.writeFileSync(file, "");
   const r = await new Promise((resolve) => {

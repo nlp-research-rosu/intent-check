@@ -406,9 +406,9 @@ test("a waiter that is not the owner of the scan exits and a second waiter does 
 
 test("packaging: command file, skill mapping and README are in place; repo mode is gone", () => {
   const cmd = fs.readFileSync(path.join(ROOT, "commands", "deepscan.md"), "utf8");
-  assert.match(cmd, /intent\.js" deepscan/);
+  assert.match(cmd, /hooks\.js" deepscan/);
   const skill = fs.readFileSync(path.join(ROOT, "skills/intent-check/SKILL.md"), "utf8");
-  assert.match(skill, /intent\.js deepscan/);
+  assert.match(skill, /hooks\.js deepscan/);
   assert.ok(!/check --repo/.test(skill));
   assert.match(fs.readFileSync(path.join(ROOT, "README.md"), "utf8"), /## DeepScan/);
   for (const f of ["lib/queue.js", "lib/payload.js"]) assert.ok(!/mode === "repo"|"repo"/.test(fs.readFileSync(path.join(ROOT, f), "utf8")), f);

@@ -40,7 +40,7 @@ test("hooks.json: shell form, four events, asyncRewake Stop with a 900 s timeout
     assert.equal(cmd.type, "command");
     // Exec form with node: no shell involved, so it works where `sh` is not on PATH (Windows).
     assert.equal(cmd.command, "node");
-    assert.deepEqual(cmd.args, ["${CLAUDE_PLUGIN_ROOT}/bin/intent.js", arg]);
+    assert.deepEqual(cmd.args, ["${CLAUDE_PLUGIN_ROOT}/bin/hooks.js", arg]);
     assert.equal("statusMessage" in cmd, false);
   }
   assert.equal(h.PostToolUse[0].matcher, "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|ExitPlanMode|TodoWrite");
@@ -58,7 +58,7 @@ test("Stop has a second asyncRewake entry, connect-wait, with its own message an
   const [review, wait] = read("hooks/hooks.json").hooks.Stop;
   const cmd = wait.hooks[0];
   assert.equal(cmd.command, "node");
-  assert.deepEqual(cmd.args, ["${CLAUDE_PLUGIN_ROOT}/bin/intent.js", "connect-wait"]);
+  assert.deepEqual(cmd.args, ["${CLAUDE_PLUGIN_ROOT}/bin/hooks.js", "connect-wait"]);
   assert.equal(cmd.asyncRewake, true);
   assert.equal(cmd.timeout, 900);
   assert.equal(cmd.rewakeSummary, "Intent Check connected");
@@ -71,30 +71,30 @@ test("Stop has a second asyncRewake entry, connect-wait, with its own message an
 test("skill and commands exist and reference the plugin root, run with node directly", () => {
   const skill = fs.readFileSync(path.join(ROOT, "skills/intent-check/SKILL.md"), "utf8");
   assert.match(skill, /^---\nname: intent-check\ndescription: /);
-  assert.match(skill, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent\.js"/);
+  assert.match(skill, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/hooks\.js"/);
   assert.doesNotMatch(skill, /\bsh\b.*bin\/intent\b/);
   for (const w of ["on", "live", "off", "doctor", "deepscan"]) assert.match(skill, new RegExp(`/intent:${w}\\b`), `skill maps ${w}`);
   assert.deepEqual(fs.readdirSync(path.join(ROOT, "commands")).sort(), ["deepscan.md", "doctor.md", "live.md", "off.md", "on.md"]);
   for (const c of ["off", "on", "live", "deepscan", "doctor"]) {
     const md = fs.readFileSync(path.join(ROOT, "commands", `${c}.md`), "utf8");
-    assert.match(md, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent\.js"/);
+    assert.match(md, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/hooks\.js"/);
     // Claude Code matches the rule's prefix against the command text, quotes included: a rule without
     // the quotes does not cover the quoted command (verified: "This command requires approval").
     const rule = md.match(/^allowed-tools: Bash\((.*):\*\)$/m);
     assert.ok(rule, `${c}: allowed-tools rule`);
-    const cmds = [...md.matchAll(/`(node "[^`"]*bin\/intent\.js" [^`]*)`/g)].map((m) => m[1]);
+    const cmds = [...md.matchAll(/`(node "[^`"]*bin\/hooks\.js" [^`]*)`/g)].map((m) => m[1]);
     assert.ok(cmds.length, `${c}: a node command in the body`);
     for (const cmd of cmds) assert.ok(cmd.startsWith(rule[1]), `${c}: "${cmd}" is covered by Bash(${rule[1]}:*)`);
     assert.doesNotMatch(md, /\bsh\b.*bin\/intent\b/);
   }
 });
 
-test("bin/intent: the legacy sh launcher (no hook or command uses it any more) still exists and routes to bin/intent.js", () => {
+test("bin/intent: the legacy sh launcher (no hook or command uses it any more) still exists and routes to bin/hooks.js", () => {
   for (const f of ["hooks/hooks.json", "hooks/codex-hooks.json"]) assert.doesNotMatch(fs.readFileSync(path.join(ROOT, f), "utf8"), /bin\/intent["\s]/, `${f} must not use the sh launcher`);
   const p = path.join(ROOT, "bin", "intent");
   const src = fs.readFileSync(p, "utf8");
   assert.match(src, /^#!\/bin\/sh/);
-  assert.match(src, /intent\.js/);
+  assert.match(src, /hooks\.js/);
   assert.ok(isExecutable(p), "bin/intent must be executable");
 });
 
@@ -124,7 +124,7 @@ test("Codex: its own manifest and shell-string hook file (node, one command line
   assert.deepEqual(Object.keys(h).sort(), Object.keys(events).sort());
   for (const [ev, arg] of Object.entries(events)) {
     const [cmd] = h[ev][0].hooks;
-    assert.equal(cmd.command, `node "${"$"}{CLAUDE_PLUGIN_ROOT}/bin/intent.js" ${arg} --host codex`);
+    assert.equal(cmd.command, `node "${"$"}{CLAUDE_PLUGIN_ROOT}/bin/hooks.js" ${arg} --host codex`);
     for (const k of ["args", "async", "asyncRewake", "statusMessage"]) assert.equal(k in cmd, false, `${ev}.${k}`);
   }
   assert.equal(h.PostToolUse[0].matcher, "^(apply_patch|Edit|Write|Bash)$");

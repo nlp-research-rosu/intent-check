@@ -1,4 +1,4 @@
-// Replays the captured Claude Code payloads through bin/intent.js, like Claude Code runs it.
+// Replays the captured Claude Code payloads through bin/hooks.js, like Claude Code runs it.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";

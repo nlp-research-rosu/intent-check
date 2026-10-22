@@ -1,4 +1,4 @@
-// Test harness: temp data dirs, throwaway git repos, and running bin/intent.js like Claude Code does.
+// Test harness: temp data dirs, throwaway git repos, and running bin/hooks.js like Claude Code does.
 import { spawn, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-export const BIN = path.join(ROOT, "bin", "intent.js");
+export const BIN = path.join(ROOT, "bin", "hooks.js");
 export const FIXTURES = path.join(ROOT, "test", "fixtures", "claude");
 
 // Raw fixture JSON with its project dir rewritten to `dir`, escaped because a Windows path has backslashes.
