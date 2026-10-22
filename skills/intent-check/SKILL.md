@@ -21,17 +21,17 @@ Claude Code has five slash commands. Each runs one subcommand of the plugin's sc
 
 Run a subcommand with:
 
-    node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" <subcommand> --data "${CLAUDE_PLUGIN_DATA}"
+    node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" <subcommand> --data "${CLAUDE_PLUGIN_DATA}"
 
-Codex has no plugin slash commands. When the user asks for one of these in Codex, run the same script by its path relative to this file: `node <folder of this SKILL.md>/../../bin/intent.js <subcommand>`. Every subcommand except `deepscan <files>` writes Codex's plugin data folder, and `doctor` and a whole-repo or folder `deepscan` need network access, so they may need approval to run outside the sandbox. Tell the user the output of `on`, `live`, `off` and `doctor` word for word.
+Codex has no plugin slash commands. When the user asks for one of these in Codex, run the same script by its path relative to this file: `node <folder of this SKILL.md>/../../bin/hooks.js <subcommand>`. Every subcommand except `deepscan <files>` writes Codex's plugin data folder, and `doctor` and a whole-repo or folder `deepscan` need network access, so they may need approval to run outside the sandbox. Tell the user the output of `on`, `live`, `off` and `doctor` word for word.
 
 ## Asking for a review
 
 Everything on demand is `deepscan`. Run it from the project root: the git top level, or in a project without git, the folder the session started in.
 
-    node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" deepscan --data "${CLAUDE_PLUGIN_DATA}" [files or a folder] [fast|balanced|full]
+    node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" deepscan --data "${CLAUDE_PLUGIN_DATA}" [files or a folder] [fast|balanced|full]
 
-In Codex: `node <folder of this SKILL.md>/../../bin/intent.js deepscan [files or a folder] [fast|balanced|full]`.
+In Codex: `node <folder of this SKILL.md>/../../bin/hooks.js deepscan [files or a folder] [fast|balanced|full]`.
 
 - **Specific files** ("review auth.py", "is this function right?"): `deepscan <path> [<path> ...]`, at most 10 files. This is the fast review: the command only queues the request and returns at once, the review runs when your turn ends, and the result arrives as a note a few minutes later. Tell the user in one line that the review is queued.
 - **The whole repo** ("review my repo", "deep scan", "security review"): `deepscan` with no path.

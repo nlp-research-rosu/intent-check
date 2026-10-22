@@ -1,5 +1,5 @@
 // Per-edit mode on Codex (apply_patch, one child per path) and shell-written files (Bash scan),
-// plus the one-time hook notice. Payloads replayed through bin/intent.js --host codex.
+// plus the one-time hook notice. Payloads replayed through bin/hooks.js --host codex.
 import { test, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";

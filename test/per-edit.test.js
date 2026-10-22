@@ -140,7 +140,7 @@ test("classic mode: no check at the edit, the normal Stop check", async () => {
 test("on and live commands and doctor", async () => {
   const ctx = setup({ mode: "" });
   delete ctx.env.INTENT_LIVE;
-  const run = (...a) => import("node:child_process").then(({ spawnSync }) => spawnSync(process.execPath, [path.join(ROOT, "bin", "intent.js"), ...a], { env: ctx.env, encoding: "utf8" }));
+  const run = (...a) => import("node:child_process").then(({ spawnSync }) => spawnSync(process.execPath, [path.join(ROOT, "bin", "hooks.js"), ...a], { env: ctx.env, encoding: "utf8" }));
   const first = (r) => r.stdout.split("\n")[0];
   assert.match(first(await run("doctor")), /: on$/);
   assert.match(first(await run("live")), /^Intent Check is on \(live\)\./);
@@ -148,7 +148,7 @@ test("on and live commands and doctor", async () => {
   assert.match(first(await run("on")), /^Intent Check is on\. Changes are checked at the end of each turn\. Live review is now off; \/intent:live turns it back on\.$/);
   assert.match(first(await run("doctor")), /: on$/);
   // The env var wins.
-  assert.match(first((await import("node:child_process")).spawnSync(process.execPath, [path.join(ROOT, "bin", "intent.js"), "doctor"], { env: { ...ctx.env, INTENT_LIVE: "0" }, encoding: "utf8" })), /: on$/);
+  assert.match(first((await import("node:child_process")).spawnSync(process.execPath, [path.join(ROOT, "bin", "hooks.js"), "doctor"], { env: { ...ctx.env, INTENT_LIVE: "0" }, encoding: "utf8" })), /: on$/);
 });
 
 const sessionFile = (ctx) => { const d = path.join(ctx.data, "sessions"); return path.join(d, fs.readdirSync(d).find((f) => f.endsWith(".json"))); };
@@ -349,7 +349,7 @@ test("no INTENT_LIVE and no config is not live: the Bash hook does nothing and t
 
 test("an INTENT_LIVE value other than 1 or 0 is ignored and reported by doctor", async () => {
   const ctx = setup({ mode: "" });
-  const run = (extra, ...a) => import("node:child_process").then(({ spawnSync }) => spawnSync(process.execPath, [path.join(ROOT, "bin", "intent.js"), ...a], { env: { ...ctx.env, ...extra }, encoding: "utf8" }));
+  const run = (extra, ...a) => import("node:child_process").then(({ spawnSync }) => spawnSync(process.execPath, [path.join(ROOT, "bin", "hooks.js"), ...a], { env: { ...ctx.env, ...extra }, encoding: "utf8" }));
   assert.match((await run({ INTENT_LIVE: "1" }, "doctor")).stdout, /: on \(live\)\n/);
   const bad = (await run({ INTENT_LIVE: "yes" }, "doctor")).stdout;
   assert.match(bad, /: on\n/);

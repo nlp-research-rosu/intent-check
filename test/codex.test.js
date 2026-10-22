@@ -1,4 +1,4 @@
-// M5: the plugin on Codex. Replays the captured Codex payloads through bin/intent.js --host codex.
+// M5: the plugin on Codex. Replays the captured Codex payloads through bin/hooks.js --host codex.
 import { test, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";

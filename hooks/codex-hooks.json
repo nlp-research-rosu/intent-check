@@ -1,17 +1,17 @@
 {
   "hooks": {
     "SessionStart": [
-      { "hooks": [ { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/intent.js\" session-start --host codex", "timeout": 10 } ] }
+      { "hooks": [ { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" session-start --host codex", "timeout": 10 } ] }
     ],
     "UserPromptSubmit": [
-      { "hooks": [ { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/intent.js\" prompt --host codex", "timeout": 10 } ] }
+      { "hooks": [ { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" prompt --host codex", "timeout": 10 } ] }
     ],
     "PostToolUse": [
       { "matcher": "^(apply_patch|Edit|Write|Bash)$",
-        "hooks": [ { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/intent.js\" post-tool --host codex", "timeout": 10 } ] }
+        "hooks": [ { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool --host codex", "timeout": 10 } ] }
     ],
     "Stop": [
-      { "hooks": [ { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/intent.js\" stop --host codex", "timeout": 30 } ] }
+      { "hooks": [ { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" stop --host codex", "timeout": 30 } ] }
     ]
   }
 }
