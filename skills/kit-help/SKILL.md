@@ -7,7 +7,8 @@ description: 'Explain formal-proof (K) commands of the intent-check CLI: setting
 
 KIT is the plugin bundle of agent skills and Prover Client. Prover Client is
 the local CLI; Prover is the remote service that runs tasks.
-The CLI comes from the `prove` command of the plugin script (`/intent:prove`). For setup or reconnection, use
+The global `intent-check` CLI is installed separately from the skills.
+For setup or reconnection, use
 [kit-onboarding](../kit-onboarding/SKILL.md). Answer setup questions without
 repeating onboarding or starting a verification task.
 
@@ -34,8 +35,8 @@ For nested commands, use help such as `intent-check session start --help`.
 
 The CLI sends the account saved by `intent-check login` (or
 `INTENT_API_KEY`) with all Prover requests. Run the requested commands. On an
-authentication or permission error, run `<cli path> login` and give the user
-its `verification_url`; under the plugin the link is usually already shown.
+authentication or permission error, run `intent-check login` and give the user
+its `verification_url`. Keep the command running until approval is saved.
 Never read credential files into agent context.
 
 If polling fails after acceptance, recover the existing task rather than

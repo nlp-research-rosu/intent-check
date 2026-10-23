@@ -7,7 +7,6 @@ import { fileURLToPath } from "node:url";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const BIN = path.join(ROOT, "bin", "hooks.js");
-export const FAKE_CLI = path.join(ROOT, "test", "helpers", "fake-intent-check.js");
 export const FIXTURES = path.join(ROOT, "test", "fixtures", "claude");
 
 // Raw fixture JSON with its project dir rewritten to `dir`, escaped because a Windows path has backslashes.
@@ -47,7 +46,7 @@ export function baseEnv(dataDir, apiUrl, extra = {}) {
   for (const k of Object.keys(env)) {
     if (k.startsWith("INTENT_") || k.startsWith("CLAUDE_") || k === "DO_NOT_TRACK") delete env[k];
   }
-  return { ...env, CLAUDE_PLUGIN_DATA: dataDir, XDG_CONFIG_HOME: xdgDir(dataDir), INTENT_API_URL: apiUrl, INTENT_CONSOLE_URL: apiUrl, CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PLUGIN_ROOT: ROOT, INTENT_LIVE: "0", INTENT_CLI_PATH: FAKE_CLI, ...extra };
+  return { ...env, CLAUDE_PLUGIN_DATA: dataDir, XDG_CONFIG_HOME: xdgDir(dataDir), INTENT_API_URL: apiUrl, INTENT_CONSOLE_URL: apiUrl, CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PLUGIN_ROOT: ROOT, INTENT_LIVE: "0", ...extra };
 }
 
 // Run one hook like Claude Code: JSON on stdin, capture stdout/stderr/exit code.

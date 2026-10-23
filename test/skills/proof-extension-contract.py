@@ -218,7 +218,7 @@ REQUIRED = {
     ),
     "skills/using-kit/SKILL.md": (
         "Discover available semantics with `intent-check semantics`",
-        "ask the user to run `/intent:prove`)",
+        "Use the global `intent-check` CLI on `PATH`.",
         "Start one bounded session before construction",
         "Same-agent evidence review is the default",
         "Load specialist skills and references as needed",
@@ -252,7 +252,7 @@ REQUIRED = {
         "nor imposes a local task or queue-wait deadline",
     ),
     "skills/kit-onboarding/SKILL.md": (
-        "nothing edits `PATH`",
+        "KIT requires `intent-check` on `PATH`.",
     ),
 }
 for _audit in AUDIT_SKILLS:

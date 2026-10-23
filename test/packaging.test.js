@@ -35,7 +35,7 @@ test("hooks.json: shell form, four events, asyncRewake Stop with a 900 s timeout
   assert.deepEqual(Object.keys(h).sort(), ["PostToolUse", "SessionStart", "Stop", "UserPromptSubmit"]);
   const events = { SessionStart: "session-start", UserPromptSubmit: "prompt", PostToolUse: "post-tool", Stop: "stop" };
   for (const [ev, arg] of Object.entries(events)) {
-    assert.equal(h[ev].length, ev === "Stop" ? 2 : 1);
+    assert.equal(h[ev].length, 1);
     const [cmd] = h[ev][0].hooks;
     assert.equal(cmd.type, "command");
     // Exec form with node: no shell involved, so it works where `sh` is not on PATH (Windows).
@@ -54,17 +54,9 @@ test("hooks.json: shell form, four events, asyncRewake Stop with a 900 s timeout
   assert.ok(c.polling.runner_budget_ms < stop.timeout * 1000);
 });
 
-test("Stop has a second asyncRewake entry, connect-wait, with its own message and summary", () => {
-  const [review, wait] = read("hooks/hooks.json").hooks.Stop;
-  const cmd = wait.hooks[0];
-  assert.equal(cmd.command, "node");
-  assert.deepEqual(cmd.args, ["${CLAUDE_PLUGIN_ROOT}/bin/hooks.js", "connect-wait"]);
-  assert.equal(cmd.asyncRewake, true);
-  assert.equal(cmd.timeout, 900);
-  assert.equal(cmd.rewakeSummary, "Intent Check connected");
-  assert.match(cmd.rewakeMessage, /^Intent Check connection update\./);
-  assert.notEqual(cmd.rewakeMessage, review.hooks[0].rewakeMessage);
-  // Codex has no asyncRewake: no connect-wait there, confirmation comes with the next prompt.
+test("hooks do not register automatic sign-in or connection-wait handlers", () => {
+  assert.equal(read("hooks/hooks.json").hooks.Stop.length, 1);
+  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, "hooks/hooks.json"), "utf8"), /connect-wait|connect-start/);
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, "hooks/codex-hooks.json"), "utf8"), /connect-wait/);
 });
 
@@ -75,7 +67,7 @@ test("skill and commands exist and reference the plugin root, run with node dire
   assert.doesNotMatch(skill, /\bsh\b.*bin\/intent\b/);
   for (const w of ["on", "live", "off", "doctor", "deepscan", "prove"]) assert.match(skill, new RegExp(`/intent:${w}\\b`), `skill maps ${w}`);
   assert.deepEqual(fs.readdirSync(path.join(ROOT, "commands")).sort(), ["deepscan.md", "doctor.md", "live.md", "off.md", "on.md", "prove.md"]);
-  for (const c of ["off", "on", "live", "deepscan", "doctor", "prove"]) {
+  for (const c of ["off", "on", "live", "deepscan", "doctor"]) {
     const md = fs.readFileSync(path.join(ROOT, "commands", `${c}.md`), "utf8");
     assert.match(md, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/hooks\.js"/);
     // Claude Code matches the rule's prefix against the command text, quotes included: a rule without
@@ -87,6 +79,10 @@ test("skill and commands exist and reference the plugin root, run with node dire
     for (const cmd of cmds) assert.ok(cmd.startsWith(rule[1]), `${c}: "${cmd}" is covered by Bash(${rule[1]}:*)`);
     assert.doesNotMatch(md, /\bsh\b.*bin\/intent\b/);
   }
+  const prove = fs.readFileSync(path.join(ROOT, "commands", "prove.md"), "utf8");
+  assert.match(prove, /allowed-tools: Bash\(intent-check:\*\)/);
+  assert.match(prove, /`intent-check --version`/);
+  assert.doesNotMatch(prove, /bin\/hooks\.js/);
 });
 
 test("bin/intent: the legacy sh launcher (no hook or command uses it any more) still exists and routes to bin/hooks.js", () => {

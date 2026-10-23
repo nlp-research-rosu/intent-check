@@ -3,7 +3,7 @@ name: release
 # section of CHANGELOG.md; on any other branch it cuts a
 # prerelease (vX.Y.Z-<branch>.N) and commits the bump to that branch, because users install from the branch head.
 # The release carries the intent-check CLI builds for six targets and the two standalone installers; it is created as a
-# draft and published only after every asset is uploaded.
+# draft and published only after every asset is uploaded. The branch advances only after publication.
 # Pushes made with GITHUB_TOKEN do not trigger ci.yml; that is fine because the test job below runs first.
 on:
   workflow_dispatch:
@@ -39,8 +39,6 @@ jobs:
     if: github.ref_type == 'branch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    permissions:
-      contents: write
     outputs:
       v: ${{ steps.bump.outputs.v }}
       sha: ${{ steps.bump.outputs.sha }}
@@ -59,7 +57,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
-      - name: Bump, commit, tag, push
+      - name: Prepare release commit
         id: bump
         run: |
           CURRENT=$(node -p 'require("./package.json").version')
@@ -68,7 +66,6 @@ jobs:
             V=$CURRENT
             if ! git rev-parse -q --verify "refs/tags/v$V" >/dev/null; then
               git tag "v$V"
-              git push origin "v$V"
             fi
           else
             if [ "$BRANCH" = main ]; then
@@ -82,12 +79,18 @@ jobs:
               echo "tag v$V already exists" >&2
               exit 1
             fi
-            git commit -am "release: v$V"
+            git add package.json .claude-plugin/plugin.json .claude-plugin/marketplace.json .codex-plugin/plugin.json cli/Cargo.toml cli/Cargo.lock docs/install.json CHANGELOG.md
+            git commit -m "release: v$V"
             git tag "v$V"
-            git push --atomic origin "HEAD:refs/heads/$BRANCH" "v$V"
           fi
+          test "$(git rev-parse "v$V")" = "$(git rev-parse HEAD)"
+          git bundle create "$RUNNER_TEMP/release.bundle" "v$V"
           echo "v=$V" >> "$GITHUB_OUTPUT"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-source
+          path: ${{ runner.temp }}/release.bundle
   build:
     needs: bump
     strategy:
@@ -108,8 +111,21 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ needs.bump.outputs.sha }}
           persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-source
+          path: ${{ runner.temp }}
+      - name: Check out prepared release
+        working-directory: .
+        shell: bash
+        env:
+          V: ${{ needs.bump.outputs.v }}
+          RELEASE_SHA: ${{ needs.bump.outputs.sha }}
+        run: |
+          git fetch "$RUNNER_TEMP/release.bundle" "refs/tags/v$V:refs/tags/v$V"
+          test "$(git rev-parse "v$V")" = "$RELEASE_SHA"
+          git checkout --detach "$RELEASE_SHA"
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
       - run: cargo build --locked --release
       - if: ${{ !matrix.windows }}
@@ -143,10 +159,18 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       BRANCH: ${{ github.ref_name }}
       V: ${{ needs.bump.outputs.v }}
+      RELEASE_SHA: ${{ needs.bump.outputs.sha }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          ref: ${{ needs.bump.outputs.sha }}
+          name: release-source
+          path: ${{ runner.temp }}
+      - name: Check out prepared release
+        run: |
+          git fetch "$RUNNER_TEMP/release.bundle" "refs/tags/v$V:refs/tags/v$V"
+          test "$(git rev-parse "v$V")" = "$RELEASE_SHA"
+          git checkout --detach "$RELEASE_SHA"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
@@ -157,6 +181,10 @@ jobs:
           merge-multiple: true
       - name: GitHub release
         run: |
+          # Never overwrite branch changes made while the builds were running.
+          head=$(git ls-remote origin "refs/heads/$BRANCH" | cut -f1)
+          test "$head" = "$GITHUB_SHA" || test "$head" = "$RELEASE_SHA"
+          git push origin "refs/tags/v$V"
           # gh release view does not find drafts, so look the tag up in the list
           state=$(gh release list --limit 1000 --json tagName,isDraft --jq ".[] | select(.tagName == \"v$V\") | .isDraft")
           if [ "$state" = false ]; then
@@ -188,3 +216,5 @@ jobs:
           gh release view "v$V" --json assets --jq '.assets[].name' | sort > "$RUNNER_TEMP/uploaded.txt"
           diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/uploaded.txt"
           gh release edit "v$V" --draft=false
+      - name: Expose published version to plugin installations
+        run: git push origin "HEAD:refs/heads/$BRANCH"

@@ -8,7 +8,7 @@
 # without a clamp (or the marker intent-check:seed-bug), so the seeded edit below triggers it and
 # the agent's fix comes back clean.
 #
-# Steps: start claude with the plugin → first prompt shows the connect line → scripted approve →
+# Steps: start claude with the plugin → setup notice → explicit CLI login → scripted approve →
 # key saved → seeded-bug edit → .intent/ written with a report URL → the idle session is woken
 # with an "Intent Check:" concern → the agent fixes it (acceptEdits) → the fix is re-checked
 # without a second wake → /intent:off stops uploads.
@@ -19,8 +19,7 @@
 #   E2E_APPROVE_CMD      required unless the fake prover is used: a shell command that approves $USER_CODE
 #                        in the console (a Clerk-signed-in action; staging needs a Clerk account).
 #   INTENT_PIPELINE      optional: canned (default here) or llm, sent as X-Intent-Pipeline.
-#   INTENT_CLI_PATH      the intent-check binary that signs in; the fake prover run defaults to test/helpers/fake-intent-check.js,
-#                        staging needs the real binary (an unreleased plugin version has no download).
+#   The global intent-check CLI must already be on PATH.
 #   MODEL                default haiku.  PLUGIN_DIR  default: this repo.  KEEP=1 keeps the work dir.
 #
 # Isolation: the plugin loads with --plugin-dir (no install at any scope). Claude Code keeps its
@@ -35,8 +34,8 @@ PLUGIN_DIR="${PLUGIN_DIR:-$(cd "$HERE/../.." && pwd)}"
 export INTENT_PIPELINE="${INTENT_PIPELINE:-canned}"
 FAKE=0
 case "$INTENT_API_URL" in http://127.0.0.1:*|http://localhost:*) FAKE=1 ;; esac
-if [ "$FAKE" = 0 ]; then : "${E2E_APPROVE_CMD:?set E2E_APPROVE_CMD}" "${INTENT_CLI_PATH:?set INTENT_CLI_PATH}"; fi
-INTENT_CLI_PATH="${INTENT_CLI_PATH:-$PLUGIN_DIR/test/helpers/fake-intent-check.js}"
+if [ "$FAKE" = 0 ]; then : "${E2E_APPROVE_CMD:?set E2E_APPROVE_CMD}"; fi
+intent-check --version >/dev/null
 
 S="intent-e2e-$$"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/intent-e2e-XXXXXX")"
@@ -44,6 +43,7 @@ REPO="$WORK/repo"
 DATA="$HOME/.claude/plugins/data/intent-inline"
 DATA_EXISTED=0; [ -d "$DATA" ] && DATA_EXISTED=1
 PASS=0; FAIL=0
+LOGIN_PID=""
 
 log() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*"; }
 ok() { PASS=$((PASS + 1)); log "PASS $*"; }
@@ -59,6 +59,7 @@ pane_count() { pane | grep -cE "$1" || true; }
 sent_count() { [ -f "$REPO/.intent/.sent.log" ] && wc -l < "$REPO/.intent/.sent.log" | tr -d ' ' || echo 0; }
 
 cleanup() {
+  if [ -n "$LOGIN_PID" ]; then kill "$LOGIN_PID" 2>/dev/null || true; wait "$LOGIN_PID" 2>/dev/null || true; fi
   tmux kill-session -t "$S" 2>/dev/null || true
   if [ "$DATA_EXISTED" = 0 ]; then rm -rf "$DATA"; fi
   rm -rf "$HOME/.claude/projects/$(printf '%s' "$REPO" | sed 's#[^A-Za-z0-9]#-#g')" 2>/dev/null || true
@@ -77,11 +78,10 @@ git -C "$REPO" init -q
 printf '# e2e\n' > "$REPO/README.md"
 git -C "$REPO" add -A
 git -C "$REPO" -c user.email=e2e@example.com -c user.name=e2e commit -qm init
-rm -f "$DATA/connect.json" 2>/dev/null || true
 
 log "starting claude in tmux session $S (plugin: $PLUGIN_DIR, api: $INTENT_API_URL)"
 tmux new-session -d -s "$S" -x 220 -y 60 \
-  "cd '$REPO' && XDG_CONFIG_HOME='$WORK/xdg' INTENT_API_URL='$INTENT_API_URL' INTENT_CONSOLE_URL='${INTENT_CONSOLE_URL:-$INTENT_API_URL}' INTENT_PIPELINE='$INTENT_PIPELINE' INTENT_CLI_PATH='$INTENT_CLI_PATH' claude --plugin-dir '$PLUGIN_DIR' \
+  "cd '$REPO' && XDG_CONFIG_HOME='$WORK/xdg' INTENT_API_URL='$INTENT_API_URL' INTENT_CONSOLE_URL='${INTENT_CONSOLE_URL:-$INTENT_API_URL}' INTENT_PIPELINE='$INTENT_PIPELINE' claude --plugin-dir '$PLUGIN_DIR' \
    --settings '{\"enabledPlugins\":{\"security-guidance@claude-plugins-official\":false}}' --model '$MODEL' --permission-mode acceptEdits; sleep 600"
 
 # Folder-trust dialog, then the input box.
@@ -93,20 +93,25 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 
-# 1. Connect line on the first prompt.
+# 1. Hooks give guidance; the explicit global CLI command starts login.
 send "Reply with just: hi"
-if wait_for 60 pane_has 'Intent Check: connect your account'; then ok "connect line shown to the user"; else bad "connect line not visible"; fi
-wait_for 20 test -f "$DATA/connect.json" || true
-USER_CODE="$(node -e 'try{console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).user_code||"")}catch{console.log("")}' "$DATA/connect.json")"
-[ -n "$USER_CODE" ] && ok "connect started ($USER_CODE)" || bad "no connect request recorded"
+if wait_for 60 pane_has 'kit-onboarding'; then ok "setup guidance shown"; else bad "setup guidance not visible"; fi
+XDG_CONFIG_HOME="$WORK/xdg" INTENT_API_URL="$INTENT_API_URL" INTENT_CONSOLE_URL="${INTENT_CONSOLE_URL:-$INTENT_API_URL}" intent-check login > "$WORK/login.jsonl" 2>&1 &
+LOGIN_PID=$!
+wait_for 20 grep -q 'verification_url' "$WORK/login.jsonl" || true
+USER_CODE="$(node -e 'try{console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8").split("\n")[0]).user_code||"")}catch{console.log("")}' "$WORK/login.jsonl")"
+[ -n "$USER_CODE" ] && ok "explicit CLI login started ($USER_CODE)" || bad "CLI login did not start"
 
 # 2. Approve and wait for the key.
 approve "$USER_CODE" || bad "approve command failed"
 CRED="$WORK/xdg/intent-check/credentials.json"
-if wait_for 60 grep -q '"keys"' "$CRED" 2>/dev/null; then ok "key saved by intent-check login"; else bad "key not saved"; fi
+if wait_for 60 grep -q '"keys"' "$CRED" 2>/dev/null; then
+  wait "$LOGIN_PID" && ok "key saved by intent-check login" || bad "CLI login failed"
+  LOGIN_PID=""
+else bad "key not saved"; exit 1; fi
 [ "$(stat -c %a "$CRED" 2>/dev/null || stat -f %Lp "$CRED")" = 600 ] && ok "credentials.json is mode 600" || bad "credentials.json mode"
 send "Reply with just: ready"
-if wait_for 60 pane_has 'Intent Check: connected\.'; then ok "connected line shown"; else bad "connected line not visible"; fi
+if grep -q '"status":"connected"' "$WORK/login.jsonl"; then ok "CLI confirmed connected"; else bad "CLI did not confirm connection"; fi
 
 # 3. Seeded-bug edit.
 # One line only: a newline typed into the TUI would submit the prompt early.

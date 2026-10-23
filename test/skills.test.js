@@ -35,7 +35,7 @@ test("skills and prove.md: no .intent-check/ project path (the project folder is
 test("skills: no prover-client left, and relative markdown links resolve", () => {
   for (const f of mdFiles(SKILLS)) {
     const src = fs.readFileSync(f, "utf8");
-    assert.doesNotMatch(src, /prover-client|install-intent-check/, f);
+    assert.doesNotMatch(src, /prover-client/, f);
     assert.doesNotMatch(src, / ,|,  /, `${path.relative(ROOT, f)}: stray comma spacing`);
     for (const m of src.matchAll(/\]\(([^)]+)\)/g)) {
       if (/^(https?:|#|mailto:)/.test(m[1])) continue;

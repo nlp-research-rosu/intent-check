@@ -10,14 +10,15 @@
 # from this checkout into the throwaway home, and its hooks are trusted by pre-seeding
 # [hooks.state] hashes in that home's config.toml only.
 #
-# Steps: first prompt shows the connect line (as hook context) → scripted approve → key saved →
+# Steps: explicit global CLI login → scripted approve → key saved →
 # seeded-bug edit via apply_patch → Stop returns fast, .intent/ written by the detached poller →
 # the concern reaches the agent at the next prompt (resume) → a no-concerns check stays silent →
 # /intent:off equivalent (INTENT_DISABLED=1) sends nothing.
 #
-# Env: INTENT_API_URL (required; 127.0.0.1 = fake prover), INTENT_CLI_PATH (the intent-check binary that signs in; defaults to
-#      test/helpers/fake-intent-check.js for the fake prover, required for staging), E2E_APPROVE_CMD (required for staging: approves $USER_CODE in the console; staging needs a Clerk account),
+# Env: INTENT_API_URL (required; 127.0.0.1 = fake prover),
+#      E2E_APPROVE_CMD (required for staging: approves $USER_CODE in the console; staging needs a Clerk account),
 #      MODEL (default gpt-5.6-luna), INTENT_PIPELINE (default canned), KEEP=1.
+# The global intent-check CLI must already be on PATH.
 set -euo pipefail
 
 : "${INTENT_API_URL:?set INTENT_API_URL}"
@@ -27,8 +28,8 @@ MODEL="${MODEL:-gpt-5.6-luna}"
 export INTENT_PIPELINE="${INTENT_PIPELINE:-canned}"
 FAKE=0
 case "$INTENT_API_URL" in http://127.0.0.1:*|http://localhost:*) FAKE=1 ;; esac
-if [ "$FAKE" = 0 ]; then : "${E2E_APPROVE_CMD:?set E2E_APPROVE_CMD}" "${INTENT_CLI_PATH:?set INTENT_CLI_PATH}"; fi
-export INTENT_CLI_PATH="${INTENT_CLI_PATH:-$PLUGIN_DIR/test/helpers/fake-intent-check.js}"
+if [ "$FAKE" = 0 ]; then : "${E2E_APPROVE_CMD:?set E2E_APPROVE_CMD}"; fi
+intent-check --version >/dev/null
 [ -f "$HOME/.codex/auth.json" ] || { echo "no ~/.codex/auth.json"; exit 1; }
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/intent-codex-e2e-XXXXXX")"
@@ -37,12 +38,14 @@ export XDG_CONFIG_HOME="$WORK/xdg"
 REPO="$WORK/repo"
 DATA="$CODEX_HOME/plugins/data/intent-intentcomputing"
 PASS=0; FAIL=0
+LOGIN_PID=""
 log() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*"; }
 ok() { PASS=$((PASS + 1)); log "PASS $*"; }
 bad() { FAIL=$((FAIL + 1)); log "FAIL $*"; }
 wait_for() { local t=$1; shift; local end=$((SECONDS + t)); until "$@"; do [ $SECONDS -ge $end ] && return 1; sleep 2; done; }
 cleanup() {
-  # Detached finisher / connect-start processes run from the throwaway plugin cache; stop them first
+  if [ -n "$LOGIN_PID" ]; then kill "$LOGIN_PID" 2>/dev/null || true; wait "$LOGIN_PID" 2>/dev/null || true; fi
+  # Detached finisher processes run from the throwaway plugin cache; stop them first
   # or they recreate $WORK/home after it is removed.
   local pids
   pids="$(pgrep -f "$WORK/home/plugins/cache" || true)"
@@ -78,16 +81,17 @@ ok "plugin installed and hooks trusted (isolated home)"
 # What the plugin handed to Codex, from its own log (codex exec does not print hook context).
 emitted() { grep '"event":"hook.output"' "$DATA/intent.log" 2>/dev/null | grep -c "\"$1\"" || true; }
 
-# 1. Connect. The line goes to Codex as hook context (the TUI shows it; exec prints only
-#    "hook: UserPromptSubmit Completed"), so check the plugin's output log and ask the model.
-OUT="$(cx "Quote verbatim every line in your context that starts with 'Intent Check:', or say NONE. Do not run any commands.")"
-if [ "$(emitted connect)" -ge 1 ]; then ok "connect line handed to Codex"; else bad "connect line not emitted"; fi
-if printf '%s' "$OUT" | grep -q 'Intent Check: connect your account'; then ok "model saw the connect line"; else bad "model did not see the connect line"; fi
-wait_for 20 test -f "$DATA/connect.json" || true
-USER_CODE="$(node -e 'try{console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).user_code||"")}catch{console.log("")}' "$DATA/connect.json")"
-[ -n "$USER_CODE" ] && ok "connect started ($USER_CODE)" || bad "no connect request"
+# 1. Sign in explicitly with the global CLI, as the onboarding skill does.
+INTENT_API_URL="$INTENT_API_URL" INTENT_CONSOLE_URL="${INTENT_CONSOLE_URL:-$INTENT_API_URL}" intent-check login > "$WORK/login.jsonl" 2>&1 &
+LOGIN_PID=$!
+wait_for 20 grep -q 'verification_url' "$WORK/login.jsonl" || true
+USER_CODE="$(node -e 'try{console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8").split("\n")[0]).user_code||"")}catch{console.log("")}' "$WORK/login.jsonl")"
+[ -n "$USER_CODE" ] && ok "explicit CLI login started ($USER_CODE)" || bad "CLI login did not start"
 approve "$USER_CODE" || bad "approve failed"
-if wait_for 60 grep -q '"keys"' "$WORK/xdg/intent-check/credentials.json" 2>/dev/null; then ok "key saved"; else bad "key not saved"; fi
+if wait_for 60 grep -q '"keys"' "$WORK/xdg/intent-check/credentials.json" 2>/dev/null; then
+  wait "$LOGIN_PID" && ok "key saved" || bad "CLI login failed"
+  LOGIN_PID=""
+else bad "key not saved"; exit 1; fi
 
 # 2. Seeded bug: Stop must return quickly; the detached poller writes .intent/.
 T0=$SECONDS

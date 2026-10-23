@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createMockAnthropic } from "../helpers/mock-anthropic.js";
 import { createFakeProver, TEST_KEY } from "../helpers/fake-prover.js";
-import { ROOT, FAKE_CLI, tmpdir, makeRepo, waitFor } from "../helpers/env.js";
+import { ROOT, tmpdir, makeRepo, waitFor } from "../helpers/env.js";
 import { findCli, runCli, cleanEnv } from "./helpers.js";
 
 const CLAUDE = findCli("claude");
@@ -45,7 +45,6 @@ async function session({ key = null, prompt = "write the file" } = {}) {
     DISABLE_AUTOUPDATER: "1",
     INTENT_API_URL: fp.url,
     INTENT_CONSOLE_URL: fp.url,
-    INTENT_CLI_PATH: FAKE_CLI,
     ...(key ? { INTENT_API_KEY: key } : {}),
   });
   const args = ["-p", prompt, "--plugin-dir", ROOT, "--permission-mode", "acceptEdits", "--output-format", "stream-json", "--verbose", "--include-hook-events"];
@@ -68,19 +67,18 @@ function assertHooksRan(s) {
     assert.ok(resp.length, note(s, `no hook_response for ${ev}`));
     for (const e of resp) assert.ok(e.outcome === "success" && e.exit_code === 0, note(s, `${ev} hook did not finish successfully`));
   }
-  // Stop has two hooks (stop + connect-wait), each started and each answered, both successfully.
-  assert.equal(s.hooks("hook_started").filter((e) => e.hook_event === "Stop").length, 2, note(s, "two Stop hooks start"));
-  assert.equal(s.hooks("hook_response").filter((e) => e.hook_event === "Stop").length, 2, note(s, "two Stop hooks respond"));
+  assert.equal(s.hooks("hook_started").filter((e) => e.hook_event === "Stop").length, 1, note(s, "one review Stop hook starts"));
+  assert.equal(s.hooks("hook_response").filter((e) => e.hook_event === "Stop").length, 1, note(s, "one review Stop hook responds"));
   assert.ok(!s.r.timedOut, note(s, "claude -p timed out"));
 }
 
-test("claude -p without a key: every hook runs, the connect note reaches the model, no job is sent", { skip, timeout: 60000 }, async () => {
+test("claude -p without a global CLI: hooks give setup guidance without sending a job", { skip, timeout: 60000 }, async () => {
   const s = await session();
   assertHooksRan(s);
-  assert.match(s.mockBodies, /Intent Check is not connected, so nothing is checked; the user can connect at/, note(s, "connect note missing from the model request"));
+  assert.match(s.mockBodies, /kit-onboarding/, note(s, "setup guidance missing from the model request"));
   assert.doesNotMatch(s.mockBodies, /do not start on their request until they reply/, "headless gets the soft note, not the wait gate");
   assert.equal(fp.jobRequests().length, 0);
-  assert.ok(fp.state.requests.some((q) => q.method === "POST" && q.path === "/api/cli-connect"), "SessionStart asked the service for a connect link");
+  assert.equal(fp.state.requests.some((q) => q.method === "POST" && q.path === "/api/cli-connect"), false, "no sign-in is started without the global CLI");
 });
 
 test("claude -p with a seeded key: the edit is uploaded to the prover as a job", { skip, timeout: 60000 }, async () => {

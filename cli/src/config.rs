@@ -49,6 +49,8 @@ pub fn load() -> Result<Config> {
             *field = url.trim().into();
         }
     }
+    config.server_url = config.server_url.trim().trim_end_matches('/').into();
+    config.portal_url = config.portal_url.trim().trim_end_matches('/').into();
     validate(&config)?;
     Ok(config)
 }

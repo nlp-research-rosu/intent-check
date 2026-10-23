@@ -65,10 +65,10 @@ test("claude -p with no node on PATH: the turn completes, each hook fails once a
   for (const t of out) {
     assert.ok(!t.r.timedOut, "the turn did not hang");
     assert.ok(t.result && !t.result.is_error, `the turn completed: ${t.r.stdout.slice(-400)}`);
-    // Exactly one SessionStart/UserPromptSubmit/PostToolUse and the two Stop hooks per turn: nothing repeats.
+    // One hook per event, including a single review Stop hook: nothing repeats.
     assert.equal(count(t.started, "UserPromptSubmit"), 1);
     assert.equal(count(t.started, "PostToolUse"), 1);
-    assert.equal(count(t.started, "Stop"), 2);
+    assert.equal(count(t.started, "Stop"), 1);
     assert.equal(t.responses.length, t.started.length, "every started hook was answered");
     for (const e of t.responses) {
       assert.notEqual(e.outcome, "success", `${e.hook_event} cannot succeed without node`);
@@ -85,7 +85,7 @@ test("claude -p with Node 16 on PATH: the 'needs Node 18' line shows once per da
   for (const t of out) {
     assert.ok(!t.r.timedOut && t.result && !t.result.is_error, "the turn completed");
     for (const e of t.responses) assert.ok(e.outcome === "success" && e.exit_code === 0, `${e.hook_event} exits 0 on old node`);
-    assert.equal(count(t.started, "Stop"), 2);
+    assert.equal(count(t.started, "Stop"), 1);
   }
   const said = (t) => t.responses.filter((e) => /needs Node 18 or newer \(found 16\.1\.0\)/.test(String(e.stderr || e.output))).length;
   assert.equal(said(out[0]), 1, "the first turn says it once");

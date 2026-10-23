@@ -48,7 +48,7 @@ claude plugin install intent --marketplace nlp-research-rosu/intent-check
 
 This needs Claude Code 2.1.292 or newer. On an older version, run `claude plugin marketplace add nlp-research-rosu/intent-check` and then `claude plugin install intent@intentcomputing`.
 
-Then restart Claude Code or run `/reload-plugins`. Your first prompt shows a link to sign in to the prover console; once you approve it, checks start. If anything looks wrong later, run `/intent:doctor`. See [Signing in](#signing-in).
+Then restart Claude Code or run `/reload-plugins`. If the global CLI is installed, hooks show a browser sign-in link automatically. Otherwise ask the agent to follow `kit-onboarding` to install it. Approve the link to enable checks; your task can continue while sign-in is pending. If anything looks wrong later, run `/intent:doctor`. See [Signing in](#signing-in).
 
 ## Commands
 
@@ -67,8 +67,8 @@ The choice is saved in the plugin's `config.json` as `live`. `INTENT_LIVE=1` or 
 
 **Doctor.** `/intent:doctor` prints the version, the service, the account, whether checks are on, the last check and the last error, and then repairs what it can:
 
-- Not signed in: it shows a fresh sign-in link.
-- The service no longer accepts the saved key: it forgets the key and shows a fresh link.
+- Not signed in: it points to onboarding and `intent-check login`.
+- The service no longer accepts the saved key: it forgets the key and asks you to run `intent-check login` again.
 - A newer release: the first line names it ("v0.2.3 (v0.2.4 available)"). It reads the release tags of the marketplace the plugin was installed from, so it also works where the plugin cannot update itself.
 - An update: on Claude Code it runs `claude plugin marketplace update` and `claude plugin update` for you, and tells you to run `/reload-plugins` when a new version was installed. Where the `claude` command is not available (the desktop app, for example) it says how to update by hand.
 - Anything only you can fix (checks turned off, an environment variable, no network) is listed as a "To do" line.
@@ -79,19 +79,21 @@ On Codex, ask the agent ("turn live mode on", "run the Intent Check doctor"); it
 
 ## Signing in
 
-The first prompt shows one link. The plugin runs `intent-check login` for you (it downloads the CLI for this plugin version first, so the first link can appear on your second prompt). Open the link in the prover console and approve; the CLI saves the key in `~/.config/intent-check/credentials.json` (`$XDG_CONFIG_HOME/intent-check/` when set, `%APPDATA%\intent-check\` on Windows). Keys are stored per API origin. Outside the plugin, run `intent-check login` yourself. The plugin and the command share the file, so you sign in once for both.
+Use `kit-onboarding` to install the global `intent-check` CLI. Without a key, hooks run `intent-check login` in the background and show its browser approval link, without blocking your task. Concurrent sessions share that login; a later prompt confirms approval once. If the CLI is missing, hooks point to onboarding and never install a private copy. You can also run `intent-check login` yourself: keep it running until it reports `connected`. The CLI saves the key in `~/.config/intent-check/credentials.json` (`$XDG_CONFIG_HOME/intent-check/` when set, `%APPDATA%\intent-check\` on Windows). Keys are stored per API origin. The plugin and command share that file, so you sign in once for both.
 
 In the cloud and in CI, where nobody can open a link, set `INTENT_API_KEY` to a key from the prover console. It takes precedence over the saved key, for the plugin and the command.
 
+The plugin and CLI share endpoint settings in `~/.config/intent-check/config.toml` (the same XDG/Windows directory as credentials). Set `server_url` for the API and `portal_url` for the console. `INTENT_API_URL` and `INTENT_CONSOLE_URL` override them; blank variables count as unset. The plugin reads TOML through the global `intent-check config` command. Plugin preferences such as `disabled` and `live` remain host-local in `config.json`; endpoints do not.
+
 ## Prove
 
-`/intent:prove [what to prove]` proves a program correct with K: partial correctness (if it terminates and the precondition holds, the postcondition holds). The first run downloads the `intent-check` CLI for this plugin version and prints its path; the agent then follows the proof skills (`using-kit` and the skills it points to). On Codex, ask the agent to prove something.
+`/intent:prove [what to prove]` proves a program correct with K: partial correctness (if it terminates and the precondition holds, the postcondition holds). The agent follows the proof skills (`using-kit` and the skills it points to), calling the global `intent-check` CLI directly. If setup is missing, it uses `kit-onboarding`. On Codex, ask the agent to prove something.
 
 Proof files go under `.intent/prove/<target>/`, one folder per program or function (spec, scope, `PROOF.md`, scripts). Commit them. The CLI's session state is in `.intent/prove/sessions/`; do not commit that folder. All `.intent/` paths are relative to the automatically detected repository root, even when commands run from a subdirectory. Outside a repository, the CLI uses the project directory. Results are shown in the prover console.
 
 ## The `intent-check` command
 
-The same CLI the prove mode downloads can be installed on its own, for use outside an agent session. Each release has the binary for macOS, Linux and Windows (x64 and arm64), with checksums, and an installer:
+Install the global CLI once for both skills and terminal use. The plugin package contains skills and JavaScript review hooks, not a native executable or private binary cache. Each release has the Rust binary for macOS, Linux and Windows (x64 and arm64), with checksums, and an installer:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/nlp-research-rosu/intent-check/releases/latest/download/install-intent-check.sh | sh
@@ -109,7 +111,6 @@ On Windows, download `install-intent-check.ps1` from the same release and run it
 | `INTENT_DISABLED=1` | Turns the plugin off; nothing is sent. |
 | `DO_NOT_TRACK=1` | The same. |
 | `INTENT_LIVE=1` or `0` | Sets live mode, overriding the saved choice. |
-| `INTENT_CLI_PATH` | Development only: use this `intent-check` binary instead of downloading one. |
 
 ## Updating
 
@@ -117,7 +118,7 @@ To see which version you have, run `/intent:doctor`: its first line shows the in
 
 Claude Code only updates a plugin when its version changes, and it does not auto-update third-party marketplaces unless you turn that on. To turn it on, open `/plugin`, go to Marketplaces, select `intentcomputing` and choose Enable auto-update. With auto-update on, a new version can take up to about 10 minutes to arrive after your first message. To update right now, open `/plugin`, go to Marketplaces, select `intentcomputing` and choose Update marketplace, then go to Installed, select `intent` and choose Update now. In a terminal, run `claude plugin marketplace update intentcomputing` and then `claude plugin update intent@intentcomputing`. A running session keeps the old version until you run `/reload-plugins` or restart Claude Code. `claude plugin list` shows the installed version in its Version column.
 
-Maintainers: in GitHub, open Actions, select release, choose Run workflow, pick the branch and the bump (patch, minor or major; pick minor when a command or option was removed or renamed). On `main` it bumps the version, turns the Unreleased section of `CHANGELOG.md` into that version's section, commits, tags and publishes a release with that section as its notes. So every pull request that changes what users see adds a line under Unreleased, and the release fails if Unreleased is empty. Add new entries directly under the `## [Unreleased]` heading (not between Unreleased and the last release); that keeps main to dev back-merge conflicts in `CHANGELOG.md` small. On any other branch it does the same as a prerelease (for example `0.1.2-per-edit.1`), committed to that branch, since people who install from a branch get its latest commit. After merging `main` into `per-edit` (or any branch users install from), press Release on that branch before telling users to update. Otherwise the branch head may carry a version string that is already installed, and nobody updates.
+Maintainers: in GitHub, open Actions, select release, choose Run workflow, pick the branch and the bump (patch, minor or major; pick minor when a command or option was removed or renamed). On `main` it prepares a version-bump commit, turns the Unreleased section of `CHANGELOG.md` into that version's section, builds all CLI targets, tags and publishes a release with that section as its notes, then advances the branch to the prepared commit. The matching CLI assets are therefore available before plugin installations see the new version; a failed build leaves the branch untouched. The final push is fast-forward only and refuses concurrent branch changes. So every pull request that changes what users see adds a line under Unreleased, and the release fails if Unreleased is empty. Add new entries directly under the `## [Unreleased]` heading (not between Unreleased and the last release); that keeps main to dev back-merge conflicts in `CHANGELOG.md` small. On any other branch it does the same as a prerelease (for example `0.1.2-per-edit.1`), committed to that branch, since people who install from a branch get its latest commit. After merging `main` into `per-edit` (or any branch users install from), press Release on that branch before telling users to update. Otherwise the branch head may carry a version string that is already installed, and nobody updates.
 
 ## Install (Codex CLI 0.147 or newer)
 
@@ -130,7 +131,7 @@ codex plugin add intent@intentcomputing
 
 The Codex IDE extension (VS Code) and the Codex desktop app load the same plugins. Run these commands in a terminal, then restart the extension or app.
 
-Then start `codex` and choose "Trust all and continue" when it says the plugin's hooks need review (or trust them in `/hooks`). Your first prompt shows the link to sign in to the prover console.
+Then start `codex` and choose "Trust all and continue" when it says the plugin's hooks need review (or trust them in `/hooks`). Hooks start sign-in through the global CLI when needed; if it is missing, use `kit-onboarding` to install it.
 
 Intent Check 0.2.0 updated its edit hook (it now also runs after `apply_patch` and shell commands in live mode). If Codex lists it as Modified, approve it in `/hooks` (or the app's hook review); the first session after the update says so once.
 

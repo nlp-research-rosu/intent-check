@@ -223,7 +223,7 @@ async function inProcess(ctx, fn) {
   try { return await fn(); } finally { for (const k of keys) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } }
 }
 
-test("a per-edit 401 with a saved key clears it, marks connect.json revoked, and the next prompt says why", async () => {
+test("a per-edit 401 clears the saved key and asks for explicit sign-in without starting login", async () => {
   const ctx = savedKeyCtx();
   await prompt(ctx);
   fp.state.keyRevoked = true;
@@ -231,8 +231,7 @@ test("a per-edit 401 with a saved key clears it, marks connect.json revoked, and
     await edit(ctx, "pricing.py", V1, "toolu_1");
     assert.ok(await waitFor(() => !savedKey(ctx.data, fp.url)), "saved key cleared");
     const c = path.join(ctx.data, "connect.json");
-    assert.ok(await waitFor(() => fs.existsSync(c) && readJson(c).status === "pending", { timeoutMs: 10000 }), "connect.json updated with a new request");
-    assert.match(readJson(c).reason || "", /no longer accepted/);
+    assert.equal(fs.existsSync(c), false, "no automatic login flow");
     const r = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "carry on with the next task please" }), ctx.env);
     assert.match(r.json.systemMessage, /no longer accepted/);
   } finally { fp.state.keyRevoked = false; }

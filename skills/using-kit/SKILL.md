@@ -28,9 +28,7 @@ files are meant to be committed; the CLI's session state in
 
 ## Start live verification
 
-Live verification is the default. Run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" prove --data "${CLAUDE_PLUGIN_DATA}"` first (if you cannot, ask the user to run
-`/intent:prove`): it prints the absolute path of the
-`intent-check` CLI, which stands for `intent-check` in every command below.
+Live verification is the default. Use the global `intent-check` CLI on `PATH`.
 See [running-k.md](../shared/running-k.md#shell-setup).
 Use [kit-onboarding](../kit-onboarding/SKILL.md) when setup or authentication
 is incomplete (sign in with `intent-check login`); use command help for

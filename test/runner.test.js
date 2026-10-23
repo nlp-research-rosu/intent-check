@@ -236,16 +236,16 @@ test("spend cap (429): nothing during the turn, one user-visible line at the nex
   assert.equal(again.stdout, "");
 });
 
-test("a rejected saved key (401) is dropped, so the next prompt offers the connect link", async () => {
+test("a rejected saved key (401) is dropped, so the next prompt asks for explicit sign-in", async () => {
   const ctx = setup();
   saveKey(ctx.data, "ak_wrong_" + "Z".repeat(30), fp.url);
   const r = await turn(ctx, { "pricing.py": PRICING });
   assert.equal(r.code, 0);
   assert.ok(await waitFor(() => !savedKey(ctx.data, fp.url)), "the rejected key is gone from the credentials file");
   const cfile = path.join(ctx.data, "connect.json");
-  assert.ok(await waitFor(() => fs.existsSync(cfile) && JSON.parse(fs.readFileSync(cfile, "utf8")).status === "pending", { timeoutMs: 10000 }));
+  assert.equal(fs.existsSync(cfile), false, "no legacy per-host connect record");
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "ok" }), ctx.env);
-  assert.match(next.json.systemMessage, /connect your account → http/);
+  assert.match(next.json.systemMessage, /intent-check login/);
 });
 
 test("prover unreachable: the turn is not held up, paths are kept, the next prompt says so once", async () => {

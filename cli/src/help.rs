@@ -52,6 +52,11 @@ first applicable path:
   %APPDATA%/intent-check/config.toml (Windows)
   ~/.config/intent-check/config.toml
 
+The plugin reads this same file through the global intent-check CLI for API
+and console endpoints. INTENT_API_URL and INTENT_CONSOLE_URL override it;
+blank variables count as unset. Plugin preferences such as disabled and live
+remain in the host-local config.json, not here.
+
 Settings:
   server_url                Prover HTTP endpoint.
                             Default: https://prover.intentcomputing.org.

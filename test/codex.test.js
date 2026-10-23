@@ -156,17 +156,16 @@ test("fix directly when Codex runs without approvals", async () => {
   assert.match(next.json.hookSpecificOutput.additionalContext, /fix it directly, editing only pricing\.py/);
 });
 
-test("not connected: the connect link arrives as context (Codex shows it), host codex; PLUGIN_ROOT alone selects Codex", async () => {
+test("without a global CLI: Codex receives setup guidance; PLUGIN_ROOT alone selects Codex", async () => {
   const ctx = setup({ key: false });
+  ctx.env.PATH = "";
   const n = fp.state.requests.length;
   const r = await run("prompt", cfx("prompt", ctx.repo, ctx.transcript), ctx.env, { hostFlag: false });
-  assert.equal(r.stdout, "", "the prompt hook only reads; the request is made by a detached child");
-  assert.ok(await waitFor(() => fs.existsSync(path.join(ctx.data, "connect.json")), { timeoutMs: 10000 }));
-  const start = fp.state.requests.slice(n).find((x) => x.path === "/api/cli-connect");
-  assert.deepEqual(start.body, { action: "start" });
+  assert.match(r.json.hookSpecificOutput.additionalContext, /kit-onboarding/);
+  assert.equal(fs.existsSync(path.join(ctx.data, "connect.json")), false);
+  assert.equal(fp.state.requests.slice(n).some((x) => x.path === "/api/cli-connect"), false);
   const r2 = await run("prompt", cfx("prompt", ctx.repo, ctx.transcript), ctx.env, { hostFlag: false });
-  assert.equal(r2.json.systemMessage, undefined);
-  assert.match(r2.json.hookSpecificOutput.additionalContext, /connect your account → http/);
+  assert.equal(r2.stdout, "", "setup guidance appears once per session");
 });
 
 test("the data dir is created on first use (Codex does not create it)", async () => {

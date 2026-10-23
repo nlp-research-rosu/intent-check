@@ -1,11 +1,13 @@
 ---
-description: Prove a program correct with K (gets the intent-check CLI first)
+description: Prove a program correct with K using the global intent-check CLI
 argument-hint: "[what to prove]"
-allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js":*)
+allowed-tools: Bash(intent-check:*)
 ---
 
 The user wants a formal proof with K: $ARGUMENTS
 
-Run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" prove --data "${CLAUDE_PLUGIN_DATA}"`. It downloads the `intent-check` CLI for this plugin version if it is missing and prints its absolute path.
+Run `intent-check --version`. If the global CLI is missing or setup is incomplete,
+follow the `kit-onboarding` skill to install and connect it.
 
-Then follow the `using-kit` skill, using that path wherever the skills say `intent-check`. If the command fails, tell the user what it printed and stop.
+Then follow the `using-kit` skill. All project artifacts go under the
+automatically detected repository root's `.intent/` directory.
