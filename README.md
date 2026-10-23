@@ -79,9 +79,9 @@ On Codex, ask the agent ("turn live mode on", "run the Intent Check doctor"); it
 
 ## Signing in
 
-The first prompt shows one link. Open it in the prover console and approve; the plugin saves the key in `~/.config/intent-check/credentials.json` (`$XDG_CONFIG_HOME/intent-check/` when set, `%APPDATA%\intent-check\` on Windows). Keys are stored per API origin. The standalone `intent-check` command reads the same file, so you sign in once for both.
+The first prompt shows one link. The plugin runs `intent-check login` for you (it downloads the CLI for this plugin version first, so the first link can appear on your second prompt). Open the link in the prover console and approve; the CLI saves the key in `~/.config/intent-check/credentials.json` (`$XDG_CONFIG_HOME/intent-check/` when set, `%APPDATA%\intent-check\` on Windows). Keys are stored per API origin. Outside the plugin, run `intent-check login` yourself. The plugin and the command share the file, so you sign in once for both.
 
-In the cloud and in CI, where nobody can open a link, set `INTENT_API_KEY` to a key from the prover console. It takes precedence over the saved key.
+In the cloud and in CI, where nobody can open a link, set `INTENT_API_KEY` to a key from the prover console. It takes precedence over the saved key, for the plugin and the command.
 
 ## Prove
 
@@ -104,8 +104,8 @@ On Windows, download `install-intent-check.ps1` from the same release and run it
 | Variable | Effect |
 |---|---|
 | `INTENT_API_URL` | The prover API the plugin and the CLI talk to (default `https://prover.intentcomputing.org`). |
-| `INTENT_CONSOLE_URL` | The prover console that sign-in and result links open in. |
-| `INTENT_API_KEY` | The API key, instead of the saved one. For cloud sessions and CI. |
+| `INTENT_CONSOLE_URL` | The prover console that sign-in and result links open in, for the plugin and the CLI. |
+| `INTENT_API_KEY` | The API key, instead of the saved one, for the plugin and the CLI. For cloud sessions and CI. |
 | `INTENT_DISABLED=1` | Turns the plugin off; nothing is sent. |
 | `DO_NOT_TRACK=1` | The same. |
 | `INTENT_LIVE=1` or `0` | Sets live mode, overriding the saved choice. |

@@ -9,8 +9,8 @@ Complete setup once for this machine and Prover endpoint. A working CLI and
 an accepted saved credential let subsequent KIT tasks proceed without repeating
 onboarding. Use this skill when setup is missing or the user requests it.
 
-The plugin provides the CLI and the user signs in through the Intent Check
-sign-in link; nothing is installed by hand. Read
+The plugin provides the CLI and the user signs in with `intent-check login`;
+nothing is installed by hand. Read
 [KIT help](../kit-help/SKILL.md) when
 answering questions about the components, settings or saved data.
 
@@ -25,10 +25,11 @@ command; it is not on `PATH` and nothing edits `PATH`. Check it with
 
 ## Connect to Prover
 
-The CLI uses the account saved by the Intent Check sign-in link, or the
-`INTENT_API_KEY` environment variable. If a command returns an authentication
-or permission error, show the user the Intent Check sign-in link (run the same command with `doctor` in place of
-`prove` if none is shown; or ask the user to run `/intent:doctor`) and wait for them to approve it. Never ask
+The CLI uses the account saved by `intent-check login`, or the
+`INTENT_API_KEY` environment variable. Under the plugin the sign-in link is
+usually already shown to the user. If a command returns an authentication or
+permission error, run `<cli path> login`, give the user its `verification_url`
+and wait for the command to report `connected` once they approve it. Never ask
 for a key in chat or read credential files into context. If the user
 declines, stop setup.
 

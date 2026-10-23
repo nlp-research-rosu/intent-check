@@ -32,10 +32,11 @@ For nested commands, use help such as `intent-check session start --help`.
 
 ## Connection
 
-The CLI sends the account saved by the Intent Check sign-in link (or
-`INTENT_API_KEY`) with all Prover requests. Run the requested commands and
-handle authentication or permission errors from their responses; never read
-credential files into agent context.
+The CLI sends the account saved by `intent-check login` (or
+`INTENT_API_KEY`) with all Prover requests. Run the requested commands. On an
+authentication or permission error, run `<cli path> login` and give the user
+its `verification_url`; under the plugin the link is usually already shown.
+Never read credential files into agent context.
 
 If polling fails after acceptance, recover the existing task rather than
 resubmitting. Use `intent-check task --help` for retries, reattachment and

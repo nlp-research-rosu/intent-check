@@ -22,7 +22,7 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ### Changed
 
-- Sign-in runs through the prover console, and the key is saved in `~/.config/intent-check/credentials.json`, shared with the `intent-check` command. For cloud sessions and CI, set `INTENT_API_KEY`.
+- Sign-in is `intent-check login`, which the plugin runs for you (it downloads the CLI for the plugin version first) and which you can run yourself. The key is saved in `~/.config/intent-check/credentials.json`. For cloud sessions and CI, set `INTENT_API_KEY`; the CLI now honors `INTENT_API_URL`, `INTENT_CONSOLE_URL` and `INTENT_API_KEY` too.
 - Checks and DeepScans go to the prover API (`https://prover.intentcomputing.org`, `INTENT_API_URL` overrides it).
 - Everything the plugin writes in your repo lives under `.intent/`.
 - The README describes all four modes (check, live, deepscan, prove), sign-in, the commands, file locations and environment variables, and no longer lists sample report pages.

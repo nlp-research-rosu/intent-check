@@ -30,7 +30,8 @@ Live verification is the default. Run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js"
 `intent-check` CLI, which stands for `intent-check` in every command below.
 See [running-k.md](../shared/running-k.md#shell-setup).
 Use [kit-onboarding](../kit-onboarding/SKILL.md) when setup or authentication
-is incomplete; use command help for invocation details.
+is incomplete (sign in with `intent-check login`); use command help for
+invocation details.
 
 Discover available semantics with `intent-check semantics`, select an ID
 matching the target, and inspect its pinned sources and backend capabilities.

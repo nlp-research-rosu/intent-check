@@ -9,9 +9,9 @@ Live mode requires the `intent-check` CLI and a reachable Prover server.
 Use the absolute path printed by `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" prove --data "${CLAUDE_PLUGIN_DATA}"` (or by the user's
 `/intent:prove`). If it is missing or KIT needs
 first-time setup, use [kit-onboarding](../kit-onboarding/SKILL.md). Otherwise proceed with
-the requested operation using the saved key. Handle authentication or
-permission errors from the command response with
-[kit-help](../kit-help/SKILL.md#connection).
+the requested operation using the saved key. For authentication or
+permission errors, sign in with `<cli path> login`
+([kit-help](../kit-help/SKILL.md#connection)).
 
 ## CLI contract
 
