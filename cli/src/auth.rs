@@ -92,6 +92,11 @@ fn write(path: &Path, value: &Credentials) -> Result<()> {
 }
 
 pub fn api_key(server: &str) -> Result<Option<String>> {
+    if let Ok(key) = std::env::var("INTENT_API_KEY")
+        && !key.trim().is_empty()
+    {
+        return Ok(Some(key.trim().into()));
+    }
     let server_origin = Url::parse(server)?.origin().ascii_serialization();
     let key = read(&file()?)?.keys.remove(&server_origin);
     if key.is_some() {
@@ -143,12 +148,29 @@ pub fn login() -> CommandResult {
     std::io::stdout().flush()?;
 
     let deadline = Instant::now() + Duration::from_secs(connection.expires_in);
+    let mut failures = 0;
     while Instant::now() < deadline {
-        let response: Poll = request(
+        // A network blip, 5xx or 429 must not end a login the user is still approving.
+        let response = match request(
             &http,
             &endpoint,
             json!({"action": "poll", "device_code": connection.device_code}),
-        )?;
+        ) {
+            Ok(response) => {
+                failures = 0;
+                response
+            }
+            Err(error) => {
+                failures += 1;
+                if failures >= 40 {
+                    return Err(error);
+                }
+                Poll {
+                    status: "pending".into(),
+                    api_key: None,
+                }
+            }
+        };
         match response.status.as_str() {
             "pending" => {}
             "approved" => {

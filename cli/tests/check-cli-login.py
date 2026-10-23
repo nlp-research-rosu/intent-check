@@ -37,6 +37,10 @@ class Handler(BaseHTTPRequestHandler):
             self.respond({"device_code": DEVICE, "user_code": "BCDF-GHJK",
                           "expires_in": self.server.expires_in, "interval": 1}, 201)
             return
+        if self.server.poll_failures:
+            self.server.poll_failures -= 1
+            self.respond({}, 503)
+            return
         if body["device_code"] != DEVICE:
             self.respond({"status": "expired"})
             return
@@ -64,6 +68,7 @@ class LoginTests(unittest.TestCase):
         self.server.status = "pending"
         self.server.expires_in = 30
         self.server.authorization = None
+        self.server.poll_failures = 0
         (self.data / "config.toml").write_text(
             f'server_url = "{self.server.origin}"\n'
             f'portal_url = "{self.server.origin}"\n'
@@ -92,8 +97,8 @@ class LoginTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return json.loads(result.stdout)
 
-    def start_login(self):
-        process = subprocess.Popen([BINARY, "login"], env=self.env, cwd=self.root,
+    def start_login(self, env=None):
+        process = subprocess.Popen([BINARY, "login"], env=env or self.env, cwd=self.root,
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         self.processes.append(process)
         output = queue.Queue()
@@ -138,6 +143,24 @@ class LoginTests(unittest.TestCase):
         process = self.start_login()
         self.finish_login(process, "expired", 1)
         self.assertFalse((self.data / "credentials.json").exists())
+
+    def test_poll_errors_are_retried_until_approval(self):
+        self.server.poll_failures = 2
+        process = self.start_login()
+        time.sleep(2.5)
+        self.assertIsNone(process.poll())
+        self.server.status = "approved"
+        self.finish_login(process, "connected", 0)
+
+    def test_environment_overrides_config_file_and_saved_key(self):
+        (self.data / "config.toml").write_text('server_url = "http://127.0.0.1:1"\nportal_url = "http://127.0.0.1:1"\n')
+        env = dict(self.env, INTENT_API_URL=self.server.origin, INTENT_CONSOLE_URL=self.server.origin)
+        self.server.status = "approved"
+        self.finish_login(self.start_login(env), "connected", 0)
+        self.assertEqual(json.loads((self.data / "credentials.json").read_text())["keys"][self.server.origin], KEY)
+        self.env = dict(env, INTENT_API_KEY="  env-key  ")
+        self.cli("health")
+        self.assertEqual(self.server.authorization, "Bearer env-key")
 
 
 if __name__ == "__main__":

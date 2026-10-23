@@ -33,8 +33,10 @@ pub const LOGIN: &str = r#"Run `intent-check login` and give the user verificati
 The link includes the connection code. The user signs in and approves the machine.
 The command keeps running, collects the API key, saves it without printing it,
 and exits with status connected. No user terminal interaction is needed.
-Production server and portal URLs are the defaults. To override them, edit
-config.toml; see `intent-check config --help`.
+Production server and portal URLs are the defaults. To override them, set
+INTENT_API_URL and INTENT_CONSOLE_URL, or edit config.toml; see
+`intent-check config --help`. INTENT_API_KEY, when set, is used instead of
+the saved key.
 
 Credentials are saved in credentials.json beside config.toml, scoped to the
 Prover origin, with mode 600 on Unix. Do not read this file into agent context.

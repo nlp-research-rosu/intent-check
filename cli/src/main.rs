@@ -191,7 +191,7 @@ fn main() {
             json!({"status": "failure", "message": error.to_string()}),
         )
     });
-    println!("{}", serde_json::to_string_pretty(&value).unwrap());
+    println!("{}", serde_json::to_string(&value).unwrap());
     process::exit(exit);
 }
 

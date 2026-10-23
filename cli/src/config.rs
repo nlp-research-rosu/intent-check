@@ -33,11 +33,18 @@ impl Default for Config {
 
 pub fn load() -> Result<Config> {
     let path = path()?;
-    let config = if path.exists() {
+    let mut config: Config = if path.exists() {
         toml::from_str(&fs::read_to_string(path)?)?
     } else {
         Config::default()
     };
+    // Same variables as the plugin, so both talk to the same service.
+    if let Ok(url) = env::var("INTENT_API_URL") {
+        config.server_url = url;
+    }
+    if let Ok(url) = env::var("INTENT_CONSOLE_URL") {
+        config.portal_url = url;
+    }
     validate(&config)?;
     Ok(config)
 }
