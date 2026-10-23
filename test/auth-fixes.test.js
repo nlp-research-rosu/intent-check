@@ -210,10 +210,11 @@ for (const [name, lines, status] of [
   ["denied", '{"status":"pending"}\n{"status":"denied"}\n', "denied"],
   ["expired", '{"status":"expired"}\n', "expired"],
   ["consumed", '{"status":"consumed"}\n', "consumed"],
-  ["no result line", '{"status":"pending"}\n', "failed"],
-  ["a failure line", '{"status":"failure","message":"x"}\n', "failed"],
-  ["an unknown status", '{"status":"weird"}\n', "failed"],
-  ["no output file", null, "failed"],
+  ["no result line", '{"status":"pending"}\n', "stopped"],
+  ["a failure line", '{"status":"failure","message":"x"}\n', "stopped"],
+  ["an unknown status", '{"status":"weird"}\n', "stopped"],
+  ["no output file", null, "stopped"],
+  ["the service failed it", '{"status":"failed"}\n', "failed"],
 ]) {
   test(`the CLI died without a key (${name}): the status comes from its last output line`, async () => {
     const ctx = setup();
@@ -227,6 +228,33 @@ for (const [name, lines, status] of [
     });
   });
 }
+
+test("the CLI saved the key and exited: approved and announced, never failed", async () => {
+  const ctx = setup();
+  saveKey(ctx.data, TEST_KEY, fp.url);
+  fs.writeFileSync(cfileOf(ctx), JSON.stringify({ status: "pending", api_url: fp.url, expires_at: Date.now() + 600000, created_at: 7, poller_pid: 999999 }));
+  fs.writeFileSync(path.join(ctx.data, "connect-login-7.out"), '{"status":"pending"}\n{"status":"connected"}\n');
+  await inProcess(ctx, async () => {
+    const c = await import("../lib/connect.js");
+    assert.equal(c.checkConnectOnce(), "approved");
+    assert.deepEqual([readJson(cfileOf(ctx)).status, readJson(cfileOf(ctx)).announce], ["approved", true]);
+  });
+});
+
+test("an old output file is cleaned up when a request starts, an in-flight one is not", async () => {
+  const ctx = setup();
+  const old = path.join(ctx.data, `connect-login-${Date.now() - 20 * 60 * 1000}.out`);
+  const young = path.join(ctx.data, `connect-login-${Date.now() - 5 * 60 * 1000}.out`);
+  fs.writeFileSync(old, "x\n");
+  fs.writeFileSync(young, "x\n");
+  await inProcess(ctx, async () => {
+    const c = await import("../lib/connect.js");
+    await c.ensureRequest();
+    assert.equal(fs.existsSync(old), false);
+    assert.equal(fs.existsSync(young), true);
+    killPoller(ctx);
+  });
+});
 
 test("a login that is still running with no key stays pending", async () => {
   const ctx = setup();

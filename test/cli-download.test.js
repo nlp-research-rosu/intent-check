@@ -52,6 +52,7 @@ test("prove: downloads, verifies sha256, installs, and skips the download when t
     const bin = await proveCommand({ version: V });
     assert.equal(bin, path.join(process.env.CLAUDE_PLUGIN_DATA, "bin", "intent-check"));
     assert.match(execFileSync(bin, ["--version"], { encoding: "utf8" }), /9\.9\.9/);
+    assert.equal(fs.readFileSync(`${bin}.version`, "utf8"), V, "the stamp hooks check instead of running the binary");
     assert.equal(rel.hits.length, 2);
     assert.equal(await proveCommand({ version: V }), bin);
     assert.equal(rel.hits.length, 2, "same version: no request");

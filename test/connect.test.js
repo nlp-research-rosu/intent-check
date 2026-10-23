@@ -136,7 +136,7 @@ test("if the login process died, the next prompt starts a new one and the one af
   assert.equal(quiet.stdout, "");
   assert.ok(await waitFor(() => readJson(cfile).created_at !== c.created_at && readJson(cfile).status === "pending", { timeoutMs: 10000 }));
   const r = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "next request that is long enough" }), ctx.env);
-  assert.match(r.json.systemMessage, /the service could not create a key for the last connect request/i);
+  assert.match(r.json.systemMessage, /sign-in stopped before it finished/i);
   assert.match(r.json.systemMessage, /connect your account → /);
 });
 
