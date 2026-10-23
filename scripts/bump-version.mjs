@@ -8,7 +8,12 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-export const FILES = ["package.json", ".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", ".codex-plugin/plugin.json"];
+export const FILES = ["package.json", ".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", ".codex-plugin/plugin.json", "cli/Cargo.toml", "cli/Cargo.lock"];
+// The CLI ships in the same release, so its crate version follows the plugin's. Only the package's own entry counts.
+const PATTERNS = {
+  "cli/Cargo.toml": /(\[package\][^[]*?\nversion = ")([^"]*)(")/g,
+  "cli/Cargo.lock": /(name = "intent-check"\nversion = ")([^"]*)(")/g,
+};
 // The install picker shows this version and test/install-json.test.js pins it to package.json, so plain releases bump it too.
 // Prerelease bumps leave it alone: the per-edit branch requires install.json to stay plain semver.
 export const INSTALL_JSON = "docs/install.json";
@@ -17,6 +22,7 @@ export const CHANGELOG = "CHANGELOG.md";
 const UNRELEASED = "## [Unreleased]";
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 const VERSION_FIELD = /("version":\s*")([^"]*)(")/g;
+const fieldOf = (f) => PATTERNS[f] ?? VERSION_FIELD;
 
 const parse = (v) => {
   const m = SEMVER.exec(v);
@@ -59,7 +65,7 @@ export function rollChangelog(text, v, date) {
 
 export function readVersions(root = ROOT, files = FILES) {
   return files.map((f) => {
-    const found = [...fs.readFileSync(path.join(root, f), "utf8").matchAll(VERSION_FIELD)];
+    const found = [...fs.readFileSync(path.join(root, f), "utf8").matchAll(fieldOf(f))];
     if (found.length !== 1) throw new Error(`${f}: expected exactly one version field`);
     return [f, found[0][2]];
   });
@@ -75,7 +81,7 @@ export function writeVersion(v, root = ROOT, date = new Date().toISOString().sli
   const rolled = plain && fs.existsSync(log) ? rollChangelog(fs.readFileSync(log, "utf8"), v, date) : null; // throws before anything is written
   for (const f of targets) {
     const p = path.join(root, f);
-    fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace(VERSION_FIELD, `$1${v}$3`));
+    fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace(fieldOf(f), `$1${v}$3`));
   }
   if (rolled !== null) fs.writeFileSync(log, rolled);
 }

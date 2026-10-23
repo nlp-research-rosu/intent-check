@@ -1,8 +1,8 @@
 ---
 description: Turn Intent Check off (nothing is sent until /intent:on or /intent:live)
-allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js":*)
+allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js":*)
 ---
 
-!`node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" off --data "${CLAUDE_PLUGIN_DATA}"`
+!`node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" off --data "${CLAUDE_PLUGIN_DATA}"`
 
 Tell the user the line above, word for word, and nothing else.

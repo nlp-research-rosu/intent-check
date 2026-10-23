@@ -2,12 +2,13 @@
 import { test, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import http from "node:http";
 import path from "node:path";
 import zlib from "node:zlib";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { symlink, SKIP_FILE_SYMLINKS, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT } from "./helpers/env.js";
+import { symlink, SKIP_FILE_SYMLINKS, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT, xdgDir } from "./helpers/env.js";
 import { validateDeepscan } from "./helpers/schema.js";
 import { C } from "../lib/config.js";
 import { buildSnapshot, normaliseRemote, pathReason, isIntentOutput, byPriority, tierOf, decodeText, unstorable } from "../lib/snapshot.js";
@@ -42,7 +43,7 @@ function setup({ key = true } = {}) {
 // Run the CLI the way an agent's shell would.
 function cli(args, ctx, extraEnv = {}) {
   return new Promise((resolve) => {
-    const env = { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("CLAUDE_") && !k.startsWith("INTENT_") && k !== "PLUGIN_ROOT")), HOME: tmpdir("intent-home-"), INTENT_API_URL: fp.url, INTENT_DEEPSCAN_POLL_MS: "50", INTENT_DEEPSCAN_BUSY_MS: "20", ...extraEnv };
+    const env = { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("CLAUDE_") && !k.startsWith("INTENT_") && k !== "PLUGIN_ROOT")), HOME: tmpdir("intent-home-"), XDG_CONFIG_HOME: xdgDir(ctx.data), INTENT_API_URL: fp.url, INTENT_CONSOLE_URL: fp.url, INTENT_DEEPSCAN_POLL_MS: "50", INTENT_DEEPSCAN_BUSY_MS: "20", ...extraEnv };
     const c = spawn(process.execPath, [BIN, "deepscan", ...args, "--data", ctx.data], { cwd: ctx.repo, env });
     let out = "";
     c.stdout.on("data", (d) => { out += d; });
@@ -57,18 +58,14 @@ async function until(fn, ms = 8000) {
   while (Date.now() < end) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 40)); }
   throw new Error("timed out");
 }
-const idOf = (out) => /\/r\/([A-Za-z0-9]{22})/.exec(out)[1];
+const idOf = (out) => /\/tasks\/([0-9a-f-]{36})/.exec(out)[1];
 
 // ---- contract ----
 
-test("contract files exist, and the example upload validates", () => {
+test("the example upload validates", () => {
   assert.ok(C.deepscan && C.deepscan.max_files === 3000);
-  const ex = JSON.parse(fs.readFileSync(path.join(ROOT, "contract", "examples", "deepscan-upload.json"), "utf8"));
+  const ex = JSON.parse(fs.readFileSync(path.join(ROOT, "test", "fixtures", "api", "examples", "deepscan-upload.json"), "utf8"));
   assert.deepEqual(validateDeepscan(ex, "DeepscanUpload"), []);
-  for (const n of ["queued", "running", "done", "failed"]) {
-    const s = JSON.parse(fs.readFileSync(path.join(ROOT, "contract", "examples", `deepscan-status-${n}.json`), "utf8"));
-    assert.deepEqual(validateDeepscan(s, "DeepscanStatus"), [], n);
-  }
 });
 
 // ---- snapshot ----
@@ -236,13 +233,13 @@ test("deepscan: uploads a gzip snapshot, prints the link, writes the scan record
   const r = await cli([], ctx);
   assert.equal(r.code, 0);
   assert.match(r.out, /DeepScan \(fast, about 15 to 20 min\) started on 2 files/);
-  assert.match(r.out, /Report: http:\/\/127\.0\.0\.1:\d+\/r\/[A-Za-z0-9]{22}/);
+  assert.match(r.out, /Report: http:\/\/127\.0\.0\.1:\d+\/tasks\/[0-9a-f-]{36}/);
   assert.equal(r.out.split("\n").filter(Boolean).length <= 3, true);
   const id = idOf(r.out);
   const ups = fp.deepscanUploads();
   assert.equal(ups.length, 1);
   assert.deepEqual(validateDeepscan(ups[0], "DeepscanUpload"), []);
-  const req = fp.state.requests.find((x) => x.path === "/v1/deepscans" && x.method === "POST");
+  const req = fp.state.requests.find((x) => x.path === "/deepscans" && x.method === "POST");
   assert.equal(req.headers["content-type"], "application/gzip");
   assert.equal(req.headers.authorization, `Bearer ${TEST_KEY}`);
   assert.match(req.headers["idempotency-key"], /^[0-9a-f]{32}$/);
@@ -261,7 +258,7 @@ test("deepscan: failed scans are recorded with a bounded error", async () => {
   fp.state.deepscan.statuses = ["running", "failed"];
   const id = idOf((await cli([], ctx)).out);
   const rec = await until(() => { const s = readScanFile(ctx.data, id); return s.status === "failed" ? s : null; });
-  assert.equal(rec.error.code, "budget_exceeded");
+  assert.equal(rec.error.code, "DEEPSCAN_FAILED");
 });
 
 test("deepscan: command errors are one line and nothing is recorded", async () => {
@@ -281,11 +278,13 @@ test("deepscan: command errors are one line and nothing is recorded", async () =
   assert.match((await cli(["missing"], c3)).out, /not found/);
 
   for (const [fail, re] of [
-    [{ status: 404, code: "not_found" }, /not enabled/],
-    [{ status: 413, code: "payload_too_large" }, /too large.*one folder/],
-    [{ status: 429, code: "spend_cap", reason: "daily" }, /daily limit/],
-    [{ status: 429, code: "rate_limited" }, /Too many/],
-    [{ status: 400, code: "invalid_request", message: "A file has odd text." }, /did not accept the snapshot: A file has odd text\./],
+    [{ status: 404, code: "NOT_FOUND" }, /not enabled/],
+    [{ status: 413, code: "PAYLOAD_TOO_LARGE" }, /too large.*one folder/],
+    [{ status: 429, code: "SPEND_CAP", reason: "global_daily_spend" }, /daily limit/],
+    [{ status: 429, code: "RATE_LIMITED", reason: "deepscan_account_daily" }, /daily DeepScan limit for your account.*00:00 UTC/],
+    [{ status: 429, code: "BLOCKED", reason: "blocklist_user" }, /not available for this account/],
+    [{ status: 429, code: "TOO_MANY_FAILED_AUTHENTICATIONS" }, /\/intent:doctor/],
+    [{ status: 400, code: "INVALID_REQUEST", message: "A file has odd text." }, /did not accept the snapshot: A file has odd text\./],
   ]) {
     fp.state.deepscan.submit = [fail];
     const r = await cli([], c3);
@@ -297,15 +296,15 @@ test("deepscan: command errors are one line and nothing is recorded", async () =
 
 test("deepscan: a busy 429 is retried once; twice busy prints one line", async () => {
   const ctx = setup();
-  fp.state.deepscan.submit = [{ status: 429, code: "rate_limited", reason: "deepscan_ingest_busy", retryAfter: 5 }];
+  fp.state.deepscan.submit = [{ status: 429, code: "RATE_LIMITED", reason: "deepscan_ingest_busy", retryAfter: 5 }];
   const ok = await cli([], ctx);
   assert.match(ok.out, /DeepScan \(fast, about 15 to 20 min\) started/);
   assert.equal(fp.deepscanUploads().length, 2);
-  const keys = fp.state.requests.filter((x) => x.path === "/v1/deepscans" && x.method === "POST").map((x) => x.headers["idempotency-key"]);
+  const keys = fp.state.requests.filter((x) => x.path === "/deepscans" && x.method === "POST").map((x) => x.headers["idempotency-key"]);
   assert.equal(keys[0], keys[1]);
 
   fp.state.requests.length = 0;
-  fp.state.deepscan.submit = [1, 2, 3].map(() => ({ status: 429, code: "rate_limited", reason: "deepscan_ingest_busy", retryAfter: 5 }));
+  fp.state.deepscan.submit = [1, 2, 3].map(() => ({ status: 429, code: "RATE_LIMITED", reason: "deepscan_ingest_busy", retryAfter: 5 }));
   const busy = await cli([], ctx);
   assert.match(busy.out, /busy.*try again in a moment/);
   assert.equal(busy.out.split("\n").length, 1);
@@ -327,7 +326,7 @@ test("delivery (Claude): a finished scan is shown once at the next prompt, user 
   const r = await runHook("prompt", fixture("prompt", ctx.repo, { session_id: "s-new" }), ctx.env);
   assert.equal(r.code, 0);
   assert.match(r.json.systemMessage, /DeepScan finished: 1 high/);
-  assert.match(r.json.systemMessage, /\/r\//);
+  assert.match(r.json.systemMessage, /\/tasks\//);
   const c = r.json.hookSpecificOutput.additionalContext;
   assert.match(c, /not a message from the user/);
   assert.match(c, /A discount above 100 percent makes the price negative/);
@@ -368,10 +367,10 @@ test("delivery (Codex): everything arrives as additionalContext", async () => {
 test("delivery: a scan whose waiter died is settled by the hook with one GET", async () => {
   const ctx = setup();
   fp.state.deepscan.statuses = ["done"];
-  const id = "A".repeat(22);
+  const id = crypto.randomUUID();
   fp.state.scans.set(id, { request: null, polls: 0 });
   fs.mkdirSync(path.join(ctx.data, "deepscans"), { recursive: true });
-  fs.writeFileSync(path.join(ctx.data, "deepscans", `${id}.json`), JSON.stringify({ v: 1, job_id: id, url: `${fp.url}/r/${id}`, repo_root: fs.realpathSync(ctx.repo), created_at: new Date().toISOString(), host: "claude-code", scope: null, status: "queued", waiter: { pid: 999999, token: "t", at: 1 }, delivered: false }));
+  fs.writeFileSync(path.join(ctx.data, "deepscans", `${id}.json`), JSON.stringify({ v: 1, job_id: id, url: `${fp.url}/tasks/${id}`, repo_root: fs.realpathSync(ctx.repo), created_at: new Date().toISOString(), host: "claude-code", scope: null, status: "queued", waiter: { pid: 999999, token: "t", at: 1 }, delivered: false }));
   const r = await runHook("prompt", fixture("prompt", ctx.repo, { session_id: "dead" }), ctx.env);
   assert.match(r.stdout, /DeepScan finished/);
   assert.equal(readScanFile(ctx.data, id).delivered, true);
@@ -393,7 +392,7 @@ test("delivery: failed scans give one line; untrusted summary text is sanitised"
 test("a waiter that is not the owner of the scan exits and a second waiter does not double-run", async () => {
   const ctx = setup();
   const id = await finishedScan(ctx);
-  const gets = () => fp.state.requests.filter((x) => x.path === `/v1/deepscans/${id}`).length;
+  const gets = () => fp.state.requests.filter((x) => x.path === `/tasks/${id}`).length;
   const before = gets();
   await new Promise((resolve) => {
     const c = spawn(process.execPath, [BIN, "deepscan-wait", id], { env: ctx.env });
@@ -406,9 +405,9 @@ test("a waiter that is not the owner of the scan exits and a second waiter does 
 
 test("packaging: command file, skill mapping and README are in place; repo mode is gone", () => {
   const cmd = fs.readFileSync(path.join(ROOT, "commands", "deepscan.md"), "utf8");
-  assert.match(cmd, /intent\.js" deepscan/);
+  assert.match(cmd, /hooks\.js" deepscan/);
   const skill = fs.readFileSync(path.join(ROOT, "skills/intent-check/SKILL.md"), "utf8");
-  assert.match(skill, /intent\.js deepscan/);
+  assert.match(skill, /hooks\.js deepscan/);
   assert.ok(!/check --repo/.test(skill));
   assert.match(fs.readFileSync(path.join(ROOT, "README.md"), "utf8"), /## DeepScan/);
   for (const f of ["lib/queue.js", "lib/payload.js"]) assert.ok(!/mode === "repo"|"repo"/.test(fs.readFileSync(path.join(ROOT, f), "utf8")), f);
@@ -419,20 +418,21 @@ test("packaging: command file, skill mapping and README are in place; repo mode 
 
 const OK_SUMMARY = { counts: { HIGH: 1 }, one_liners: [], cards: [{ id: "F1", criticality: "HIGH", title: "Price goes negative", property: "p", cause: [{ path: "a.py", line: 1 }], repro_sketch: "r", control: "c" }] };
 function seedScan(ctx, over = {}) {
-  const id = over.job_id || [...Array(22)].map(() => "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)]).join("");
+  const id = over.job_id || crypto.randomUUID();
   fs.mkdirSync(path.join(ctx.data, "deepscans"), { recursive: true });
-  const rec = { v: 1, job_id: id, url: `${fp.url}/r/${id}`, repo_root: fs.realpathSync(ctx.repo), created_at: new Date().toISOString(), host: "claude-code", scope: null, status: "queued", waiter: { pid: 999999, token: "t", at: 1 }, delivered: false, ...over };
+  const rec = { v: 1, job_id: id, url: `${fp.url}/tasks/${id}`, repo_root: fs.realpathSync(ctx.repo), created_at: new Date().toISOString(), host: "claude-code", scope: null, status: "queued", waiter: { pid: 999999, token: "t", at: 1 }, delivered: false, ...over };
   fs.writeFileSync(path.join(ctx.data, "deepscans", `${id}.json`), JSON.stringify(rec));
   fp.state.scans.set(id, { request: null, polls: 0 });
   return id;
 }
-const getsFor = (id) => fp.state.requests.filter((x) => x.method === "GET" && x.path === `/v1/deepscans/${id}`).length;
+const getsFor = (id) => fp.state.requests.filter((x) => x.method === "GET" && x.path === `/tasks/${id}`).length;
 
 // Run the in-process delivery against a data dir.
 async function inProcess(ctx, fn, extra = {}) {
-  const keys = ["CLAUDE_PLUGIN_DATA", "INTENT_API_URL", ...Object.keys(extra)];
+  const keys = ["CLAUDE_PLUGIN_DATA", "XDG_CONFIG_HOME", "INTENT_API_URL", ...Object.keys(extra)];
   const keep = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
   process.env.CLAUDE_PLUGIN_DATA = ctx.data;
+  process.env.XDG_CONFIG_HOME = xdgDir(ctx.data);
   process.env.INTENT_API_URL = fp.url;
   Object.assign(process.env, extra);
   try { return await fn(); } finally {
@@ -481,7 +481,7 @@ test("scope is a literal pathspec; a flag is an error; a symlinked parent cannot
   assert.deepEqual(fp.deepscanUploads(), []);
 });
 
-test("upload: the timeout grows with the body; a network failure is retried once with the same key; an off-origin link is refused", async () => {
+test("upload: the timeout grows with the body; a network failure is retried once with the same key", async () => {
   assert.equal(uploadTimeoutMs(1000), 80000);
   assert.ok(uploadTimeoutMs(10 * 1024 * 1024) > uploadTimeoutMs(1024 * 1024));
   assert.equal(uploadTimeoutMs(1024 * 1024 * 1024), 300000);
@@ -489,15 +489,9 @@ test("upload: the timeout grows with the body; a network failure is retried once
   fp.state.deepscan.submit = [{ drop: true }];
   const r = await cli([], ctx);
   assert.match(r.out, /DeepScan \(fast, about 15 to 20 min\) started/);
-  const posts = fp.state.requests.filter((x) => x.method === "POST" && x.path === "/v1/deepscans");
+  const posts = fp.state.requests.filter((x) => x.method === "POST" && x.path === "/deepscans");
   assert.equal(posts.length, 2);
   assert.equal(posts[0].headers["idempotency-key"], posts[1].headers["idempotency-key"]);
-
-  const c2 = setup();
-  fp.state.deepscan.urlOverride = "https://evil.example/r/x";
-  const bad = await cli([], c2);
-  assert.ok(!/started/.test(bad.out));
-  assert.deepEqual(scanFiles(c2.data), []);
 });
 
 test("a done scan without a valid summary never claims zero findings; malformed cards do not throw", () => {
@@ -561,7 +555,7 @@ test("dead waiter and a failing GET: at most one GET per interval, then a note a
   const old = seedScan(ctx, { created_at: new Date(Date.now() - 61 * 60 * 1000).toISOString(), late_probed: true });
   const r = await runHook("prompt", fixture("prompt", ctx.repo, { session_id: "f3" }), slow);
   assert.match(r.stdout, /taking longer than expected/);
-  assert.match(r.stdout, new RegExp(`/r/${old}`));
+  assert.match(r.stdout, new RegExp(`/tasks/${old}`));
   assert.equal(getsFor(old), 0);
   assert.equal(readScanFile(ctx.data, old).delivered, true);
 
@@ -583,13 +577,12 @@ test("waiter deadline: budget_s plus 30 min, 60 min without it; bad values are i
   assert.equal(validBudget(0), null);
 });
 
-test("budget_s: stored at submit, learned from a GET, and a GET value extends the waiter's deadline", async () => {
+test("budget_s: the depth's budget is stored at submit, the done result's value replaces it, and it extends the waiter's deadline", async () => {
   const ctx = setup();
-  fp.state.deepscan.budget_s = 7200;
-  fp.state.deepscan.getBudget_s = 10800; // the server changes it later
+  fp.state.deepscan.getBudget_s = 10800; // the server's value once the scan is done
   fp.state.deepscan.statuses = ["queued", "running", "done"];
   const id = idOf((await cli([], ctx)).out);
-  assert.equal(readScanFile(ctx.data, id).budget_s, 7200);
+  assert.equal(readScanFile(ctx.data, id).budget_s, 1800, "fast depth");
   const rec = await until(() => { const s = readScanFile(ctx.data, id); return s.status === "done" ? s : null; });
   assert.equal(rec.budget_s, 10800);
 
@@ -603,21 +596,13 @@ test("budget_s: stored at submit, learned from a GET, and a GET value extends th
   assert.equal(waitDeadline(readScanFile(ctx.data, bare)), Date.parse(readScanFile(ctx.data, bare).created_at) + (24 * 3600 + 1800) * 1000);
 });
 
-test("a server without budget_s: nothing is stored and the 60 min wait applies; an invalid 202 value is dropped", async () => {
+test("a result without budgetSeconds keeps the budget stored at submit", async () => {
   const ctx = setup();
-  fp.state.deepscan.budget_s = null;
   fp.state.deepscan.getBudget_s = null;
   fp.state.deepscan.statuses = ["done"];
-  const id = idOf((await cli([], ctx)).out);
+  const id = idOf((await cli(["full"], ctx)).out);
   await until(() => readScanFile(ctx.data, id).status === "done");
-  assert.equal("budget_s" in readScanFile(ctx.data, id), false);
-  assert.equal(waitDeadline(readScanFile(ctx.data, id)) - Date.parse(readScanFile(ctx.data, id).created_at), WAIT_MAX_MS);
-  const ctx2 = setup();
-  fp.state.deepscan.budget_s = -3;
-  fp.state.deepscan.getBudget_s = null;
-  const id2 = idOf((await cli([], ctx2)).out);
-  await until(() => readScanFile(ctx2.data, id2).status === "done");
-  assert.equal("budget_s" in readScanFile(ctx2.data, id2), false);
+  assert.equal(readScanFile(ctx.data, id).budget_s, 3600);
 });
 
 test("a scan with a long budget_s is still waited for past 60 min, and kept past 24 h only while its wait runs", async () => {
@@ -631,23 +616,11 @@ test("a scan with a long budget_s is still waited for past 60 min, and kept past
   const short = seedScan(ctx, { created_at: created, budget_s: 900 });
   const r2 = await runHook("prompt", fixture("prompt", ctx.repo, { session_id: "g2" }), slow);
   assert.match(r2.stdout, /taking longer than expected/);
-  assert.match(r2.stdout, new RegExp(`/r/${short}`));
+  assert.match(r2.stdout, new RegExp(`/tasks/${short}`));
   const capped = seedScan(ctx, { created_at: new Date(Date.now() - 24.2 * 3600 * 1000).toISOString(), budget_s: 10 ** 9, repo_root: "/elsewhere" });
   await inProcess(ctx, async () => gcScans(Date.now()));
   assert.ok(fs.existsSync(path.join(ctx.data, "deepscans", `${capped}.json`)));
   assert.ok(fs.existsSync(path.join(ctx.data, "deepscans", `${long}.json`)));
-});
-
-test("the waiter re-reads its deadline: a budget_s learned from a GET keeps it polling past the fallback", async () => {
-  const ctx = setup();
-  // 0.5 s left of the 60 min fallback; the GETs say budget_s is 2 h and the scan is done after ~1 s of polling.
-  const id = seedScan(ctx, { created_at: new Date(Date.now() - WAIT_MAX_MS + 500).toISOString() });
-  fp.state.deepscan.getBudget_s = 7200;
-  fp.state.deepscan.statuses = [...Array(20).fill("running"), "done"];
-  await inProcess(ctx, () => runDeepscanWaiter(id), { INTENT_DEEPSCAN_POLL_MS: "50" });
-  const rec = readScanFile(ctx.data, id);
-  assert.equal(rec.status, "done");
-  assert.equal(rec.budget_s, 7200);
 });
 
 test("an unparsable created_at counts as expired: the hook points at the report and GC removes the file", async () => {
@@ -667,7 +640,7 @@ test("an unparsable created_at counts as expired: the hook points at the report 
   assert.ok(fs.existsSync(path.join(ctx.data, "deepscans", `${id}.json`)));
 });
 
-test("a scan without budget_s past 60 min gets one GET before the hook gives up; a budget_s it learns revives the wait", async () => {
+test("a scan without budget_s past 60 min gets one GET before the hook gives up", async () => {
   const ctx = setup();
   const slow = { ...ctx.env, INTENT_DEEPSCAN_POLL_MS: "60000" };
   const created = new Date(Date.now() - 61 * 60 * 1000).toISOString();
@@ -681,16 +654,6 @@ test("a scan without budget_s past 60 min gets one GET before the hook gives up;
   const r2 = await runHook("prompt", fixture("prompt", ctx.repo, { session_id: "p2" }), slow);
   assert.equal(getsFor(a), 1);
   assert.match(r2.stdout, /taking longer than expected/);
-
-  fp.state.deepscan.getBudget_s = 7200;
-  fp.state.deepscan.statuses = ["running", "done"];
-  const b = seedScan(ctx, { created_at: created });
-  const r3 = await runHook("prompt", fixture("prompt", ctx.repo, { session_id: "p3" }), slow);
-  assert.equal(getsFor(b), 1);
-  assert.doesNotMatch(r3.stdout, new RegExp(`taking longer[^]*${b}`));
-  assert.equal(readScanFile(ctx.data, b).budget_s, 7200);
-  assert.equal(readScanFile(ctx.data, b).delivered, false);
-  await until(() => readScanFile(ctx.data, b).status === "done"); // the respawned waiter finishes before the next test
 });
 
 test("hooks do nothing for DeepScan when no scan was ever started", async () => {
@@ -698,7 +661,7 @@ test("hooks do nothing for DeepScan when no scan was ever started", async () => 
   const r = await runHook("prompt", fixture("prompt", ctx.repo, { session_id: "n1" }), ctx.env);
   assert.equal(r.code, 0);
   assert.ok(!fs.existsSync(path.join(ctx.data, "deepscans")));
-  assert.equal(fp.state.requests.filter((x) => x.path.startsWith("/v1/deepscans")).length, 0);
+  assert.equal(fp.state.requests.filter((x) => (x.path.startsWith("/deepscans") || x.path.startsWith("/tasks"))).length, 0);
 });
 
 test("the waiter survives a check runner taking over the session, and scan-file lock contention", async () => {

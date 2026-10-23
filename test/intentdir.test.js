@@ -6,9 +6,9 @@ import { execFileSync } from "node:child_process";
 import { writeUnit, unitDir, ensureScaffold, appendSentLog, removeUnit, moveUnit, syncUnits, README } from "../lib/intentdir.js";
 import { symlink, tmpdir, makeRepo, ROOT } from "./helpers/env.js";
 
-const example = JSON.parse(fs.readFileSync(path.join(ROOT, "contract", "examples", "status-done-concerns.json"), "utf8"));
+const example = JSON.parse(fs.readFileSync(path.join(ROOT, "test", "fixtures", "api", "examples", "status-done-concerns.json"), "utf8"));
 // REASONING.md + VERIFICATION.k, SEMANTICS.k as the stub (contract 2026-10-01).
-const stubExample = JSON.parse(fs.readFileSync(path.join(ROOT, "contract", "examples", "status-done-no-concerns.json"), "utf8"));
+const stubExample = JSON.parse(fs.readFileSync(path.join(ROOT, "test", "fixtures", "api", "examples", "status-done-no-concerns.json"), "utf8"));
 
 test("writes one unit folder with the four artifacts and meta.json", () => {
   const root = tmpdir();
@@ -101,7 +101,7 @@ test("unit paths that could escape .intent/ are refused", () => {
 
 test("sent log holds paths and sizes, never contents", () => {
   const root = tmpdir();
-  appendSentLog(root, { time: "2026-09-28T14:00:00Z", url: "https://x/v1/jobs", paths: ["pricing.py"], bytes: 981, redactions: 0 });
+  appendSentLog(root, { time: "2026-09-28T14:00:00Z", url: "https://x/intent-checks", paths: ["pricing.py"], bytes: 981, redactions: 0 });
   const line = JSON.parse(fs.readFileSync(path.join(root, ".intent", ".sent.log"), "utf8").trim());
   assert.deepEqual(Object.keys(line).sort(), ["bytes", "paths", "redactions", "time", "url"]);
 });

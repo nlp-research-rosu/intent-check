@@ -52,7 +52,7 @@ export function runCli(bin, args, { env, cwd, timeoutMs = 55000, input = "" } = 
     child.stderr.on("data", (d) => { stderr += d; });
     const timer = setTimeout(() => { timedOut = true; killTree(child); }, timeoutMs);
     // `close` waits for every holder of the stdio pipes, and a detached helper the plugin started
-    // (the connect-link child) can keep them open long after the CLI exited, most visibly on
+    // (a review finisher) can keep them open long after the CLI exited, most visibly on
     // Windows. So resolve shortly after `exit` instead.
     let settled = false;
     const finish = (code) => {

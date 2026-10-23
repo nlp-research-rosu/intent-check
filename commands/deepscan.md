@@ -1,12 +1,12 @@
 ---
 description: Review on demand with DeepScan (the whole repo, a folder, or files; runs in the background)
 argument-hint: "[files or a folder] [fast|balanced|full]"
-allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js":*)
+allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js":*)
 ---
 
 The user wants a DeepScan: $ARGUMENTS
 
-Run `node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" deepscan --data "${CLAUDE_PLUGIN_DATA}"` from the project root, adding what the user named:
+Run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" deepscan --data "${CLAUDE_PLUGIN_DATA}"` from the project root, adding what the user named:
 
 - nothing: the whole repo is scanned.
 - one folder: only that part of the repo is scanned.

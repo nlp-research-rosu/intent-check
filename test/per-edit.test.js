@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { fixture, tmpdir, makeRepo, baseEnv, runHook, readSessionFiles, saveKey, waitFor, sleep, ROOT } from "./helpers/env.js";
+import { fixture, tmpdir, makeRepo, baseEnv, runHook, readSessionFiles, saveKey, waitFor, sleep, ROOT, xdgDir, savedKey } from "./helpers/env.js";
 
 const V1 = "def apply_discount(price_cents, percent):\n    return price_cents - price_cents * percent // 100\n\ndef total(items):\n    return sum(items)\n";
 const V2 = V1 + "\ndef tax(x):\n    return x * 2\n\ndef net(x):\n    return x - tax(x)\n";
@@ -36,7 +36,7 @@ async function edit(ctx, rel, content, id) {
 }
 
 const submitted = (n) => waitFor(() => fp.jobRequests().length >= n);
-const post = () => fp.state.requests.filter((r) => r.method === "POST" && r.path === "/v1/jobs");
+const post = () => fp.state.requests.filter((r) => r.method === "POST" && r.path === "/intent-checks");
 const editJobs = (ctx) => Object.values(readSessionFiles(ctx.data)[0].edit_jobs);
 
 test("post-tool spawns a per-edit check and stays fast", async () => {
@@ -140,7 +140,7 @@ test("classic mode: no check at the edit, the normal Stop check", async () => {
 test("on and live commands and doctor", async () => {
   const ctx = setup({ mode: "" });
   delete ctx.env.INTENT_LIVE;
-  const run = (...a) => import("node:child_process").then(({ spawnSync }) => spawnSync(process.execPath, [path.join(ROOT, "bin", "intent.js"), ...a], { env: ctx.env, encoding: "utf8" }));
+  const run = (...a) => import("node:child_process").then(({ spawnSync }) => spawnSync(process.execPath, [path.join(ROOT, "bin", "hooks.js"), ...a], { env: ctx.env, encoding: "utf8" }));
   const first = (r) => r.stdout.split("\n")[0];
   assert.match(first(await run("doctor")), /: on$/);
   assert.match(first(await run("live")), /^Intent Check is on \(live\)\./);
@@ -148,7 +148,7 @@ test("on and live commands and doctor", async () => {
   assert.match(first(await run("on")), /^Intent Check is on\. Changes are checked at the end of each turn\. Live review is now off; \/intent:live turns it back on\.$/);
   assert.match(first(await run("doctor")), /: on$/);
   // The env var wins.
-  assert.match(first((await import("node:child_process")).spawnSync(process.execPath, [path.join(ROOT, "bin", "intent.js"), "doctor"], { env: { ...ctx.env, INTENT_LIVE: "0" }, encoding: "utf8" })), /: on$/);
+  assert.match(first((await import("node:child_process")).spawnSync(process.execPath, [path.join(ROOT, "bin", "hooks.js"), "doctor"], { env: { ...ctx.env, INTENT_LIVE: "0" }, encoding: "utf8" })), /: on$/);
 });
 
 const sessionFile = (ctx) => { const d = path.join(ctx.data, "sessions"); return path.join(d, fs.readdirSync(d).find((f) => f.endsWith(".json"))); };
@@ -216,24 +216,22 @@ function savedKeyCtx() {
 }
 
 async function inProcess(ctx, fn) {
-  const keys = ["CLAUDE_PLUGIN_DATA", "INTENT_API_URL", "INTENT_API_KEY"];
+  const keys = ["CLAUDE_PLUGIN_DATA", "XDG_CONFIG_HOME", "INTENT_API_URL", "INTENT_CONSOLE_URL", "INTENT_API_KEY"];
   const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
   delete process.env.INTENT_API_KEY;
-  Object.assign(process.env, { CLAUDE_PLUGIN_DATA: ctx.data, INTENT_API_URL: fp.url });
+  Object.assign(process.env, { CLAUDE_PLUGIN_DATA: ctx.data, XDG_CONFIG_HOME: xdgDir(ctx.data), INTENT_API_URL: fp.url, INTENT_CONSOLE_URL: fp.url });
   try { return await fn(); } finally { for (const k of keys) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } }
 }
 
-test("a per-edit 401 with a saved key clears it, marks connect.json revoked, and the next prompt says why", async () => {
+test("a per-edit 401 clears the saved key and asks for explicit sign-in without starting login", async () => {
   const ctx = savedKeyCtx();
   await prompt(ctx);
   fp.state.keyRevoked = true;
   try {
     await edit(ctx, "pricing.py", V1, "toolu_1");
-    const cfg = path.join(ctx.data, "config.json");
-    assert.ok(await waitFor(() => !((readJson(cfg).keys || {})[fp.url])), "saved key cleared");
+    assert.ok(await waitFor(() => !savedKey(ctx.data, fp.url)), "saved key cleared");
     const c = path.join(ctx.data, "connect.json");
-    assert.ok(await waitFor(() => fs.existsSync(c) && readJson(c).status === "pending", { timeoutMs: 10000 }), "connect.json updated with a new request");
-    assert.match(readJson(c).reason || "", /no longer accepted/);
+    assert.equal(fs.existsSync(c), false, "no automatic login flow");
     const r = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "carry on with the next task please" }), ctx.env);
     assert.match(r.json.systemMessage, /no longer accepted/);
   } finally { fp.state.keyRevoked = false; }
@@ -246,7 +244,7 @@ test("two concurrent per-edit 401s do not claim INTENT_API_KEY was rejected", as
   fp.state.submitDelayMs = 400;
   try {
     await Promise.all([edit(ctx, "pricing.py", V1, "toolu_1"), edit(ctx, "other.py", V2, "toolu_2")]);
-    assert.ok(await waitFor(() => !((readJson(path.join(ctx.data, "config.json")).keys || {})[fp.url])));
+    assert.ok(await waitFor(() => !savedKey(ctx.data, fp.url)));
     await sleep(1500);
     assert.doesNotMatch(notesText(ctx), /INTENT_API_KEY/);
   } finally { fp.state.keyRevoked = false; fp.state.submitDelayMs = 0; }
@@ -255,10 +253,10 @@ test("two concurrent per-edit 401s do not claim INTENT_API_KEY was rejected", as
 test("a key re-saved between the request and its 401 survives", async () => {
   const ctx = savedKeyCtx();
   const { handleSubmitFailure } = await import("../lib/runner.js");
-  const { saveApiKey, apiKey } = await import("../lib/config.js");
+  const { apiKey } = await import("../lib/config.js");
   const NEW = "ic_" + "N".repeat(38);
   await inProcess(ctx, async () => {
-    saveApiKey(NEW);
+    saveKey(ctx.data, NEW, fp.url);
     handleSubmitFailure("sess", { status: 401, code: "unauthorized" }, { touched: [] }, TEST_KEY);
     assert.equal(apiKey().key, NEW);
   });
@@ -274,7 +272,7 @@ test("an env-key 401 from a per-edit check adds the env note, pauses, and keeps 
   const g = readJson(path.join(ctx.data, "global.json"));
   assert.equal(g.paused.code, 401);
   assert.equal(g.paused.source, "env");
-  assert.equal(readJson(path.join(ctx.data, "config.json")).keys[fp.url], TEST_KEY);
+  assert.equal(savedKey(ctx.data, fp.url), TEST_KEY);
 });
 
 test("a successful per-edit submit records the last check", async () => {
@@ -308,19 +306,22 @@ test("spawned-but-unregistered checks count toward the in-flight cap, and reserv
   await edit(ctx, "pricing.py", V1, "toolu_0"); // creates the session file
   assert.ok(await waitFor(() => editJobs(ctx).some((e) => e.settled)), "first check settled");
   const { MAX_INFLIGHT_EDITS, EDIT_RESERVE_MS } = await import("../lib/runner.js");
-  const file = sessionJson(ctx);
-  const s = readJson(file);
-  s.edit_jobs = {};
-  s.edit_reserved = {};
-  for (let i = 0; i < MAX_INFLIGHT_EDITS; i++) s.edit_reserved[`r${i}`] = Date.now();
-  fs.writeFileSync(file, JSON.stringify(s));
+  // The first check's detached child still does a locked read-modify-write (releaseEditSlot) after it
+  // settles, so these writes go through the session lock; a bare writeFileSync could be clobbered by it.
+  const { withSession } = await import("../lib/state.js");
+  const key = path.basename(sessionJson(ctx), ".json");
+  await inProcess(ctx, async () => withSession(key, (s) => {
+    s.edit_jobs = {};
+    s.edit_reserved = {};
+    for (let i = 0; i < MAX_INFLIGHT_EDITS; i++) s.edit_reserved[`r${i}`] = Date.now();
+  }));
   const n = fp.jobRequests().length;
   await edit(ctx, "pricing.py", V2, "toolu_1");
   await sleep(1500);
   assert.equal(fp.jobRequests().length, n, "capped by reservations alone");
-  const s2 = readJson(file);
-  for (const id of Object.keys(s2.edit_reserved)) s2.edit_reserved[id] = Date.now() - EDIT_RESERVE_MS - 1000;
-  fs.writeFileSync(file, JSON.stringify(s2));
+  await inProcess(ctx, async () => withSession(key, (s2) => {
+    for (const id of Object.keys(s2.edit_reserved)) s2.edit_reserved[id] = Date.now() - EDIT_RESERVE_MS - 1000;
+  }));
   await edit(ctx, "pricing.py", V3, "toolu_2");
   assert.ok(await waitFor(() => fp.jobRequests().length > n, { timeoutMs: 8000 }), "expired reservations free the slots");
 });
@@ -346,7 +347,7 @@ test("no INTENT_LIVE and no config is not live: the Bash hook does nothing and t
 
 test("an INTENT_LIVE value other than 1 or 0 is ignored and reported by doctor", async () => {
   const ctx = setup({ mode: "" });
-  const run = (extra, ...a) => import("node:child_process").then(({ spawnSync }) => spawnSync(process.execPath, [path.join(ROOT, "bin", "intent.js"), ...a], { env: { ...ctx.env, ...extra }, encoding: "utf8" }));
+  const run = (extra, ...a) => import("node:child_process").then(({ spawnSync }) => spawnSync(process.execPath, [path.join(ROOT, "bin", "hooks.js"), ...a], { env: { ...ctx.env, ...extra }, encoding: "utf8" }));
   assert.match((await run({ INTENT_LIVE: "1" }, "doctor")).stdout, /: on \(live\)\n/);
   const bad = (await run({ INTENT_LIVE: "yes" }, "doctor")).stdout;
   assert.match(bad, /: on\n/);

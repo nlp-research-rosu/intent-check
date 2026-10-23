@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intentcomputing.org/contract/job-v1.schema.json",
+  "title": "Intent Check job API, contract v1",
+  "description": "Shared by the intent plugin and the prover. Changes are additive only.",
+  "$defs": {
+    "Host": { "enum": ["claude-code", "codex"] },
+    "Mode": { "enum": ["edit", "request", "repo"] },
+    "Verdict": { "enum": ["no_concerns", "concerns"] },
+    "ConcernType": { "enum": ["intent_mismatch", "hidden_assumption", "implementation_bug"] },
+    "Severity": { "enum": ["high", "medium"] },
+    "ClaimStatus": { "enum": ["no_conflict_found", "concern", "not_checked"] },
+    "Sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+
+    "CodexModes": {
+      "type": "object",
+      "description": "Raw values from the Codex transcript's latest turn_context. Null fields when unknown.",
+      "additionalProperties": false,
+      "required": ["approval_policy", "sandbox", "collaboration_mode"],
+      "properties": {
+        "approval_policy": { "type": ["string", "null"] },
+        "sandbox": { "type": ["string", "null"] },
+        "collaboration_mode": { "type": ["string", "null"] }
+      }
+    },
+
+    "Intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prompts", "first_prompt", "plan", "todos", "agent_message"],
+      "properties": {
+        "prompts": {
+          "description": "Most recent last. The current prompt plus up to 3 earlier ones, each truncated to 4000 chars. Plugin wake-ups (<task-notification>) are excluded.",
+          "type": "array", "maxItems": 4, "items": { "type": "string", "maxLength": 4000 }
+        },
+        "first_prompt": { "description": "The session's first substantive prompt, if it is not already in prompts.", "type": ["string", "null"], "maxLength": 4000 },
+        "plan": { "description": "The last approved plan text (Claude Code ExitPlanMode), if any.", "type": ["string", "null"], "maxLength": 8000 },
+        "todos": { "type": "array", "maxItems": 30, "items": { "type": "string", "maxLength": 200 } },
+        "agent_message": { "description": "The agent's final message for the turn. Prover uses it only as claims to check (stage A1).", "type": ["string", "null"], "maxLength": 4000 },
+        "notes": {
+          "description": "Contents of the repo's .intent/NOTES.md: bullets of behaviour the user has confirmed is intended. Treated as user intent; redacted and clipped by the plugin.",
+          "type": ["string", "null"], "maxLength": 4000
+        }
+      }
+    },
+
+    "Prior": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["intent_md", "spec_k", "semantics_k", "source_sha256"],
+      "properties": {
+        "intent_md": { "type": ["string", "null"] },
+        "spec_k": { "type": ["string", "null"] },
+        "semantics_k": { "type": ["string", "null"] },
+        "source_sha256": { "oneOf": [{ "$ref": "#/$defs/Sha256" }, { "type": "null" }] },
+        "verification_k": { "type": ["string", "null"] }
+      }
+    },
+
+    "UnitRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "language", "sha256", "diff", "content", "content_truncated", "prior"],
+      "properties": {
+        "path": { "description": "Repo-relative, forward slashes.", "type": "string", "minLength": 1, "maxLength": 1024 },
+        "language": { "type": "string", "maxLength": 40 },
+        "sha256": { "$ref": "#/$defs/Sha256", "description": "Hash of the full current file content as sent for checking." },
+        "diff": { "description": "Unified diff of this turn's change. Null in request and repo mode, or when unavailable.", "type": ["string", "null"] },
+        "content": { "description": "Full file up to 1500 lines; beyond that only touched regions ±40 lines, joined with '\\n...\\n'.", "type": "string" },
+        "content_truncated": { "type": "boolean" },
+        "regions": {
+          "description": "Optional (additive, v1). When content_truncated is true: the real 1-based inclusive file line ranges of the regions in content, in order, joined by '\\n...\\n'.",
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["start", "end"],
+            "properties": { "start": { "type": "integer", "minimum": 1 }, "end": { "type": "integer", "minimum": 1 } }
+          }
+        },
+        "prior": { "oneOf": [{ "$ref": "#/$defs/Prior" }, { "type": "null" }] }
+      }
+    },
+
+    "JobRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_version", "mode", "host", "host_version", "plugin_version", "os", "session_id", "turn_id", "permission_mode", "codex_modes", "intent", "units", "changed_lines", "truncated"],
+      "properties": {
+        "contract_version": { "const": "1" },
+        "mode": { "$ref": "#/$defs/Mode" },
+        "host": { "$ref": "#/$defs/Host" },
+        "host_version": { "type": "string", "maxLength": 40 },
+        "plugin_version": { "type": "string", "maxLength": 40 },
+        "os": { "type": "string", "maxLength": 20 },
+        "session_id": { "description": "Opaque host session id (plugin hashes it).", "type": "string", "maxLength": 128 },
+        "turn_id": { "type": "string", "maxLength": 128 },
+        "permission_mode": { "description": "Claude Code permission_mode from the hook payload; null on Codex.", "type": ["string", "null"], "maxLength": 40 },
+        "codex_modes": { "oneOf": [{ "$ref": "#/$defs/CodexModes" }, { "type": "null" }] },
+        "intent": { "$ref": "#/$defs/Intent" },
+        "units": { "type": "array", "minItems": 1, "maxItems": 10, "items": { "$ref": "#/$defs/UnitRequest" } },
+        "changed_lines": { "type": "integer", "minimum": 0 },
+        "truncated": { "description": "True when units were dropped because of the size cap (page says 'partial review').", "type": "boolean" },
+        "per_edit": { "description": "True when the plugin submitted this check right after a single tool edit (per-edit mode). A per_edit job supersedes nothing. Omitted means false.", "type": "boolean" }
+      }
+    },
+
+
+    "AgentConcern": {
+      "description": "One concern for the user's agent. The plugin renders agent text from these fields only, after its own sanitising.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "severity", "path", "line", "claim_id", "title", "explanation", "fix_direction"],
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "type": { "$ref": "#/$defs/ConcernType" },
+        "severity": { "$ref": "#/$defs/Severity" },
+        "path": { "type": "string", "maxLength": 1024 },
+        "line": { "type": ["integer", "null"], "minimum": 1 },
+        "claim_id": { "type": ["string", "null"], "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 120 },
+        "explanation": { "type": "string", "maxLength": 400 },
+        "fix_direction": { "type": "string", "maxLength": 400 }
+      }
+    },
+
+    "Claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "function", "status"],
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "function": { "type": "string", "maxLength": 256 },
+        "status": { "$ref": "#/$defs/ClaimStatus" }
+      }
+    },
+
+    "UnitResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "checked_sha256", "verdict", "artifacts", "claims"],
+      "properties": {
+        "path": { "type": "string" },
+        "checked_sha256": { "$ref": "#/$defs/Sha256" },
+        "verdict": { "$ref": "#/$defs/Verdict" },
+        "artifacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["INTENT.md", "SPEC.k", "SEMANTICS.k", "VERDICT.md"],
+          "properties": {
+            "INTENT.md": { "type": "string" },
+            "SPEC.k": { "type": "string" },
+            "SEMANTICS.k": { "description": "The code's behaviour as K rewrite rules. May be a one-line stub (\"Not generated; see REASONING.md\") when reasoning is done on paper against REASONING.md instead.", "type": "string" },
+            "VERDICT.md": { "type": "string" },
+            "VERIFICATION.k": { "description": "Optional (additive, v1). Summary functions, predicates and lemmas the SPEC.k claims use, guarded and total.", "type": "string" },
+            "REASONING.md": { "description": "Optional (additive, v1). The natural-language symbolic trace that is the primary evidence for each claim's status.", "type": "string" }
+          }
+        },
+        "claims": { "type": "array", "items": { "$ref": "#/$defs/Claim" } }
+      }
+    },
+
+    "JobResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verdict", "partial", "checked_at", "agent_concerns", "units"],
+      "properties": {
+        "verdict": { "$ref": "#/$defs/Verdict" },
+        "partial": { "type": "boolean" },
+        "checked_at": { "description": "When the prover received the job (ISO 8601). The plugin uses it for the 'checked the version from HH:MM' label.", "type": "string", "format": "date-time" },
+        "agent_concerns": { "type": "array", "items": { "$ref": "#/$defs/AgentConcern" } },
+        "units": { "type": "array", "items": { "$ref": "#/$defs/UnitResult" } }
+      }
+    }
+
+
+
+
+
+
+
+  }
+}

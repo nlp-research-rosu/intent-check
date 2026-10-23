@@ -52,6 +52,7 @@ async function session({ key = null, oldNode = false } = {}) {
     USERPROFILE: home,
     CODEX_HOME: codexHome,
     INTENT_API_URL: fp.url,
+    INTENT_CONSOLE_URL: fp.url,
     INTENT_DEBUG: "1",
     MOCK_API_KEY: "dummy-not-a-real-key",
     ...(key ? { INTENT_API_KEY: key } : {}),
@@ -89,7 +90,7 @@ const note = (s, what) => `${what}\nexit: ${s.r.code}${s.r.timedOut ? " (timed o
 
 // What this proves: the plugin logs `hook.in` for every hook it is started for, and `hook.output` when
 // it hands text to Codex (SessionStart always does; UserPromptSubmit does when there is something to
-// say, e.g. the connect line); with a key, Stop's own work shows as a `job.submitted` entry. Codex
+// say, e.g. setup guidance); with a key, Stop's own work shows as a `job.submitted` entry. Codex
 // itself reports no per-hook result in `exec --json`, so the exit code and the absence of a timeout
 // are the only host-side signal that no hook hung or failed the turn.
 function assertHooksRan(s, events, outputs = ["SessionStart"]) {
@@ -99,10 +100,10 @@ function assertHooksRan(s, events, outputs = ["SessionStart"]) {
   for (const ev of outputs) assert.match(s.log, new RegExp(`"event":"hook.output","hook":"${ev}"`), note(s, `the ${ev} hook handed nothing to Codex`));
 }
 
-test("codex exec without a key: hooks run, the connect line reaches the model, no job is sent", { skip, timeout: 60000 }, async () => {
+test("codex exec without a global CLI: hooks give setup guidance, no job is sent", { skip, timeout: 60000 }, async () => {
   const s = await session();
-  assertHooksRan(s, ["SessionStart", "UserPromptSubmit", "Stop"], ["SessionStart", "UserPromptSubmit"]);
-  assert.match(s.bodies, /Intent Check: connect your account/, note(s, "connect line missing from the model request"));
+  assertHooksRan(s, ["SessionStart", "UserPromptSubmit", "Stop"]);
+  assert.match(s.bodies, /kit-onboarding/, note(s, "setup guidance missing from the model request"));
   assert.equal(fp.jobRequests().length, 0);
 });
 
@@ -113,7 +114,7 @@ test("codex exec with a seeded key: the edit is uploaded to the prover as a job"
   // apply_patch anyway). The Stop hook finds the edit through the repo's diff.
   assertHooksRan(s, ["SessionStart", "UserPromptSubmit", "Stop"]);
   await waitFor(() => fp.jobRequests().length > before, { timeoutMs: 20000 });
-  assert.ok(fp.jobRequests().length > before, note(s, "no POST /v1/jobs reached the fake prover"));
+  assert.ok(fp.jobRequests().length > before, note(s, "no POST /intent-checks reached the fake prover"));
   assert.match(s.log, /"event":"job\.submitted"/, note(s, "Stop did not log a submitted job"));
   assert.ok(fp.jobRequests().at(-1).units.some((u) => /a\.js$/.test(u.path)), "the written file is in the job");
 });

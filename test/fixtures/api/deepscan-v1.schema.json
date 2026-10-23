@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intentcomputing.org/contract/deepscan-v1.schema.json",
+  "title": "Intent Check DeepScan API, contract v1",
+  "description": "The body of POST /deepscans: a gzip'd JSON snapshot of the repo. Shared by the intent plugin and the prover. Changes are additive only.",
+  "$defs": {
+    "Host": { "enum": ["claude-code", "codex"] },
+    "Sha1or256": { "type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$" },
+    "RepoPath": {
+      "description": "Relative, forward-slash path inside the repo: no leading slash, no drive letter, no backslash, no empty or '..' segments, no NUL.",
+      "type": "string", "minLength": 1, "maxLength": 1024,
+      "pattern": "^(?![A-Za-z]:)(?!/)(?!.*\\\\)(?!.*\\u0000)(?!.*(^|/)\\.\\.(/|$))(?!.*//)(?!.*/$).+$"
+    },
+
+    "DeepscanTrimmed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "reason"],
+      "properties": {
+        "path": { "$ref": "#/$defs/RepoPath" },
+        "reason": { "description": "Why the plugin left the file out (e.g. over_cap, too_large, binary, vendored, generated, secret).", "type": "string", "maxLength": 100 }
+      }
+    },
+
+    "DeepscanMeta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_version", "host", "plugin_version", "os", "remote_url", "head_sha", "branch", "dirty", "scope", "file_count", "bytes", "trimmed"],
+      "properties": {
+        "contract_version": { "const": "1" },
+        "host": { "$ref": "#/$defs/Host" },
+        "plugin_version": { "type": "string", "maxLength": 40 },
+        "os": { "type": "string", "maxLength": 20 },
+        "remote_url": {
+          "description": "Normalized to https with userinfo stripped, or null when the repo has no remote.",
+          "type": ["string", "null"], "maxLength": 500, "pattern": "^https://[^@/\\s]+(/\\S*)?$"
+        },
+        "head_sha": { "description": "Null for a repo without commits.", "oneOf": [{ "$ref": "#/$defs/Sha1or256" }, { "type": "null" }] },
+        "branch": { "type": ["string", "null"], "maxLength": 255 },
+        "dirty": { "description": "True when the working tree differs from HEAD.", "type": "boolean" },
+        "scope": { "description": "Path prefix the scan was limited to, or null for the whole repo.", "type": ["string", "null"], "maxLength": 1024 },
+        "file_count": { "description": "Files in `files`. The server recomputes it.", "type": "integer", "minimum": 0, "maximum": 3000 },
+        "bytes": { "description": "UTF-8 bytes of all `content`. The server recomputes it.", "type": "integer", "minimum": 0, "maximum": 15728640 },
+        "trimmed": { "description": "Files left out of the snapshot, listed in the report's coverage section.", "type": "array", "maxItems": 20000, "items": { "$ref": "#/$defs/DeepscanTrimmed" } }
+      }
+    },
+
+    "DeepscanFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "content"],
+      "properties": {
+        "path": { "$ref": "#/$defs/RepoPath" },
+        "content": { "description": "Redacted UTF-8 text, at most 512 KB, no NUL characters. Line numbers are preserved.", "type": "string" }
+      }
+    },
+
+    "DeepscanUpload": {
+      "description": "The document inside the gzip body of POST /deepscans (content-type application/gzip, at most 16 MB compressed and 20 MB inflated). At most 3000 files and 15 MB of text; paths are unique.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["meta", "files"],
+      "properties": {
+        "depth": { "$ref": "#/$defs/DeepscanDepth" },
+        "meta": { "$ref": "#/$defs/DeepscanMeta" },
+        "files": { "type": "array", "minItems": 1, "maxItems": 3000, "items": { "$ref": "#/$defs/DeepscanFile" } }
+      }
+    },
+
+    "DeepscanDepth": {
+      "description": "How deep the scan goes: fast hunts each property once (about 15-20 minutes), balanced has both models hunt every property (about 30-35 minutes), full adds a second attack on every property that held (about 40-45 minutes). A missing depth means balanced.",
+      "enum": ["fast", "balanced", "full"]
+    }
+
+
+
+
+
+
+
+
+
+  }
+}

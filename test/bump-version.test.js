@@ -50,13 +50,13 @@ function sandbox() {
   return { dir, git, run: (...a) => execFileSync("node", ["scripts/bump-version.mjs", ...a], { cwd: dir, encoding: "utf8" }) };
 }
 
-test("CLI: writes all four files consistently, keeps formatting, prints only the version", () => {
+test("CLI: writes all version files consistently, keeps formatting, prints only the version", () => {
   const { dir, run } = sandbox();
   const before = FILES.map((f) => fs.readFileSync(path.join(dir, f), "utf8"));
   const cur = readVersions(dir)[0][1];
   assert.equal(run("2.3.4"), "2.3.4\n");
-  assert.deepEqual(readVersions(dir).map(([, v]) => v), Array(4).fill("2.3.4"));
-  FILES.forEach((f, i) => assert.equal(fs.readFileSync(path.join(dir, f), "utf8"), before[i].replace(`"${cur}"`, '"2.3.4"')));
+  assert.deepEqual(readVersions(dir).map(([, v]) => v), Array(FILES.length).fill("2.3.4"));
+  FILES.slice(0, 4).forEach((f, i) => assert.equal(fs.readFileSync(path.join(dir, f), "utf8"), before[i].replace(`"${cur}"`, '"2.3.4"')));
 });
 
 test("CLI: --pre numbers from git tags", () => {
@@ -65,7 +65,7 @@ test("CLI: --pre numbers from git tags", () => {
   git("tag", "v1.4.1-per-edit.1");
   assert.equal(run("patch", "--pre", "per-edit"), "1.4.1-per-edit.2\n");
   assert.equal(run("patch", "--pre", "per-edit"), "1.4.1-per-edit.2\n");
-  assert.deepEqual(readVersions(dir).map(([, v]) => v), Array(4).fill("1.4.1-per-edit.2"));
+  assert.deepEqual(readVersions(dir).map(([, v]) => v), Array(FILES.length).fill("1.4.1-per-edit.2"));
 });
 
 test("CLI: plain release also sets docs/install.json's top-level version", () => {
@@ -85,7 +85,7 @@ test("CLI: prerelease bump leaves docs/install.json untouched", () => {
   const before = fs.readFileSync(p, "utf8");
   assert.equal(run("patch", "--pre", "per-edit"), "0.1.2-per-edit.1\n");
   assert.equal(fs.readFileSync(p, "utf8"), before);
-  assert.deepEqual(readVersions(dir).map(([, v]) => v), Array(4).fill("0.1.2-per-edit.1"));
+  assert.deepEqual(readVersions(dir).map(([, v]) => v), Array(FILES.length).fill("0.1.2-per-edit.1"));
 });
 
 test("CLI: plain release refuses when install.json lacks exactly one version field, writing nothing", () => {
@@ -97,11 +97,28 @@ test("CLI: plain release refuses when install.json lacks exactly one version fie
   assert.deepEqual(FILES.map((f) => fs.readFileSync(path.join(dir, f), "utf8")), before);
 });
 
-test("CLI: refuses when the four files disagree", () => {
+test("CLI: refuses when the version files disagree", () => {
   const { dir } = sandbox();
   const p = path.join(dir, ".codex-plugin/plugin.json");
   fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace(/"version": "[^"]*"/, '"version": "9.9.9"'));
   assert.throws(() => execFileSync("node", ["scripts/bump-version.mjs", "patch"], { cwd: dir, stdio: "pipe" }));
+});
+
+test("the CLI crate version (Cargo.toml and Cargo.lock) matches package.json", () => {
+  const v = Object.fromEntries(readVersions());
+  assert.equal(v["cli/Cargo.toml"], v["package.json"]);
+  assert.equal(v["cli/Cargo.lock"], v["package.json"]);
+});
+
+test("CLI: a bump changes only the intent-check entry in Cargo.lock and the [package] version in Cargo.toml", () => {
+  const { dir, run } = sandbox();
+  const lock = path.join(dir, "cli/Cargo.lock");
+  const toml = path.join(dir, "cli/Cargo.toml");
+  const [lockBefore, tomlBefore] = [lock, toml].map((p) => fs.readFileSync(p, "utf8"));
+  run("7.8.9");
+  const diff = (a, b) => a.split("\n").filter((l, i) => l !== b.split("\n")[i]);
+  assert.deepEqual(diff(lockBefore, fs.readFileSync(lock, "utf8")), [lockBefore.match(/name = "intent-check"\nversion = "[^"]*"/)[0].split("\n")[1]]);
+  assert.equal(diff(tomlBefore, fs.readFileSync(toml, "utf8")).length, 1);
 });
 
 // ---- changelog ----

@@ -1,9 +1,0 @@
-{
-  "job_id": "9kWm3PqXe7NdTz2RbVc8Hy",
-  "status": "queued",
-  "stage": "queued",
-  "progress": { "stage": "queued", "hunters_done": 0, "hunters_total": 0, "elapsed_s": 0 },
-  "url": "https://intent-check-staging.up.railway.app/r/9kWm3PqXe7NdTz2RbVc8Hy",
-  "budget_s": 3600,
-  "depth": "balanced"
-}

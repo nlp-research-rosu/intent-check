@@ -1,7 +1,0 @@
-{
-  "host": "claude-code",
-  "host_version": "2.1.283",
-  "plugin_version": "0.1.0",
-  "os": "linux",
-  "machine_name": "devbox"
-}

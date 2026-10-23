@@ -2,6 +2,8 @@ name: release
 # Run from the Actions tab and pick a branch. On main this cuts a release (vX.Y.Z), whose notes are the Unreleased
 # section of CHANGELOG.md; on any other branch it cuts a
 # prerelease (vX.Y.Z-<branch>.N) and commits the bump to that branch, because users install from the branch head.
+# The release carries the intent-check CLI builds for six targets and the two standalone installers; it is created as a
+# draft and published only after every asset is uploaded. The branch advances only after publication.
 # Pushes made with GITHUB_TOKEN do not trigger ci.yml; that is fine because the test job below runs first.
 on:
   workflow_dispatch:
@@ -12,7 +14,7 @@ on:
         options: [patch, minor, major]
         default: patch
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: release
   cancel-in-progress: false
@@ -24,36 +26,39 @@ jobs:
       matrix:
         node: [18, 22]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ matrix.node }}
-      - run: node contract/hash.mjs
       - run: node --test test/*.test.js
   # The real claude/codex CLIs on Linux, macOS and Windows (LLM-free), before anything is released.
   integration:
     uses: ./.github/workflows/integration.yml
-  release:
+  bump:
     needs: [test, integration]
     if: github.ref_type == 'branch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      v: ${{ steps.bump.outputs.v }}
+      sha: ${{ steps.bump.outputs.sha }}
     env:
       GH_TOKEN: ${{ github.token }}
       BUMP: ${{ inputs.bump }}
       BRANCH: ${{ github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
-      - name: Bump, commit, tag, push
+      - name: Prepare release commit
+        id: bump
         run: |
           CURRENT=$(node -p 'require("./package.json").version')
           if [ "$(git log -1 --format=%s)" = "release: v$CURRENT" ]; then
@@ -61,7 +66,6 @@ jobs:
             V=$CURRENT
             if ! git rev-parse -q --verify "refs/tags/v$V" >/dev/null; then
               git tag "v$V"
-              git push origin "v$V"
             fi
           else
             if [ "$BRANCH" = main ]; then
@@ -75,23 +79,142 @@ jobs:
               echo "tag v$V already exists" >&2
               exit 1
             fi
-            git commit -am "release: v$V"
+            git add package.json .claude-plugin/plugin.json .claude-plugin/marketplace.json .codex-plugin/plugin.json cli/Cargo.toml cli/Cargo.lock docs/install.json CHANGELOG.md
+            git commit -m "release: v$V"
             git tag "v$V"
-            git push --atomic origin "HEAD:refs/heads/$BRANCH" "v$V"
           fi
-          echo "V=$V" >> "$GITHUB_ENV"
+          test "$(git rev-parse "v$V")" = "$(git rev-parse HEAD)"
+          git bundle create "$RUNNER_TEMP/release.bundle" "v$V"
+          echo "v=$V" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-source
+          path: ${{ runner.temp }}/release.bundle
+  build:
+    needs: bump
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-14, asset: intent-check-darwin-arm64, windows: false }
+          - { runner: macos-15-intel, asset: intent-check-darwin-x64, windows: false }
+          - { runner: ubuntu-latest, asset: intent-check-linux-x64, windows: false }
+          - { runner: ubuntu-24.04-arm, asset: intent-check-linux-arm64, windows: false }
+          - { runner: windows-latest, asset: intent-check-windows-x64, windows: true }
+          - { runner: windows-11-arm, asset: intent-check-windows-arm64, windows: true }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-source
+          path: ${{ runner.temp }}
+      - name: Check out prepared release
+        working-directory: .
+        shell: bash
+        env:
+          V: ${{ needs.bump.outputs.v }}
+          RELEASE_SHA: ${{ needs.bump.outputs.sha }}
+        run: |
+          git fetch "$RUNNER_TEMP/release.bundle" "refs/tags/v$V:refs/tags/v$V"
+          test "$(git rev-parse "v$V")" = "$RELEASE_SHA"
+          git checkout --detach "$RELEASE_SHA"
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - run: cargo build --locked --release
+      - if: ${{ !matrix.windows }}
+        shell: bash
+        run: |
+          test "$(target/release/intent-check --version)" = "intent-check ${{ needs.bump.outputs.v }}"
+          tar -C target/release -czf "${{ matrix.asset }}.tar.gz" intent-check
+          if command -v sha256sum >/dev/null; then
+            sha256sum "${{ matrix.asset }}.tar.gz" > "${{ matrix.asset }}.tar.gz.sha256"
+          else
+            shasum -a 256 "${{ matrix.asset }}.tar.gz" > "${{ matrix.asset }}.tar.gz.sha256"
+          fi
+      - if: ${{ matrix.windows }}
+        shell: pwsh
+        run: |
+          if ((& target/release/intent-check.exe --version) -ne "intent-check ${{ needs.bump.outputs.v }}") { throw "CLI version mismatch" }
+          Compress-Archive target/release/intent-check.exe "${{ matrix.asset }}.zip"
+          $hash = (Get-FileHash "${{ matrix.asset }}.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash  ${{ matrix.asset }}.zip" | Set-Content "${{ matrix.asset }}.zip.sha256"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ matrix.asset }}
+          path: cli/${{ matrix.asset }}.*
+  publish:
+    needs: [bump, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BRANCH: ${{ github.ref_name }}
+      V: ${{ needs.bump.outputs.v }}
+      RELEASE_SHA: ${{ needs.bump.outputs.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-source
+          path: ${{ runner.temp }}
+      - name: Check out prepared release
+        run: |
+          git fetch "$RUNNER_TEMP/release.bundle" "refs/tags/v$V:refs/tags/v$V"
+          test "$(git rev-parse "v$V")" = "$RELEASE_SHA"
+          git checkout --detach "$RELEASE_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: intent-check-*
+          path: dist
+          merge-multiple: true
       - name: GitHub release
         run: |
-          if gh release view "v$V" >/dev/null 2>&1; then
-            echo "release v$V already exists"
-          elif [ "$BRANCH" = main ]; then
-            # The release notes are this version's CHANGELOG.md section; generated notes when it is empty or cannot be read.
-            node scripts/bump-version.mjs --notes "$V" > "$RUNNER_TEMP/notes.md" || : > "$RUNNER_TEMP/notes.md"
-            if [ -s "$RUNNER_TEMP/notes.md" ]; then
-              gh release create "v$V" --notes-file "$RUNNER_TEMP/notes.md" --target "$(git rev-parse HEAD)"
-            else
-              gh release create "v$V" --generate-notes --target "$(git rev-parse HEAD)"
-            fi
-          else
-            gh release create "v$V" --generate-notes --prerelease
+          # Never overwrite branch changes made while the builds were running.
+          head=$(git ls-remote origin "refs/heads/$BRANCH" | cut -f1)
+          test "$head" = "$GITHUB_SHA" || test "$head" = "$RELEASE_SHA"
+          git push origin "refs/tags/v$V"
+          # gh release view does not find drafts, so look the tag up in the list
+          state=$(gh release list --limit 1000 --json tagName,isDraft --jq ".[] | select(.tagName == \"v$V\") | .isDraft")
+          if [ "$state" = false ]; then
+            echo "release v$V already published"
+            exit 0
           fi
+          for e in sh ps1; do sed "s/__INTENT_CHECK_RELEASE_TAG__/v$V/" "scripts/install-intent-check.$e" > "dist/install-intent-check.$e"; done
+          ! grep -l __INTENT_CHECK_RELEASE_TAG__ dist/install-intent-check.* || { echo "release tag placeholder left in an installer" >&2; exit 1; }
+          assets=(dist/*)
+          printf '%s\n' intent-check-{darwin,linux}-{x64,arm64}.tar.gz{,.sha256} \
+            intent-check-windows-{x64,arm64}.zip{,.sha256} install-intent-check.sh install-intent-check.ps1 |
+            sort > "$RUNNER_TEMP/expected.txt"
+          printf '%s\n' "${assets[@]#dist/}" | sort > "$RUNNER_TEMP/local-assets.txt"
+          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/local-assets.txt"
+          if [ -z "$state" ]; then
+            if [ "$BRANCH" = main ]; then
+              # The release notes are this version's CHANGELOG.md section; generated notes when it is empty or cannot be read.
+              node scripts/bump-version.mjs --notes "$V" > "$RUNNER_TEMP/notes.md" || : > "$RUNNER_TEMP/notes.md"
+              if [ -s "$RUNNER_TEMP/notes.md" ]; then
+                gh release create "v$V" --draft --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
+              else
+                gh release create "v$V" --draft --generate-notes --verify-tag
+              fi
+            else
+              gh release create "v$V" --draft --generate-notes --prerelease --verify-tag
+            fi
+          fi
+          gh release upload "v$V" "${assets[@]}" --clobber
+          gh release view "v$V" --json assets --jq '.assets[].name' | sort > "$RUNNER_TEMP/uploaded.txt"
+          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/uploaded.txt"
+          gh release edit "v$V" --draft=false
+      - name: Expose published version to plugin installations
+        run: git push origin "HEAD:refs/heads/$BRANCH"

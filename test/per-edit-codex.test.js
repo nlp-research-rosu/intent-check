@@ -1,5 +1,5 @@
 // Per-edit mode on Codex (apply_patch, one child per path) and shell-written files (Bash scan),
-// plus the one-time hook notice. Payloads replayed through bin/intent.js --host codex.
+// plus the one-time hook notice. Payloads replayed through bin/hooks.js --host codex.
 import { test, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -78,7 +78,7 @@ test("codex apply_patch in per-edit mode: one edit job per path, host codex with
     assert.equal(q.codex_modes.approval_policy, "on-request");
     assert.equal(q.permission_mode, null);
   }
-  for (const p of fp.state.requests.filter((x) => x.path === "/v1/jobs" && x.method === "POST")) assert.equal(p.headers["x-intent-supersede"], undefined);
+  for (const p of fp.state.requests.filter((x) => x.path === "/intent-checks" && x.method === "POST")) assert.equal(p.headers["x-intent-supersede"], undefined);
 });
 
 test("codex apply_patch in classic mode: nothing at the edit", async () => {

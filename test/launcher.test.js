@@ -144,13 +144,13 @@ test("Node present but older than 18: treated the same as no Node", { skip: NO_S
 });
 
 test("Node >=18 present: exec passthrough of args, stdin and a non-zero exit code with stderr", { skip: NO_SH }, () => {
-  // Isolated temp dir with its own bin/intent (the real launcher) next to a stub intent.js, so
-  // `exec node "$dir/intent.js" "$@"` resolves to a script we control instead of the real app.
+  // Isolated temp dir with its own bin/intent (the real launcher) next to a stub hooks.js, so
+  // `exec node "$dir/hooks.js" "$@"` resolves to a script we control instead of the real app.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "intent-launcher-passthrough-"));
   fs.copyFileSync(LAUNCHER, path.join(dir, "intent"));
   fs.chmodSync(path.join(dir, "intent"), 0o755);
   fs.writeFileSync(
-    path.join(dir, "intent.js"),
+    path.join(dir, "hooks.js"),
     [
       "let d = '';",
       "process.stdin.on('data', (c) => (d += c));",
@@ -169,7 +169,7 @@ test("Node >=18 present: exec passthrough of args, stdin and a non-zero exit cod
   assert.equal(r.stderr, 'ARGS:["stop","--flag"] STDIN:hello from stdin');
 });
 
-test("Node >=18 present: the real bin/intent.js still answers through the launcher", { skip: NO_SH }, () => {
+test("Node >=18 present: the real bin/hooks.js still answers through the launcher", { skip: NO_SH }, () => {
   // A flag is refused before anything is read or sent, same whichever entry point.
   const out = execFileSync("/bin/sh", [LAUNCHER, "deepscan", "--nope"], { encoding: "utf8" });
   assert.match(out, /--nope is not a DeepScan option/);
@@ -192,5 +192,5 @@ test("exec-form hooks from hooks.json spawn node directly and exit 0", () => {
       }
     }
   }
-  assert.ok(n >= 5, `expected every hook entry to run, ran ${n}`);
+  assert.equal(n, 4, `expected one hook for each lifecycle event, ran ${n}`);
 });

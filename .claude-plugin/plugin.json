@@ -1,7 +1,7 @@
 {
   "name": "intent",
   "version": "0.3.0",
-  "description": "Checks that the code your agent wrote does what you asked",
+  "description": "Checks that the code your agent wrote does what you asked, with formal proofs in prove mode",
   "author": { "name": "Intent Computing" },
   "homepage": "https://check.intentcomputing.org/privacy",
   "repository": "https://github.com/nlp-research-rosu/intent-check",
