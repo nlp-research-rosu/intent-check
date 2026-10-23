@@ -254,10 +254,10 @@ test("two concurrent per-edit 401s do not claim INTENT_API_KEY was rejected", as
 test("a key re-saved between the request and its 401 survives", async () => {
   const ctx = savedKeyCtx();
   const { handleSubmitFailure } = await import("../lib/runner.js");
-  const { saveApiKey, apiKey } = await import("../lib/config.js");
+  const { apiKey } = await import("../lib/config.js");
   const NEW = "ic_" + "N".repeat(38);
   await inProcess(ctx, async () => {
-    saveApiKey(NEW);
+    saveKey(ctx.data, NEW, fp.url);
     handleSubmitFailure("sess", { status: 401, code: "unauthorized" }, { touched: [] }, TEST_KEY);
     assert.equal(apiKey().key, NEW);
   });

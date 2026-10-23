@@ -52,34 +52,17 @@ test("a credentials file others can read is not used, and the problem is named",
   assert.match(p.problem, /readable by others/);
 });
 
-test("a key is not saved for a plain-http remote service, and non-string values make the file invalid", () => {
+test("clearing a saved key removes only this origin and keeps the file 600 in a 700 folder", () => {
   const data = tmpdir("intent-cfg-");
-  const run = (api, body) => {
-    const dir = path.join(data, "xdg", "intent-check");
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, "credentials.json"), JSON.stringify(body), { mode: 0o600 });
-    const code = `import(${JSON.stringify(pathToFileURL(path.join(ROOT, "lib", "config.js")).href)}).then((c) => { try { c.saveApiKey("k-one"); console.log("saved"); } catch (e) { console.log(e.message); } })`;
-    const env = { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("INTENT_"))), CLAUDE_PLUGIN_DATA: data, XDG_CONFIG_HOME: path.join(data, "xdg"), INTENT_API_URL: api };
-    return execFileSync(process.execPath, ["-e", code], { env }).toString().trim();
-  };
-  assert.match(run("http://prover.example.com", { keys: {} }), /refusing to save a key.*https/);
-  assert.equal(run("http://localhost:8000", { keys: {} }), "saved");
-  assert.equal(run("https://prover.example.com", { keys: {} }), "saved");
-  assert.match(run("https://prover.example.com", { keys: { "https://a.test": 5 } }), /not valid/);
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(data, "xdg", "intent-check", "credentials.json"), "utf8")), { keys: { "https://a.test": 5 } }, "left as it was");
-});
-
-test("saving a key writes the folder 700 and the file 600, keeps other origins, and clearing removes only this origin", () => {
-  const data = tmpdir("intent-cfg-");
-  const code = `import(${JSON.stringify(pathToFileURL(path.join(ROOT, "lib", "config.js")).href)}).then((c) => { c.saveApiKey("k-one"); process.env.INTENT_API_URL = "http://localhost:2"; c.saveApiKey("k-two"); c.clearSavedApiKey("not-it"); c.clearSavedApiKey("k-two"); })`;
+  const dir = path.join(data, "xdg", "intent-check");
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const file = path.join(dir, "credentials.json");
+  fs.writeFileSync(file, JSON.stringify({ keys: { "http://127.0.0.1:1": "k-one", "http://localhost:2": "k-two" } }), { mode: 0o600 });
+  const code = `import(${JSON.stringify(pathToFileURL(path.join(ROOT, "lib", "config.js")).href)}).then((c) => { process.env.INTENT_API_URL = "http://localhost:2"; c.clearSavedApiKey("not-it"); c.clearSavedApiKey("k-two"); })`;
   const env = { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("INTENT_"))), CLAUDE_PLUGIN_DATA: data, XDG_CONFIG_HOME: path.join(data, "xdg"), INTENT_API_URL: "http://127.0.0.1:1" };
   execFileSync(process.execPath, ["-e", code], { env });
-  const file = path.join(data, "xdg", "intent-check", "credentials.json");
   assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), { keys: { "http://127.0.0.1:1": "k-one" } });
-  if (process.platform !== "win32") {
-    assert.equal(fs.statSync(file).mode & 0o777, 0o600);
-    assert.equal(fs.statSync(path.dirname(file)).mode & 0o777, 0o700);
-  }
+  if (process.platform !== "win32") assert.equal(fs.statSync(file).mode & 0o777, 0o600);
 });
 
 test("off switches and plugin version", () => {

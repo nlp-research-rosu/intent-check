@@ -485,13 +485,13 @@ test("a key re-saved between the request and its 401 survives; a second 401 for 
   const ctx = setup();
   saveKey(ctx.data, TEST_KEY, fp.url);
   const { handleSubmitFailure } = await import("../lib/runner.js");
-  const { saveApiKey, apiKey } = await import("../lib/config.js");
+  const { apiKey } = await import("../lib/config.js");
   const { loadSession } = await import("../lib/state.js");
   const { pausedFor } = await import("../lib/pause.js");
   const NEW = "ic_" + "N".repeat(38);
   await inProcess(ctx, async () => {
     // The user connected a new key while a request sent with the old one was still in flight.
-    saveApiKey(NEW);
+    saveKey(ctx.data, NEW, fp.url);
     handleSubmitFailure("sess", { status: 401, code: "unauthorized" }, { touched: [] }, TEST_KEY);
     assert.equal(apiKey().key, NEW);
     assert.equal(fs.existsSync(cfileOf(ctx)), false, "no revoke flow for a key that is no longer current");
