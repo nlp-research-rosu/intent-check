@@ -55,41 +55,6 @@ test("errors come back as codes, never throws", async () => {
   process.env.INTENT_API_URL = saved;
 });
 
-test("connect start and poll run against the console", async () => {
-  const c = await api.startConnect();
-  assert.equal(c.ok, true);
-  assert.match(c.device_code, /^[a-f0-9]{64}$/);
-  assert.equal(c.verification_url, `${config.consoleUrl()}/connect/KDRT-MWQX`);
-  assert.deepEqual([c.expires_in, c.interval], [600, 3]);
-  assert.equal((await api.pollConnect(c.device_code)).status, "pending");
-  fp.state.connectApproved = true;
-  const a = await api.pollConnect(c.device_code);
-  assert.deepEqual([a.status, a.api_key], ["approved", TEST_KEY]);
-  assert.equal((await api.pollConnect(c.device_code)).status, "consumed");
-  fp.state.connectStatus = "denied";
-  assert.equal((await api.pollConnect(c.device_code)).status, "denied");
-  fp.state.connectStatus = null;
-  fp.state.connectStartStatus = 429;
-  assert.deepEqual(await api.startConnect(), { ok: false, status: 429, code: "busy", reason: null });
-  fp.state.connectStartStatus = null;
-});
-
-test("an approved poll takes any opaque key, and nothing with control characters", async () => {
-  const { pollConnect } = api;
-  const code = "a".repeat(64);
-  const poll = async (key) => {
-    const srv = (await import("node:http")).createServer((q, r) => { r.writeHead(200, { "content-type": "application/json" }); r.end(JSON.stringify({ status: "approved", api_key: key })); });
-    await new Promise((res) => srv.listen(0, "127.0.0.1", res));
-    const keep = process.env.INTENT_CONSOLE_URL;
-    process.env.INTENT_CONSOLE_URL = `http://127.0.0.1:${srv.address().port}`;
-    try { return (await pollConnect(code)).api_key; } finally { process.env.INTENT_CONSOLE_URL = keep; srv.close(); }
-  };
-  assert.equal(await poll("ak_live_Q3x"), "ak_live_Q3x");
-  assert.equal(await poll("two words"), "two words");
-  assert.equal(await poll("bad\nkey"), null);
-  assert.equal(await poll(""), null);
-});
-
 test("checkKey: the key is checked with GET /tasks?limit=1", async () => {
   assert.deepEqual(await api.checkKey(TEST_KEY), { ok: true });
   const r = await api.checkKey("wrong");

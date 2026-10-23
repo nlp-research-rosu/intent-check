@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createMockAnthropic } from "../helpers/mock-anthropic.js";
 import { createFakeProver, TEST_KEY } from "../helpers/fake-prover.js";
-import { ROOT, tmpdir, makeRepo, waitFor } from "../helpers/env.js";
+import { ROOT, FAKE_CLI, tmpdir, makeRepo, waitFor } from "../helpers/env.js";
 import { findCli, runCli, cleanEnv } from "./helpers.js";
 
 const CLAUDE = findCli("claude");
@@ -45,6 +45,7 @@ async function session({ key = null, prompt = "write the file" } = {}) {
     DISABLE_AUTOUPDATER: "1",
     INTENT_API_URL: fp.url,
     INTENT_CONSOLE_URL: fp.url,
+    INTENT_CLI_PATH: FAKE_CLI,
     ...(key ? { INTENT_API_KEY: key } : {}),
   });
   const args = ["-p", prompt, "--plugin-dir", ROOT, "--permission-mode", "acceptEdits", "--output-format", "stream-json", "--verbose", "--include-hook-events"];

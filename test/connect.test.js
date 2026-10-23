@@ -3,6 +3,7 @@ import { test, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { isPidAlive } from "../lib/fsutil.js";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
 import { QUIET_GLOBAL, assertOwnerOnly, fixture, tmpdir, makeRepo, baseEnv, runHook, waitFor, savedKey, credentialsPath } from "./helpers/env.js";
 
@@ -18,7 +19,7 @@ function setup() {
 }
 
 const readJson = (f) => JSON.parse(fs.readFileSync(f, "utf8"));
-const posts = () => fp.state.requests.filter((x) => x.method === "POST" && x.path === "/api/cli-connect").length;
+const posts = () => fp.state.requests.filter((x) => x.method === "POST" && x.path === "/api/cli-connect" && x.body && x.body.action === "start").length;
 const LINK = /http:\/\/127\.0\.0\.1:\d+\/connect\/KDRT-MWQX/;
 
 test("no key: SessionStart creates the request and shows the link; the prompt tells the agent to wait for done or skip", async () => {
@@ -33,7 +34,9 @@ test("no key: SessionStart creates the request and shows the link; the prompt te
   assertOwnerOnly(cfile);
   const c = readJson(cfile);
   assert.equal(c.api_url, fp.url, "connect.json records the service");
-  assert.ok(c.poller_pid > 0);
+  assert.ok(c.poller_pid > 0, "the pid of the running intent-check login");
+  assert.equal(c.user_code, "KDRT-MWQX");
+  assert.equal(c.device_code, undefined, "the device code stays with the CLI");
 
   const before = posts();
   const p = await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
@@ -86,7 +89,7 @@ test("a done reply before approval asks the user to approve; after approval the 
   const notYet = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "done" }), ctx.env);
   assert.match(notYet.json.hookSpecificOutput.additionalContext, /does not see it yet/);
   fp.state.connectApproved = true;
-  // The usual order: the background poller saves the key before the user replies "done"; the
+  // The usual order: the login process saves the key before the user replies "done"; the
   // gated agent must still be told to carry on.
   assert.ok(await waitFor(() => savedKey(ctx.data, fp.url) === TEST_KEY, { timeoutMs: 10000 }));
   const ok = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "done" }), ctx.env);
@@ -104,7 +107,7 @@ test("until connected nothing else is sent", async () => {
   assert.equal(fp.jobRequests().length, n);
 });
 
-test("the background poller saves the key in the credentials file (file 600, folder 700); the next prompt says connected, once", async () => {
+test("the login process saves the key in the credentials file (file 600, folder 700); the next prompt says connected, once", async () => {
   const ctx = setup();
   await runHook("session-start", fixture("session-start", ctx.repo), ctx.env);
   fp.state.connectApproved = true;
@@ -122,17 +125,19 @@ test("the background poller saves the key in the credentials file (file 600, fol
   assert.equal(s.code, 2);
 });
 
-test("if the poller died, the next prompt picks the approval up itself", async () => {
+test("if the login process died, the next prompt starts a new one and the one after shows it with the reason", async () => {
   const ctx = setup();
   await runHook("session-start", fixture("session-start", ctx.repo), ctx.env);
   const cfile = path.join(ctx.data, "connect.json");
   const c = readJson(cfile);
-  try { process.kill(c.poller_pid, "SIGKILL"); } catch { /* already gone */ }
-  fs.writeFileSync(cfile, JSON.stringify({ ...c, poller_pid: 999999 }));
-  fp.state.connectApproved = true;
-  const r = await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
-  assert.equal(r.json.systemMessage, "Intent Check connected");
-  assert.equal(savedKey(ctx.data, fp.url), TEST_KEY);
+  process.kill(c.poller_pid, "SIGKILL");
+  assert.ok(await waitFor(() => !isPidAlive(c.poller_pid), { timeoutMs: 5000 }));
+  const quiet = await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
+  assert.equal(quiet.stdout, "");
+  assert.ok(await waitFor(() => readJson(cfile).created_at !== c.created_at && readJson(cfile).status === "pending", { timeoutMs: 10000 }));
+  const r = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "next request that is long enough" }), ctx.env);
+  assert.match(r.json.systemMessage, /the service could not create a key for the last connect request/i);
+  assert.match(r.json.systemMessage, /connect your account → /);
 });
 
 test("INTENT_API_KEY skips the connect flow", async () => {

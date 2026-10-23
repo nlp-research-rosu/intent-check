@@ -5,8 +5,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
+import { isPidAlive } from "../lib/fsutil.js";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { QUIET_GLOBAL, PLUGIN_VERSION, ROOT, fixture, tmpdir, makeRepo, baseEnv, runHook, waitFor, saveKey, seedGlobal, xdgDir, savedKey, credentialsPath } from "./helpers/env.js";
+import { QUIET_GLOBAL, FAKE_CLI, PLUGIN_VERSION, ROOT, fixture, tmpdir, makeRepo, baseEnv, runHook, waitFor, saveKey, seedGlobal, xdgDir, savedKey, credentialsPath } from "./helpers/env.js";
 
 let fp;
 before(async () => { fp = createFakeProver(); await fp.listen(); });
@@ -54,10 +55,10 @@ test("429 from the service backs off for 30 s, then tries again", async () => {
   const ctx = setup();
   fp.state.connectStartStatus = 429;
   const r = await start(ctx);
-  assert.match(r.json.systemMessage, /^Intent Check could not create a connect link \(429\)\. Run \/intent:doctor to retry\.$/);
+  assert.match(r.json.systemMessage, /^Intent Check could not create a connect link \(login\)\. Run \/intent:doctor to retry\.$/);
   const g = () => readJson(path.join(ctx.data, "global.json"));
   assert.ok(g().backoff.connect > Date.now() - 5000);
-  assert.match(g().last_error.text, /could not start a connect request \(429\)/);
+  assert.match(g().last_error.text, /could not start a connect request \(login\)/);
   const n = posts();
   await start(ctx, { session_id: "s2" });
   assert.equal(posts(), n, "backed off: no request");
@@ -78,15 +79,16 @@ test("a timeout is not backed off: the next prompt tries again", async () => {
     process.env.CLAUDE_PLUGIN_DATA = ctx.data;
     process.env.XDG_CONFIG_HOME = xdgDir(ctx.data);
     process.env.INTENT_CONSOLE_URL = process.env.INTENT_API_URL = `http://127.0.0.1:${hang.address().port}`;
+    process.env.INTENT_CLI_PATH = FAKE_CLI;
     delete process.env.INTENT_API_KEY;
     const { ensureRequest } = await import("../lib/connect.js");
     const c = await ensureRequest({ timeoutMs: 300 });
     assert.equal(c, null);
     const g = fs.existsSync(path.join(ctx.data, "global.json")) ? readJson(path.join(ctx.data, "global.json")) : {};
     assert.equal(g.backoff && g.backoff.connect, undefined);
-    assert.match(g.last_error.text, /could not start a connect request/);
+    assert.match(g.last_error.text, /could not start a connect request \(timeout\)/);
   } finally {
-    for (const k of ["CLAUDE_PLUGIN_DATA", "XDG_CONFIG_HOME", "INTENT_API_URL", "INTENT_CONSOLE_URL"]) { if (keep[k] === undefined) delete process.env[k]; else process.env[k] = keep[k]; }
+    for (const k of ["CLAUDE_PLUGIN_DATA", "XDG_CONFIG_HOME", "INTENT_API_URL", "INTENT_CONSOLE_URL", "INTENT_CLI_PATH"]) { if (keep[k] === undefined) delete process.env[k]; else process.env[k] = keep[k]; }
     hang.closeAllConnections?.();
     await new Promise((r) => hang.close(r));
   }
@@ -179,10 +181,11 @@ for (const [state, reason] of [["denied", /last connect request was denied/], ["
     const ctx = setup();
     await start(ctx);
     const first = readJson(cfileOf(ctx)).created_at;
+    const pid = readJson(cfileOf(ctx)).poller_pid;
     fp.state.connectStatus = state;
-    assert.ok(await waitFor(() => connectStatus(ctx) === state, { timeoutMs: 10000 }));
+    assert.ok(await waitFor(() => !isPidAlive(pid), { timeoutMs: 10000 }), "the login ends");
     fp.state.connectStatus = null;
-    const quiet = await prompt(ctx); // not live: the creator runs in the background
+    const quiet = await prompt(ctx); // the prompt sees how it ended; not live: the creator runs in the background
     assert.equal(quiet.stdout, "");
     assert.ok(await waitFor(() => connectStatus(ctx) === "pending" && readJson(cfileOf(ctx)).created_at !== first, { timeoutMs: 10000 }));
     assert.match(readJson(cfileOf(ctx)).reason, reason);
@@ -218,7 +221,7 @@ test("a 401 on submit forgets the saved key and prepares a new link with the rea
   assert.match(r.json.systemMessage, /connect your account → http/);
 });
 
-// ---- item 8: poller race -----------------------------------------------------------------------
+// ---- running lib code in this process ---------------------------------------------------------
 
 async function inProcess(ctx, fn) {
   const keep = { ...process.env };
@@ -232,40 +235,6 @@ async function inProcess(ctx, fn) {
     for (const k of ["CLAUDE_PLUGIN_DATA", "XDG_CONFIG_HOME", "INTENT_API_URL", "INTENT_CONSOLE_URL", "INTENT_API_KEY"]) { if (keep[k] === undefined) delete process.env[k]; else process.env[k] = keep[k]; }
   }
 }
-
-async function pendingRequest(ctx) {
-  const r = await fetch(`${fp.url}/api/cli-connect`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "start" }) });
-  const j = await r.json();
-  fs.writeFileSync(cfileOf(ctx), JSON.stringify({ status: "pending", api_url: fp.url, device_code: j.device_code, verification_url: `${fp.url}/connect/${j.user_code}`, expires_at: Date.now() + 600000, created_at: 1, interval_s: 1, poller_pid: process.pid }));
-}
-
-test("poller race: two polls at once, the loser's 'consumed' never undoes the winner's approval", async () => {
-  const ctx = setup();
-  await pendingRequest(ctx);
-  fp.state.connectApproved = true;
-  await inProcess(ctx, async (c, cfg) => {
-    const res = await Promise.all([c.checkConnectOnce(3000), c.checkConnectOnce(3000), c.checkConnectOnce(3000)]);
-    assert.ok(res.includes("approved"));
-    assert.equal(cfg.apiKey().key, TEST_KEY);
-    const rec = c.readConnect();
-    assert.equal(rec.status, "approved");
-    assert.equal(rec.announce, true);
-  });
-});
-
-test("the key is saved before anything is acknowledged: a failed save is never reported as connected", async () => {
-  const ctx = setup();
-  await pendingRequest(ctx);
-  fs.mkdirSync(credentialsPath(ctx.data), { recursive: true }); // saving the key will fail
-  fp.state.connectApproved = true;
-  await inProcess(ctx, async (c) => {
-    const res = await c.checkConnectOnce(3000);
-    assert.equal(res, "gone");
-    const rec = c.readConnect();
-    assert.equal(rec.status, "save_failed");
-    assert.equal(rec.announce, undefined);
-  });
-});
 
 // ---- item 6: commands ---------------------------------------------------------------------------
 

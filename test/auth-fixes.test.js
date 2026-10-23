@@ -5,8 +5,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
+import { isPidAlive } from "../lib/fsutil.js";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, waitFor, saveKey, seedGlobal, xdgDir, savedKey } from "./helpers/env.js";
+import { QUIET_GLOBAL, FAKE_CLI, fixture, tmpdir, makeRepo, baseEnv, runHook, waitFor, saveKey, seedGlobal, xdgDir, savedKey } from "./helpers/env.js";
 
 let fp;
 before(async () => { fp = createFakeProver(); await fp.listen(); });
@@ -27,11 +28,12 @@ const start = (ctx, extra = {}) => runHook("session-start", fixture("session-sta
 
 // Run lib code in this process against a temp data dir and the fake prover, then restore the env.
 async function inProcess(ctx, fn, extraEnv = {}) {
-  const keys = ["CLAUDE_PLUGIN_DATA", "XDG_CONFIG_HOME", "INTENT_API_URL", "INTENT_CONSOLE_URL", "INTENT_API_KEY", "INTENT_CLAIM", ...Object.keys(extraEnv)];
+  const keys = ["CLAUDE_PLUGIN_DATA", "XDG_CONFIG_HOME", "INTENT_API_URL", "INTENT_CONSOLE_URL", "INTENT_API_KEY", "INTENT_CLAIM", "INTENT_CLI_PATH", "INTENT_CLI_BASE_URL", ...Object.keys(extraEnv)];
   const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
   delete process.env.INTENT_API_KEY;
   delete process.env.INTENT_CLAIM;
-  Object.assign(process.env, { CLAUDE_PLUGIN_DATA: ctx.data, XDG_CONFIG_HOME: xdgDir(ctx.data), INTENT_API_URL: fp.url, INTENT_CONSOLE_URL: fp.url, ...extraEnv });
+  delete process.env.INTENT_CLI_BASE_URL;
+  Object.assign(process.env, { INTENT_CLI_PATH: FAKE_CLI, CLAUDE_PLUGIN_DATA: ctx.data, XDG_CONFIG_HOME: xdgDir(ctx.data), INTENT_API_URL: fp.url, INTENT_CONSOLE_URL: fp.url, ...extraEnv });
   try {
     return await fn();
   } finally {
@@ -42,7 +44,7 @@ const killPoller = (ctx) => { try { process.kill(readJson(cfileOf(ctx)).poller_p
 
 // ---- 2: one request, even when two callers race --------------------------------------------------
 
-test("two concurrent ensureRequest calls make one record, and the link returned is the one being polled", async () => {
+test("two concurrent ensureRequest calls make one record, and the link returned is the one being watched", async () => {
   const ctx = setup();
   fp.state.connectStartDelayMs = 400;
   const n = posts();
@@ -50,10 +52,11 @@ test("two concurrent ensureRequest calls make one record, and the link returned 
     const c = await import("../lib/connect.js");
     const [a, b] = await Promise.all([c.ensureRequest({ timeoutMs: 5000 }), c.ensureRequest({ timeoutMs: 5000 })]);
     assert.ok(a && b, "both callers get the live request");
-    assert.equal(a.device_code, b.device_code);
+    assert.equal(a.created_at, b.created_at);
     assert.equal(a.verification_url, b.verification_url);
     assert.equal(posts(), n + 1, "one start request");
-    assert.equal(readJson(cfileOf(ctx)).device_code, fp.state.deviceCode, "stored = the one the service knows = the one polled");
+    assert.equal(readJson(cfileOf(ctx)).poller_pid, a.poller_pid, "stored = the login process that is running");
+    assert.ok(isPidAlive(a.poller_pid));
     assert.equal(loadClaim(ctx), undefined, "claim released");
   });
   killPoller(ctx);
@@ -66,13 +69,18 @@ test("two creators that both reached the service: the second keeps the live reco
   await inProcess(ctx, async () => {
     const c = await import("../lib/connect.js");
     // claim: given means the caller already holds the claim (as the detached child does), so both POST.
-    const [a, b] = await Promise.all([c.ensureRequest({ timeoutMs: 5000, claim: 1 }), c.ensureRequest({ timeoutMs: 5000, claim: 1 })]);
+    // (20 ms apart: the output file is named by the millisecond the login started.)
+    const [a, b] = await Promise.all([c.ensureRequest({ timeoutMs: 5000, claim: 1 }), new Promise((r) => setTimeout(r, 20)).then(() => c.ensureRequest({ timeoutMs: 5000, claim: 1 }))]);
     assert.equal(posts(), n + 2);
-    assert.equal(a.device_code, b.device_code, "both return the record that was kept");
-    assert.equal(readJson(cfileOf(ctx)).device_code, a.device_code);
-    // A forced request does replace it.
+    assert.equal(a.created_at, b.created_at, "both return the record that was kept");
+    assert.equal(readJson(cfileOf(ctx)).created_at, a.created_at);
+    assert.ok(await waitFor(() => fs.readdirSync(ctx.data).filter((f) => f.startsWith("connect-login-")).length === 1), "the loser's output file is gone");
+    // A forced request does replace it, and ends the previous login.
     const f = await c.ensureRequest({ timeoutMs: 5000, force: true });
-    assert.notEqual(f.device_code, a.device_code);
+    assert.notEqual(f.created_at, a.created_at);
+    assert.ok(await waitFor(() => !isPidAlive(a.poller_pid)), "the previous login was killed");
+    assert.ok(isPidAlive(f.poller_pid));
+    killPoller(ctx);
   });
   killPoller(ctx);
 });
@@ -99,51 +107,51 @@ test("runCreator's finally only clears its own claim", async () => {
 
 // ---- 3: heartbeats -------------------------------------------------------------------------------
 
-test("a live pid with an old heartbeat is not a live poller or waiter", async () => {
+test("a live pid with an old heartbeat is not a live waiter", async () => {
   const c = await import("../lib/connect.js");
   const now = Date.now();
-  const rec = (at) => ({ status: "pending", interval_s: 3, poller_pid: process.ppid, poller_at: at, waiter_pid: process.ppid, waiter_at: at });
-  assert.equal(c.holderAlive(rec(now - 1000), "poller", now), true);
-  assert.equal(c.holderAlive(rec(now - 20000), "poller", now), false, "older than 15 s");
-  assert.equal(c.holderAlive(rec(now - 20000), "waiter", now), false);
-  assert.equal(c.holderAlive({ ...rec(now), poller_at: undefined }, "poller", now), false, "no heartbeat at all");
-  assert.equal(c.holderAlive({ ...rec(now - 20000), interval_s: 10 }, "poller", now), true, "three 10 s intervals");
-  assert.equal(c.holderAlive({ poller_pid: 999999, poller_at: now }, "poller", now), false, "dead pid");
+  const rec = (at) => ({ status: "pending", waiter_pid: process.ppid, waiter_at: at });
+  assert.equal(c.holderAlive(rec(now - 1000), "waiter", now), true);
+  assert.equal(c.holderAlive(rec(now - 20000), "waiter", now), false, "older than 15 s");
+  assert.equal(c.holderAlive({ ...rec(now), waiter_at: undefined }, "waiter", now), false, "no heartbeat at all");
+  assert.equal(c.holderAlive({ waiter_pid: 999999, waiter_at: now }, "waiter", now), false, "dead pid");
 });
 
-test("a stale heartbeat lets a new poller take over", async () => {
+// ---- the CLI is not on disk: the creator downloads it, never the hook ----------------------------
+
+test("no CLI on disk: the hook only starts the creator; a failed download is a connect failure told once", async () => {
   const ctx = setup();
-  await inProcess(ctx, async () => {
-    const c = await import("../lib/connect.js");
-    await c.ensureRequest();
-    killPoller(ctx);
-    const rec = readJson(cfileOf(ctx));
-    fs.writeFileSync(cfileOf(ctx), JSON.stringify({ ...rec, poller_pid: process.ppid, poller_at: Date.now() - 60000 }));
-    c.ensurePoller();
-    const after = readJson(cfileOf(ctx));
-    assert.notEqual(after.poller_pid, process.ppid);
-    assert.ok(Date.now() - after.poller_at < 5000);
-  });
-  killPoller(ctx);
+  const env = { ...ctx.env, INTENT_CLI_BASE_URL: "http://127.0.0.1:1" };
+  delete env.INTENT_CLI_PATH;
+  const n = posts();
+  const s = await runHook("session-start", fixture("session-start", ctx.repo), env);
+  assert.doesNotMatch(s.stdout, /connect your account/);
+  assert.equal(fs.existsSync(cfileOf(ctx)), false);
+  const g = () => readJson(path.join(ctx.data, "global.json"));
+  assert.ok(await waitFor(() => g().connect_fail, { timeoutMs: 15000 }), "the creator ran and failed to download");
+  assert.equal(g().connect_fail.code, "download");
+  assert.ok(g().backoff.connect, "backed off");
+  const p = await runHook("prompt", fixture("prompt", ctx.repo), env);
+  assert.match(p.json.systemMessage, /could not create a connect link \(download\)/);
+  assert.equal(posts(), n, "no sign-in was started");
+  assert.equal(fs.existsSync(path.join(ctx.data, "bin")), false);
 });
 
 // ---- 4: creation failures are visible and backed off ---------------------------------------------
 
-for (const [status, backed] of [[404, true], [400, true], [403, true], [408, false]]) {
-  test(`creating the link fails with ${status}: one visible line per session, ${backed ? "backed off" : "no backoff"}`, async () => {
+for (const status of [404, 400, 403, 408]) {
+  test(`creating the link fails with ${status}: one visible line per session, backed off`, async () => {
     const ctx = setup();
     fp.state.connectStartStatus = status;
     const s = await start(ctx);
-    assert.equal(s.json.systemMessage, `Intent Check could not create a connect link (${status}). Run /intent:doctor to retry.`);
-    assert.equal(Boolean(readJson(path.join(ctx.data, "global.json")).backoff && readJson(path.join(ctx.data, "global.json")).backoff.connect), backed);
+    assert.equal(s.json.systemMessage, `Intent Check could not create a connect link (login). Run /intent:doctor to retry.`);
+    assert.equal(Boolean(readJson(path.join(ctx.data, "global.json")).backoff && readJson(path.join(ctx.data, "global.json")).backoff.connect), true);
     const p = await prompt(ctx);
     assert.equal(p.stdout, "", "once per session");
-    if (backed) {
-      const n = posts();
-      await prompt(ctx, "another request please", { session_id: "s2" });
-      await new Promise((r) => setTimeout(r, 500));
-      assert.equal(posts(), n, "no process respawned on every prompt");
-    }
+    const n = posts();
+    await prompt(ctx, "another request please", { session_id: "s2" });
+    await new Promise((r) => setTimeout(r, 500));
+    assert.equal(posts(), n, "no process respawned on every prompt");
   });
 }
 
@@ -168,13 +176,13 @@ test("SessionStart with a saved key and an unresponsive service finishes well un
 
 // ---- 7: server text limits -----------------------------------------------------------------------
 
-for (const [name, body] of [["a device code that is not 64 hex", { device_code: "abc" }], ["a user code of the wrong shape", { user_code: "kdrt-mwqx" }], ["an interval over 30 s", { interval: 99 }]]) {
-  test(`${name} in the start answer is refused: the start counts as failed`, async () => {
+for (const [name, body] of [["a user code of the wrong shape", { user_code: "kdrt-mwqx" }], ["a lifetime over 900 s", { expires_in: 5000 }]]) {
+  test(`${name} in the CLI's first line is refused: the start counts as failed`, async () => {
     const ctx = setup();
     fp.state.connectStartBody = body;
     try {
       const s = await start(ctx);
-      assert.match(s.json.systemMessage, /could not create a connect link \(bad_response\)/);
+      assert.match(s.json.systemMessage, /could not create a connect link \(login\)/);
       assert.equal(fs.existsSync(cfileOf(ctx)), false);
     } finally { fp.state.connectStartBody = null; }
   });
@@ -182,46 +190,52 @@ for (const [name, body] of [["a device code that is not 64 hex", { device_code: 
 
 // ---- 8: state holes ------------------------------------------------------------------------------
 
-test("applyPoll does not save a key once the request is no longer pending (replaced meanwhile)", async () => {
+test("a key for this service appears: approved and announced once, by whoever sees it first", async () => {
   const ctx = setup();
   await inProcess(ctx, async () => {
     const c = await import("../lib/connect.js");
-    const rec = await c.ensureRequest();
-    c.updateConnect((x) => { x.status = "expired"; delete x.device_code; });
-    const r = c.applyPoll({ ok: true, status: "approved", api_key: TEST_KEY }, rec.device_code);
-    assert.equal(r, "gone");
-    assert.equal(savedKey(ctx.data, fp.url), undefined, "no key saved");
-    assert.equal(readJson(cfileOf(ctx)).status, "expired");
-  });
-  killPoller(ctx);
-});
-
-test("lost a race with ourselves: the connection is announced if nobody has announced it yet", async () => {
-  const ctx = setup();
-  saveKey(ctx.data, TEST_KEY, fp.url);
-  fs.writeFileSync(cfileOf(ctx), JSON.stringify({ status: "approved", api_url: fp.url }));
-  await inProcess(ctx, async () => {
-    const c = await import("../lib/connect.js");
-    assert.equal(c.applyPoll({ ok: true, status: "consumed" }, "x"), "approved");
-    assert.equal(readJson(cfileOf(ctx)).announce, true);
+    await c.ensureRequest();
+    fp.state.connectApproved = true;
+    assert.ok(await waitFor(() => savedKey(ctx.data, fp.url) === TEST_KEY, { timeoutMs: 10000 }));
+    assert.equal(c.checkConnectOnce(), "approved");
+    assert.equal(c.checkConnectOnce(), "none", "no longer pending");
+    const rec = readJson(cfileOf(ctx));
+    assert.deepEqual([rec.status, rec.announce], ["approved", true]);
     assert.equal(c.takeConnectedAnnouncement(), true);
-    c.applyPoll({ ok: true, status: "consumed" }, "x");
-    assert.equal(readJson(cfileOf(ctx)).announce, undefined, "already announced: not again");
+    assert.equal(c.takeConnectedAnnouncement(), null, "once");
   });
 });
 
-test("the poller backs off after a 429 instead of hammering the service", async () => {
+for (const [name, lines, status] of [
+  ["denied", '{"status":"pending"}\n{"status":"denied"}\n', "denied"],
+  ["expired", '{"status":"expired"}\n', "expired"],
+  ["consumed", '{"status":"consumed"}\n', "consumed"],
+  ["no result line", '{"status":"pending"}\n', "failed"],
+  ["a failure line", '{"status":"failure","message":"x"}\n', "failed"],
+  ["an unknown status", '{"status":"weird"}\n', "failed"],
+  ["no output file", null, "failed"],
+]) {
+  test(`the CLI died without a key (${name}): the status comes from its last output line`, async () => {
+    const ctx = setup();
+    fs.writeFileSync(cfileOf(ctx), JSON.stringify({ status: "pending", api_url: fp.url, user_code: "KDRT-MWQX", verification_url: `${fp.url}/connect/KDRT-MWQX`, expires_at: Date.now() + 600000, created_at: 7, poller_pid: 999999 }));
+    if (lines !== null) fs.writeFileSync(path.join(ctx.data, "connect-login-7.out"), lines);
+    await inProcess(ctx, async () => {
+      const c = await import("../lib/connect.js");
+      assert.equal(c.checkConnectOnce(), "gone");
+      assert.equal(readJson(cfileOf(ctx)).status, status);
+      assert.equal(readJson(cfileOf(ctx)).announce, undefined);
+    });
+  });
+}
+
+test("a login that is still running with no key stays pending", async () => {
   const ctx = setup();
-  fp.state.pollStatus = 429;
-  // Only this test's request: pollers of earlier tests share the prover.
-  const gets = () => fp.state.requests.filter((x) => x.method === "POST" && x.path === "/api/cli-connect" && x.body && x.body.action === "poll" && x.body.device_code === fp.state.deviceCode).length;
-  const n = 0; // the request made below gets a new device code, so its count starts at 0
-  await start(ctx);
-  assert.ok(await waitFor(() => gets() > n, { timeoutMs: 8000 }), "first poll happens");
-  const after1 = gets();
-  await new Promise((r) => setTimeout(r, 3500));
-  assert.equal(gets(), after1, "no second poll within the 30 s backoff");
-  killPoller(ctx);
+  fs.writeFileSync(cfileOf(ctx), JSON.stringify({ status: "pending", api_url: fp.url, expires_at: Date.now() + 600000, created_at: 7, poller_pid: process.pid }));
+  await inProcess(ctx, async () => {
+    const c = await import("../lib/connect.js");
+    assert.equal(c.checkConnectOnce(), "pending");
+    assert.equal(readJson(cfileOf(ctx)).status, "pending");
+  });
 });
 
 // ---- 9: headless ---------------------------------------------------------------------------------

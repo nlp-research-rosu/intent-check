@@ -15,7 +15,8 @@
 # the concern reaches the agent at the next prompt (resume) → a no-concerns check stays silent →
 # /intent:off equivalent (INTENT_DISABLED=1) sends nothing.
 #
-# Env: INTENT_API_URL (required; 127.0.0.1 = fake prover), E2E_APPROVE_CMD (required for staging: approves $USER_CODE in the console; staging needs a Clerk account),
+# Env: INTENT_API_URL (required; 127.0.0.1 = fake prover), INTENT_CLI_PATH (the intent-check binary that signs in; defaults to
+#      test/helpers/fake-intent-check.js for the fake prover, required for staging), E2E_APPROVE_CMD (required for staging: approves $USER_CODE in the console; staging needs a Clerk account),
 #      MODEL (default gpt-5.6-luna), INTENT_PIPELINE (default canned), KEEP=1.
 set -euo pipefail
 
@@ -26,7 +27,8 @@ MODEL="${MODEL:-gpt-5.6-luna}"
 export INTENT_PIPELINE="${INTENT_PIPELINE:-canned}"
 FAKE=0
 case "$INTENT_API_URL" in http://127.0.0.1:*|http://localhost:*) FAKE=1 ;; esac
-if [ "$FAKE" = 0 ]; then : "${E2E_APPROVE_CMD:?set E2E_APPROVE_CMD}"; fi
+if [ "$FAKE" = 0 ]; then : "${E2E_APPROVE_CMD:?set E2E_APPROVE_CMD}" "${INTENT_CLI_PATH:?set INTENT_CLI_PATH}"; fi
+export INTENT_CLI_PATH="${INTENT_CLI_PATH:-$PLUGIN_DIR/test/helpers/fake-intent-check.js}"
 [ -f "$HOME/.codex/auth.json" ] || { echo "no ~/.codex/auth.json"; exit 1; }
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/intent-codex-e2e-XXXXXX")"
@@ -40,7 +42,7 @@ ok() { PASS=$((PASS + 1)); log "PASS $*"; }
 bad() { FAIL=$((FAIL + 1)); log "FAIL $*"; }
 wait_for() { local t=$1; shift; local end=$((SECONDS + t)); until "$@"; do [ $SECONDS -ge $end ] && return 1; sleep 2; done; }
 cleanup() {
-  # Detached finisher / connect-poll processes run from the throwaway plugin cache; stop them first
+  # Detached finisher / connect-start processes run from the throwaway plugin cache; stop them first
   # or they recreate $WORK/home after it is removed.
   local pids
   pids="$(pgrep -f "$WORK/home/plugins/cache" || true)"

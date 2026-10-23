@@ -10,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createMockResponses } from "../helpers/mock-responses.js";
 import { createFakeProver, TEST_KEY } from "../helpers/fake-prover.js";
-import { ROOT, tmpdir, makeRepo, waitFor } from "../helpers/env.js";
+import { ROOT, FAKE_CLI, tmpdir, makeRepo, waitFor } from "../helpers/env.js";
 import { trustEntries } from "../e2e/codex-trust.mjs";
 import { findCli, runCli, cleanEnv, toolsDir } from "./helpers.js";
 
@@ -53,6 +53,7 @@ async function session({ key = null, oldNode = false } = {}) {
     CODEX_HOME: codexHome,
     INTENT_API_URL: fp.url,
     INTENT_CONSOLE_URL: fp.url,
+    INTENT_CLI_PATH: FAKE_CLI,
     INTENT_DEBUG: "1",
     MOCK_API_KEY: "dummy-not-a-real-key",
     ...(key ? { INTENT_API_KEY: key } : {}),
