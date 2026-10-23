@@ -30,8 +30,7 @@
     "max_ms": 15000,
     "runner_budget_ms": 840000,
     "pending_check_timeout_ms": 1000,
-    "connect_interval_ms": 3000,
-    "connect_expires_s": 900
+    "connect_interval_ms": 3000
   },
   "job_budget_s": 180,
   "deepscan": {
