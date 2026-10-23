@@ -86,11 +86,11 @@ test("PostToolUse: records Edit/Write/NotebookEdit paths, plan and todos", async
     assert.equal(r.stdout, "");
   }
   const [s] = readSessionFiles(data);
-  assert.deepEqual(s.touched, [`${repo}/calc.py`, `${repo}/notes.py`, `${repo}/analysis.ipynb`]);
+  assert.deepEqual(s.touched, [path.join(repo, "calc.py"), path.join(repo, "notes.py"), path.join(repo, "analysis.ipynb")]);
   assert.match(s.plan, /apply_discount/);
   assert.deepEqual(s.todos, ["Add apply_discount", "Clamp the result at zero"]);
   // No baseline yet, so structuredPatch was kept as the diff source.
-  assert.equal(s.patches[`${repo}/calc.py`].length, 2);
+  assert.equal(s.patches[path.join(repo, "calc.py")].length, 2);
 });
 
 test("Stop without an API key sends nothing and exits 0", async () => {
