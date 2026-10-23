@@ -9,7 +9,7 @@
       "name": "intent",
       "source": "./",
       "description": "Checks that the code your agent wrote does what you asked, with formal proofs in prove mode",
-      "version": "0.3.0"
+      "version": "1.0.0"
     }
   ]
 }

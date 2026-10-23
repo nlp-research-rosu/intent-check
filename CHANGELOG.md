@@ -6,6 +6,8 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-23
+
 ### Fixed
 
 - Live review resolves edited paths from the tool's working directory and filters them against the captured project root, so files elsewhere in the same repository are not skipped.

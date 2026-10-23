@@ -1,6 +1,6 @@
 {
   "$comment": "Single source of truth for Intent Check install steps. Keyed tool > interface > os. Placeholders: {marketplace} = owner/repo; {ref} = '#name' when installing a branch/tag (Claude), empty otherwise; {codex_ref} = '@name' (Codex), empty otherwise. A cell is either full (steps, prereqs, verify, update) or a note pointing at another cell (note, see). Copied by the prover site (scripts/sync-install-json.mjs).",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "marketplace": "intentcomputing",
   "plugin": "intent",
   "tools": {
