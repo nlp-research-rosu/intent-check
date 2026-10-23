@@ -105,12 +105,32 @@ pub fn api_key(server: &str) -> Result<Option<String>> {
     Ok(key)
 }
 
+// A 429 from the portal, with how long it asked us to wait.
+#[derive(Debug)]
+struct RateLimited(Option<u64>);
+
+impl std::fmt::Display for RateLimited {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "The login portal returned HTTP 429")
+    }
+}
+
+impl std::error::Error for RateLimited {}
+
 fn request<T: DeserializeOwned>(http: &Client, endpoint: &str, body: Value) -> Result<T> {
     let response = http
         .post(endpoint)
         .json(&body)
         .send()
         .map_err(|_| anyhow!("The login portal could not be reached"))?;
+    if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        let seconds = response
+            .headers()
+            .get(reqwest::header::RETRY_AFTER)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.trim().parse().ok());
+        return Err(RateLimited(seconds).into());
+    }
     if !response.status().is_success() {
         bail!("The login portal returned HTTP {}", response.status());
     }
@@ -150,6 +170,7 @@ pub fn login() -> CommandResult {
     let deadline = Instant::now() + Duration::from_secs(connection.expires_in);
     let mut failures = 0;
     while Instant::now() < deadline {
+        let mut pause = Duration::from_secs(connection.interval);
         // A network blip, 5xx or 429 must not end a login the user is still approving.
         let response = match request(
             &http,
@@ -164,6 +185,10 @@ pub fn login() -> CommandResult {
                 failures += 1;
                 if failures >= 40 {
                     return Err(error);
+                }
+                // Ask-to-wait from the portal (default 30 s, at most 60 s) instead of the poll interval.
+                if let Some(RateLimited(seconds)) = error.downcast_ref() {
+                    pause = Duration::from_secs(seconds.unwrap_or(30).min(60));
                 }
                 Poll {
                     status: "pending".into(),
@@ -194,10 +219,7 @@ pub fn login() -> CommandResult {
             }
             _ => bail!("The login portal returned an invalid connection status"),
         }
-        thread::sleep(
-            Duration::from_secs(connection.interval)
-                .min(deadline.saturating_duration_since(Instant::now())),
-        );
+        thread::sleep(pause.min(deadline.saturating_duration_since(Instant::now())));
     }
     Ok((1, json!({"status": "expired"})))
 }

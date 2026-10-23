@@ -21,9 +21,11 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_):
         pass
 
-    def respond(self, body, status=200):
+    def respond(self, body, status=200, retry_after=None):
         body = json.dumps(body).encode()
         self.send_response(status)
+        if retry_after is not None:
+            self.send_header("Retry-After", str(retry_after))
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -39,7 +41,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.server.poll_failures:
             self.server.poll_failures -= 1
-            self.respond({}, 503)
+            self.respond({}, self.server.poll_error_status, self.server.retry_after)
             return
         if body["device_code"] != DEVICE:
             self.respond({"status": "expired"})
@@ -69,6 +71,8 @@ class LoginTests(unittest.TestCase):
         self.server.expires_in = 30
         self.server.authorization = None
         self.server.poll_failures = 0
+        self.server.poll_error_status = 503
+        self.server.retry_after = None
         (self.data / "config.toml").write_text(
             f'server_url = "{self.server.origin}"\n'
             f'portal_url = "{self.server.origin}"\n'
@@ -151,6 +155,30 @@ class LoginTests(unittest.TestCase):
         self.assertIsNone(process.poll())
         self.server.status = "approved"
         self.finish_login(process, "connected", 0)
+
+    def test_rate_limit_waits_retry_after_then_approval_succeeds(self):
+        self.server.poll_failures = 1
+        self.server.poll_error_status = 429
+        self.server.retry_after = 2
+        self.server.status = "approved"
+        started = time.time()
+        self.finish_login(self.start_login(), "connected", 0)
+        self.assertGreaterEqual(time.time() - started, 1.8)
+
+    def test_gives_up_after_forty_consecutive_poll_errors(self):
+        self.server.poll_failures = 1000
+        self.server.poll_error_status = 429
+        self.server.retry_after = 0
+        process = self.start_login()
+        stdout, stderr = process.communicate(timeout=15)
+        self.assertEqual(process.returncode, 1, stdout + stderr)
+        self.assertEqual(json.loads(stdout)["status"], "failure")
+        self.assertFalse((self.data / "credentials.json").exists())
+
+    def test_blank_url_variables_count_as_unset(self):
+        env = dict(self.env, INTENT_API_URL="  ", INTENT_CONSOLE_URL="")
+        self.server.status = "approved"
+        self.finish_login(self.start_login(env), "connected", 0)
 
     def test_environment_overrides_config_file_and_saved_key(self):
         (self.data / "config.toml").write_text('server_url = "http://127.0.0.1:1"\nportal_url = "http://127.0.0.1:1"\n')

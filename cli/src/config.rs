@@ -39,11 +39,15 @@ pub fn load() -> Result<Config> {
         Config::default()
     };
     // Same variables as the plugin, so both talk to the same service.
-    if let Ok(url) = env::var("INTENT_API_URL") {
-        config.server_url = url;
-    }
-    if let Ok(url) = env::var("INTENT_CONSOLE_URL") {
-        config.portal_url = url;
+    for (name, field) in [
+        ("INTENT_API_URL", &mut config.server_url),
+        ("INTENT_CONSOLE_URL", &mut config.portal_url),
+    ] {
+        if let Ok(url) = env::var(name)
+            && !url.trim().is_empty()
+        {
+            *field = url.trim().into();
+        }
     }
     validate(&config)?;
     Ok(config)
