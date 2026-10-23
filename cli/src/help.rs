@@ -3,9 +3,11 @@ intent-check connects to Prover, the remote server.
 Use `intent-check <command> --help` for options, examples, and result details.
 For nested commands, use e.g. `intent-check session start --help`.
 
-Use --project <directory> when starting a session; it defaults to the current
-directory. Execution commands use --session <ID>; --project on them asserts
-the saved project matches. Configuration is shared.
+Sessions automatically use the repository root, even from a subdirectory.
+Outside a repository they use the current directory. --project <directory>
+selects another project, with the same root detection. Execution commands use
+--session <ID>; --project on them asserts the saved project matches.
+Configuration is shared.
 
 Commands print one JSON object to stdout; diagnostics may also go to stderr.
 Login first prints a pending JSON object, waits for browser approval, then
@@ -77,6 +79,7 @@ Session counters live in sessions/<ID>/session.json beside config.toml; shared
 language sources live in semantics/<id>/<commit>/ there too.
 The same XDG_CONFIG_HOME / APPDATA / home-directory rules apply to all three.
 Working files and results live in <project>/.intent/prove/sessions/<ID>/.
+Inside a repository, <project> is always its root, not the working directory.
 Existing project-local descriptors are left untouched and are not imported.
 
 Cancellation:
@@ -169,9 +172,13 @@ stdout and stderr. The snapshot is updated from acceptance to completion.
 See `intent-check config --help` for timeout and cancellation behavior."#;
 
 pub const SESSION: &str = r#"Examples:
+  intent-check session start --semantics <SEMANTICS_ID>
   intent-check session start --project /absolute/path/to/project --semantics <SEMANTICS_ID>
   intent-check session show <SESSION_ID>
 
+Start detects the repository root automatically from the current directory
+or --project directory. Worktrees and submodules use their own repository root.
+Outside a repository, that directory is the project root.
 Start creates a fresh session ID with zero operation counters.
 The global session.json records only its ID, projectRoot, semantics identity,
 attemptsUsed, validationsUsed, and runsUsed. Settings remain in config.toml.

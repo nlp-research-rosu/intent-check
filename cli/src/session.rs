@@ -44,7 +44,7 @@ fn ignore_sessions(session: &Session) -> Result<()> {
 pub fn start(semantics_id: &str) -> CommandResult {
     let session = Session {
         session_id: Uuid::new_v4(),
-        project_root: current_root()?,
+        project_root: project_root(&std::env::current_dir()?)?,
         semantics: semantics::select(semantics_id, &config::load()?)?,
         attempts_used: 0,
         validations_used: 0,
@@ -89,8 +89,18 @@ pub fn open(id: Uuid) -> Result<(Session, fs::File)> {
     Ok((session, lock))
 }
 
-pub fn current_root() -> Result<PathBuf> {
-    Ok(std::env::current_dir()?.canonicalize()?)
+pub fn project_root(directory: &Path) -> Result<PathBuf> {
+    let directory = directory.canonicalize()?;
+    // .git is a directory in ordinary repositories and a file in worktrees and submodules.
+    // Without a repository, retain the supplied directory as the project root.
+    Ok(directory
+        .ancestors()
+        .find(|ancestor| {
+            let git = ancestor.join(".git");
+            git.is_dir() || git.is_file()
+        })
+        .unwrap_or(&directory)
+        .to_path_buf())
 }
 
 pub fn lock(directory: &Path) -> Result<fs::File> {

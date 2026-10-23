@@ -52,7 +52,9 @@ configuration; each session tracks its own attempt counts.
 
 Session counters and downloaded semantics are stored beside the configuration.
 Session state (working files and results) lives under the project's
-`.intent/prove/sessions/<id>/`; it is not meant to be committed.
+`.intent/prove/sessions/<id>/` at the automatically detected repository root;
+it is not meant to be committed. Outside a repository, use the session's
+project directory.
 `intent-check session show <ID>` reports a session's paths and counters.
 
 ## Attempt limits

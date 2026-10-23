@@ -15,7 +15,7 @@ use uuid::Uuid;
 #[derive(Parser)]
 #[command(name = "intent-check", version, about = "intent-check CLI for the remote Prover server", after_help = help::ROOT)]
 struct Cli {
-    /// Project for a new session; for execution, assert the saved project matches.
+    /// Project directory; automatically uses its repository root when inside a repo.
     #[arg(long, global = true)]
     project: Option<PathBuf>,
     #[command(subcommand)]
@@ -197,7 +197,7 @@ fn main() {
 
 fn dispatch(cli: Cli) -> CommandResult {
     if let Some(project) = cli.project {
-        let project = project.canonicalize()?;
+        let project = session::project_root(&project)?;
         let id = match &cli.command {
             Command::Run(args) => Some(args.session),
             Command::Validate(args) => Some(args.session),

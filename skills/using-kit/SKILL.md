@@ -16,8 +16,11 @@ what is proved, what depends on assumptions, and what remains unresolved.
 
 ## Where files go
 
-Everything you write for a proof lives in `.intent/prove/<target>/`, one folder
-per program or function being proved. Pick a short kebab-case name, for example
+Everything you write for a proof lives in `.intent/prove/<target>/` at the
+repository root, one folder per program or function being proved. The CLI
+detects that root automatically: use the returned `projectRoot`, not the shell's
+working directory, to resolve these paths. Outside a repository, use the
+session's project directory. Pick a short kebab-case name, for example
 `.intent/prove/should-strip-auth/`. Put `spec.k`, `verification.k`, `SCOPE.md`,
 `prove.sh`, `PROOF.md`, the program copy and any differential test there. These
 files are meant to be committed; the CLI's session state in

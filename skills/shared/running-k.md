@@ -34,7 +34,10 @@ files: `spec.k`, `verification.k`, local dependencies, and concrete test
 programs.
 Keep reports, scripts, and operation results outside `inputs/`; the original
 program stays in the project. Your own files (`spec.k`, `verification.k`,
-`SCOPE.md`, `prove.sh`, `PROOF.md`) go in `.intent/prove/<target>/`. Pass the session ID to each live command; command
+`SCOPE.md`, `prove.sh`, `PROOF.md`) go in `.intent/prove/<target>/` relative to
+the session's `projectRoot`, which is detected automatically as the repository
+root, not the shell's working directory. Outside a repository it is the session's
+project directory. Pass the session ID to each live command; command
 help defines input paths. `intent-check run --program` takes a path relative to
 the
 session's project directory, not an absolute path.

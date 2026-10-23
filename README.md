@@ -87,7 +87,7 @@ In the cloud and in CI, where nobody can open a link, set `INTENT_API_KEY` to a 
 
 `/intent:prove [what to prove]` proves a program correct with K: partial correctness (if it terminates and the precondition holds, the postcondition holds). The first run downloads the `intent-check` CLI for this plugin version and prints its path; the agent then follows the proof skills (`using-kit` and the skills it points to). On Codex, ask the agent to prove something.
 
-Proof files go under `.intent/prove/<target>/`, one folder per program or function (spec, scope, `PROOF.md`, scripts). Commit them. The CLI's session state is in `.intent/prove/sessions/`; do not commit that folder. Results are shown in the prover console.
+Proof files go under `.intent/prove/<target>/`, one folder per program or function (spec, scope, `PROOF.md`, scripts). Commit them. The CLI's session state is in `.intent/prove/sessions/`; do not commit that folder. All `.intent/` paths are relative to the automatically detected repository root, even when commands run from a subdirectory. Outside a repository, the CLI uses the project directory. Results are shown in the prover console.
 
 ## The `intent-check` command
 
