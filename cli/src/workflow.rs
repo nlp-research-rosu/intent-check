@@ -206,28 +206,33 @@ fn finish(
     evidence: std::path::PathBuf,
     budget: Value,
 ) -> CommandResult {
-    let last_run = task
-        .get("toolRuns")
-        .and_then(Value::as_array)
-        .and_then(|runs| runs.last());
+    let tool_runs = task.get("toolRuns").and_then(Value::as_array);
+    let last_run = tool_runs.and_then(|runs| runs.last());
     let exit = last_run
         .and_then(|run| run.get("exitCode"))
         .and_then(Value::as_i64)
         .and_then(|code| i32::try_from(code).ok());
     let timed_out = task["status"] == "timed_out"
         || last_run.and_then(|run| run["outcome"].as_str()) == Some("timeout");
+    // Prover can reuse a completed result without executing a tool in this task.
+    let completed_without_run = tool_runs.is_some_and(Vec::is_empty)
+        && task["status"] == "completed"
+        && !task["result"].is_null()
+        && task["error"].is_null();
     let mut response = json!({"task": task, "sessionId": proof_session.session_id,
         "budget": budget, "evidenceDir": evidence});
     if exit.is_none() {
         response["exitCode"] = Value::Null;
-        let error = if timed_out {
-            "Prover task timed out."
-        } else {
-            "Backend did not provide a final tool exit code."
-        };
-        response["error"] = json!(error);
+        if !completed_without_run {
+            let error = if timed_out {
+                "Prover task timed out."
+            } else {
+                "Backend did not provide a final tool exit code."
+            };
+            response["error"] = json!(error);
+        }
     }
-    Ok((exit.unwrap_or(1), response))
+    Ok((exit.unwrap_or(i32::from(!completed_without_run)), response))
 }
 
 fn exhausted(phase: &str, used: u32, limit: u32) -> CommandResult {

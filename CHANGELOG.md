@@ -8,6 +8,8 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ### Fixed
 
+- Live review resolves edited paths from the tool's working directory and filters them against the captured project root, so files elsewhere in the same repository are not skipped.
+- The CLI accepts completed reused proof results with no tool runs, preserves the backend response and evidence, and still passes actual tool exit codes through unchanged.
 - Release builds and CLI asset publication finish before the plugin branch advances to the new version.
 - The plugin and global CLI use the same `config.toml` API and console endpoints, with the same environment overrides.
 

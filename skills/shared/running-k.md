@@ -75,8 +75,10 @@ to select claims and declare assumptions.
 
 ## Reading the result
 
-Require `task.result` of `proved` and a final tool exit code of 0,
-then inspect the submitted claim selection and the selected backend's
+Require `task.status` of `completed`, `task.result` of `proved`, and no
+`task.error`. If tools ran, also require the final tool exit code to be 0.
+Prover may reuse a result with `toolRuns: []`; no new tool exit code exists
+in that case. Then inspect the submitted claim selection and the selected backend's
 per-claim evidence in saved stdout. Check which claims were admitted with
 `--trusted`.
 An admitted claim is an assumption, not a proved claim. Closure under the

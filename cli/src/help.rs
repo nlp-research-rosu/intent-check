@@ -14,8 +14,11 @@ Login first prints a pending JSON object, waits for browser approval, then
 prints its final result. Keep that command running while the user signs in.
 Run, validate, and prove return the unmodified server response under task,
 plus sessionId, budget (used, limit, remaining), and evidenceDir. They exit
-with the last task.toolRuns entry's numeric exitCode. If unavailable, the JSON
-adds exitCode: null and an error diagnostic; the shell reports failure.
+with the last task.toolRuns entry's numeric exitCode. A completed task with a
+result, no error and an empty toolRuns list exits 0: Prover can reuse results
+without executing a tool. Its output has exitCode: null, not an invented tool
+exit code. Otherwise a missing exit code adds an error diagnostic and the shell
+reports failure.
 Read each command's help to interpret its backend result; exit 0 alone is not
 proof evidence. The CLI does not translate backend outcomes into its own statuses.
 Local failures return status failure and exit 1. Budget refusals return status
@@ -162,8 +165,9 @@ pub const RUN: &str = r#"Start a session, then use its returned sessionId:
 
 Create session-specific programs in <workspaceDir>/inputs/.
 The program path resolves within the session's projectRoot.
-Exit code: the last task.toolRuns entry's exitCode, unchanged. Zero means the
-backend process exited successfully; also check task.status and task.error. Inspect
+Exit code: the last task.toolRuns entry's exitCode, unchanged, when a tool ran.
+With no tool runs, a completed backend result exits 0; see the root command's help.
+Also check task.status and task.error. Inspect
 saved stdout for the returned state and task.toolRuns for
 backend timeout or output-limit outcomes. This does not check a specification.
 Every server-accepted run consumes one run attempt, including failure, timeout,
@@ -283,8 +287,11 @@ const EVIDENCE: &str = r#"Evidence:
   failed means preparation or execution failed; timed_out means its time limit
   ended it; cancelled means cancellation; data_expired means files have expired.
   A completed task is not necessarily a successful run, validation, or proof.
-  If the final tool run has no numeric exit code, the CLI adds exitCode: null
-  and error: "Backend did not provide a final tool exit code." to its output.
+  A completed task with a result, no error and an empty toolRuns list can be
+  a reused backend result. The CLI exits 0 with exitCode: null; this reports
+  completion, not proof success. Inspect task.result and saved evidence.
+  Otherwise, if the final tool run has no numeric exit code, the CLI adds
+  exitCode: null and error: "Backend did not provide a final tool exit code."
   Task and saved backend evidence remain unchanged.
   CLI budget data is not duplicated in evidence files. Local errors include
   a message with the task ID and evidence location when available.
@@ -298,8 +305,9 @@ pub fn validate() -> String {
         "{SOURCE_EXAMPLES}\n\n{CLAIM_LABELS}\n\n\
 Validation results:
   Compiles proof sources without proving claims. The CLI returns the backend
-  task unchanged and uses the last task.toolRuns entry's exitCode. Zero means
-  the backend check succeeded; nonzero is its diagnostic exit code. Inspect
+  task unchanged and uses the last task.toolRuns entry's exitCode when a tool
+  ran; nonzero is its diagnostic exit code. A completed reused result with no
+  tool runs exits 0, whether valid or invalid. Inspect
   task.result (valid or invalid), task.toolRuns, and task.error for evidence.
   Neither compilation nor a valid result establishes proof or non-vacuity.
   Accepted submissions increment validationsUsed and are retained under
@@ -318,9 +326,10 @@ Proof results and attempts:
   timeout, replay, and audit mutation. Evidence is stored under
   <workspaceDir>/proof-NNN/. The response includes the backend task unchanged,
   sessionId, budget (used, limit, remaining), and evidenceDir.
-  Exit code: the last task.toolRuns entry's exitCode. Zero means the backend process
-  exited successfully, not necessarily that the claim was proved. Nonzero is
-  the backend's exit code; there is no CLI-specific retry code or outcome mapping.
+  Exit code: the last task.toolRuns entry's exitCode when a tool ran. A completed
+  reused result with no tool runs exits 0, whether proved or notProved.
+  Zero alone does not establish proof. Nonzero tool exits pass through unchanged;
+  there is no CLI-specific retry code or outcome mapping.
   Check task.result together with the saved logs and tool evidence:
     proved        Selected claims passed or were admitted with --trusted.
     notProved     At least one claim remains unproved, including bounded leaves.

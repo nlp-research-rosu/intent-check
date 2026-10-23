@@ -192,5 +192,5 @@ test("exec-form hooks from hooks.json spawn node directly and exit 0", () => {
       }
     }
   }
-  assert.ok(n >= 5, `expected every hook entry to run, ran ${n}`);
+  assert.equal(n, 4, `expected one hook for each lifecycle event, ran ${n}`);
 });
