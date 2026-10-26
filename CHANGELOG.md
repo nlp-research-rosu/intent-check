@@ -6,6 +6,8 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-26
+
 ### Changed
 
 - The proof setup, dispatch and help skills are named `onboarding`, `using-prove` and `proof-help`. Setup messages, install instructions and proof guidance use Intent Check and prove mode naming.
