@@ -75,7 +75,7 @@ function assertHooksRan(s) {
 test("claude -p without a global CLI: hooks give setup guidance without sending a job", { skip, timeout: 60000 }, async () => {
   const s = await session();
   assertHooksRan(s);
-  assert.match(s.mockBodies, /kit-onboarding/, note(s, "setup guidance missing from the model request"));
+  assert.match(s.mockBodies, /onboarding/, note(s, "setup guidance missing from the model request"));
   assert.doesNotMatch(s.mockBodies, /do not start on their request until they reply/, "headless gets the soft note, not the wait gate");
   assert.equal(fp.jobRequests().length, 0);
   assert.equal(fp.state.requests.some((q) => q.method === "POST" && q.path === "/api/cli-connect"), false, "no sign-in is started without the global CLI");

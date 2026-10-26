@@ -6,6 +6,14 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+### Changed
+
+- The proof setup, dispatch and help skills are named `onboarding`, `using-prove` and `proof-help`. Setup messages, install instructions and proof guidance use Intent Check and prove mode naming.
+
+### Fixed
+
+- Codex guidance routes formal proofs through the global CLI, not the review hook script. Sign-in guidance lets tasks continue while approval is pending, and doctor guidance no longer promises to start login.
+
 ## [1.0.0] - 2026-10-23
 
 ### Fixed
@@ -17,9 +25,9 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ### Breaking
 
-- The plugin now uses the prover API as its only backend. Reinstall or update the plugin, then use `kit-onboarding` to install the global CLI. Hooks start browser sign-in when needed.
-- Report links from earlier versions stop working. Results open in the prover console.
-- The KIT plugin is replaced by prove mode in this plugin (`/intent:prove`). Uninstall KIT.
+- The plugin now uses the Intent Check service API as its only backend. Reinstall or update the plugin, then use `onboarding` to install the global CLI. Hooks start browser sign-in when needed.
+- Report links from earlier versions stop working. Results open in the Intent Check console.
+- Formal proofs are available through prove mode in this plugin (`/intent:prove`).
 - `.prover-client/` and `~/.config/prover-client` are no longer used. Keys saved by earlier versions are not carried over.
 - The plugin's script is `bin/hooks.js` (was `bin/intent.js`). This matters only if you call it by path on Codex.
 

@@ -21,8 +21,8 @@ test("skills: every SKILL.md has a name equal to its folder and a one-line descr
   }
 });
 
-test("skills: KIT skills are scoped to formal proofs with K and leave review to intent-check", () => {
-  for (const d of dirs.filter((d) => d !== "intent-check" && d !== "shared")) {
+test("skills: proof skills are scoped to formal proofs with K and leave review to intent-check", () => {
+  for (const d of dirs.filter((d) => d !== "intent-check" && d !== "shared" && d !== "onboarding")) {
     const desc = fs.readFileSync(path.join(SKILLS, d, "SKILL.md"), "utf8").match(/^description: (.+)$/m)[1];
     assert.match(desc, /formal proofs? with K|formal-proof \(K\)/, d);
   }

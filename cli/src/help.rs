@@ -1,5 +1,5 @@
 pub const ROOT: &str = r#"The Intent Check plugin bundles agent skills and the intent-check CLI.
-intent-check connects to Prover, the remote server.
+intent-check connects to the remote Intent Check service.
 Use `intent-check <command> --help` for options, examples, and result details.
 For nested commands, use e.g. `intent-check session start --help`.
 
@@ -15,7 +15,7 @@ prints its final result. Keep that command running while the user signs in.
 Run, validate, and prove return the unmodified server response under task,
 plus sessionId, budget (used, limit, remaining), and evidenceDir. They exit
 with the last task.toolRuns entry's numeric exitCode. A completed task with a
-result, no error and an empty toolRuns list exits 0: Prover can reuse results
+result, no error and an empty toolRuns list exits 0: the service can reuse results
 without executing a tool. Its output has exitCode: null, not an invented tool
 exit code. Otherwise a missing exit code adds an error diagnostic and the shell
 reports failure.
@@ -26,7 +26,7 @@ exhausted and exit 20 without submitting a task. Inspect the JSON to distinguish
 these local cases from a backend tool returning the same number.
 Argument errors exit 2. Help and version output are plain text.
 
-The budget shows attempts used when Prover accepted this task.
+The budget shows attempts used when the Intent Check service accepted this task.
 Other commands can use more attempts while it runs. Use
 `intent-check session show <SESSION_ID>` to see the latest counts.
 Use `intent-check task --help` to inspect or recover accepted tasks without
@@ -44,7 +44,7 @@ INTENT_API_URL and INTENT_CONSOLE_URL, or edit config.toml; see
 the saved key.
 
 Credentials are saved in credentials.json beside config.toml, scoped to the
-Prover origin, with mode 600 on Unix. Do not read this file into agent context.
+Intent Check service origin, with mode 600 on Unix. Do not read this file into agent context.
 Config and login output never print a credential. If login expires, is stopped,
 or loses its one-time key response, run intent-check login again."#;
 
@@ -61,9 +61,9 @@ blank variables count as unset. Plugin preferences such as disabled and live
 remain in the host-local config.json, not here.
 
 Settings:
-  server_url                Prover HTTP endpoint.
+  server_url                Intent Check service HTTP endpoint.
                             Default: https://prover.intentcomputing.org.
-  portal_url                Prover web origin for browser login.
+  portal_url                Intent Check web origin for browser login.
                             Default: https://prover-console.intentcomputing.org.
   request_timeout_seconds   Limit for each HTTP request.
   poll_interval_seconds     Delay between task-status polls.
@@ -72,9 +72,9 @@ Settings:
   max_proof_attempts        Proof-attempt limit per session. Default: 50.
 
 All numeric settings must be positive and are read on each command.
-Prover owns task execution limits. Run, validate, and prove do not send a
+The Intent Check service owns task execution limits. Run, validate, and prove do not send a
 timeout override or impose a local task or queue-wait deadline. The CLI polls
-until Prover reports a terminal status, polling retries are exhausted, a
+until the service reports a terminal status, polling retries are exhausted, a
 non-retryable request fails, or the user interrupts.
 request_timeout_seconds limits individual HTTP requests, not task duration.
 Task-status polls retry connection errors, timeouts, and HTTP 408, 429, 500,
@@ -146,7 +146,7 @@ The returned ID selects a language definition for a new session."#;
 
 pub const SEMANTICS_FETCH: &str = r#"Example: intent-check semantics fetch <SEMANTICS_ID>
 
-Downloads the current bundled sources from the configured Prover's authenticated
+Downloads the current bundled sources from the configured Intent Check service's authenticated
 /semantics/<id>/archive endpoint. Run `intent-check login` to connect first.
 The ZIP must match the catalog's semantics ID and commit before it is cached.
 Download or extraction failures leave existing cached sources unchanged.
@@ -270,7 +270,7 @@ Parallel proofs:
   One command does not reuse proofs from another command."#;
 
 const EVIDENCE: &str = r#"Evidence:
-  The CLI automatically polls Prover while the command runs. The evidenceDir
+  The CLI automatically polls the Intent Check service while the command runs. The evidenceDir
   contains only result.json: it starts with the accepted task, then each poll
   replaces it with the latest task response. Earlier snapshots are not kept.
   At completion it adds inline stdout and stderr. The file holds the last

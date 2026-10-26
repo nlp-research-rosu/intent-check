@@ -1,6 +1,6 @@
 ---
 name: auditing-semantics
-description: 'Use for formal proofs with K: audit a candidate K semantics before a Prover maintainer freezes it under a versioned bundled ID; outside the live pipeline. Not for ordinary code review.'
+description: 'Use for formal proofs with K: audit a candidate K semantics before an Intent Check service maintainer freezes it under a versioned bundled ID; outside the live pipeline. Not for ordinary code review.'
 ---
 
 ## Stance
@@ -14,9 +14,9 @@ if a constructor report exists, do not read it.
 ## Clean-room rebuild
 
 Copy the candidate source root to a scratch directory and discard all
-constructor outputs. This audit cannot use the live Kit client because
+constructor outputs. This audit cannot use the live `intent-check` CLI because
 unbundled semantics are deliberately rejected by that interface. Use the
-Prover maintainer's candidate-validation process and replay every smoke
+Intent Check service maintainer's candidate-validation process and replay every smoke
 program. If that environment is unavailable, return BLOCKED rather than
 pretending the candidate was tested.
 
@@ -83,7 +83,7 @@ TARGET: writing-semantics      (FAIL only)
 REASON: <one sentence>
 ```
 
-BLOCKED means your instruments failed, a broken Prover connection or
+BLOCKED means your instruments failed, a broken Intent Check service connection or
 exhausted resources is an infrastructure problem, never evidence
 against the semantics.
 

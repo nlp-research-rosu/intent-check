@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Content and structure tests for the kit's skills and shared doctrine.
+"""Content and structure tests for the proof skills and shared doctrine.
 
 Every expectation is declared as data below; the test methods are the
 generic mechanisms that apply it:
@@ -37,11 +37,11 @@ AUDIT_SKILLS = ("auditing-semantics", "auditing-spec", "validating-proof")
 # semantics.k), so that section is exempt there.
 AUDIT_TAIL = (
     "Findings need witnesses",
-    "Unavailable Prover",
+    "Unavailable Intent Check service",
     "Verdict artifact",
     "Dispatch contract",
 )
-AUDIT_TAIL_EXEMPT = {"auditing-semantics": {"Unavailable Prover"}}
+AUDIT_TAIL_EXEMPT = {"auditing-semantics": {"Unavailable Intent Check service"}}
 
 SECTIONS = {
     CORE: (
@@ -77,7 +77,7 @@ SECTIONS = {
 
 # Required outbound edges (by target basename) in the load map.
 LINK_GRAPH = {
-    "skills/using-kit/SKILL.md": (
+    "skills/using-prove/SKILL.md": (
         "proof-extension-soundness.md",
         "gate-a-soundness.md",
         "gate-b-adequacy.md",
@@ -216,7 +216,7 @@ REQUIRED = {
         "Recheck full intent adequacy against the original contract",
         "session ID",
     ),
-    "skills/using-kit/SKILL.md": (
+    "skills/using-prove/SKILL.md": (
         "Discover available semantics with `intent-check semantics`",
         "Use the global `intent-check` CLI on `PATH`.",
         "Start one bounded session before construction",
@@ -233,7 +233,7 @@ REQUIRED = {
     ),
     RUNNING_K: (
         "intent-check",
-        "reachable Prover server",
+        "reachable Intent Check service",
         "health",
         "semantics",
         "run",
@@ -244,15 +244,15 @@ REQUIRED = {
         "Record assumed claims in the trust ledger",
         "failing nodes' reasons and path conditions",
     ),
-    "skills/kit-help/SKILL.md": (
+    "skills/proof-help/SKILL.md": (
         "intent-check <command> --help",
         "intent-check session start --help",
         "`exhausted` is terminal",
-        "Prover owns task execution limits",
+        "Intent Check service owns task execution limits",
         "nor imposes a local task or queue-wait deadline",
     ),
-    "skills/kit-onboarding/SKILL.md": (
-        "KIT requires `intent-check` on `PATH`.",
+    "skills/onboarding/SKILL.md": (
+        "Intent Check requires `intent-check` on `PATH`.",
     ),
 }
 for _audit in AUDIT_SKILLS:

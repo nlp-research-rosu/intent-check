@@ -1,19 +1,19 @@
 ---
 name: writing-semantics
-description: 'Use for formal proofs with K: prepare a candidate K language definition for a future Prover release; live use is limited to immutable bundled semantics IDs. Not for ordinary code review.'
+description: 'Use for formal proofs with K: prepare a candidate K language definition for a future Intent Check service release; live use is limited to immutable bundled semantics IDs. Not for ordinary code review.'
 ---
 
 ## Artifact contract
 
 `semantics.k` is a candidate definition of the language constructs exercised
-by the program set. This is a Prover-maintainer workflow outside the live Kit
-pipeline. A candidate cannot be selected through Kit until Prover freezes it,
+by the program set. This is an Intent Check service maintainer workflow outside live prove
+mode. A candidate cannot be selected in prove mode until the service freezes it,
 assigns a versioned ID, and lists that ID through its client. Never point a
 live `semantics.json` at an unbundled source tree.
 
 | State | Action |
 |---|---|
-| A suitable bundled ID exists | Stop; live Kit must use that immutable ID |
+| A suitable bundled ID exists | Stop; live prove mode must use that immutable ID |
 | A candidate gets stuck in maintainer testing | Extend only the unmodeled construct |
 | A bundled ID gets stuck | Preserve it and record the witnessed boundary |
 | None exists | Create the smallest executable semantics in a dedicated source root |
@@ -76,7 +76,7 @@ Compile and run every representative program using
 - Compare the final configuration with a hand-calculated result.
 - Include boundary behavior such as a loop with zero iterations.
 - Confirm that each inventory construct is exercised by at least one example.
-- Preserve the exact Prover submission, task ID, K exit, and logs for
+- Preserve the exact Intent Check service submission, task ID, K exit, and logs for
   failures.
 
 Record the run: keep each smoke program under `smoke/` and write
@@ -106,7 +106,7 @@ permission to widen the semantics speculatively.
 - Inputs: the target program(s), task statement, any candidate source-root
   path, and explicit edit permission.
 - Produces: the candidate semantics source tree, `smoke/` programs, and
-  `smoke/RESULTS.md`. It does not assign a Prover semantics ID.
+  `smoke/RESULTS.md`. It does not assign an Intent Check service semantics ID.
 - Report back: two sentences, what was modeled and what was left
   unmodeled, plus the artifact paths. Do not restate rule contents; the audit
   works from the files.

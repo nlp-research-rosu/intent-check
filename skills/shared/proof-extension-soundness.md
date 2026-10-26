@@ -1,7 +1,7 @@
 # Proof-extension soundness contract
 
 Use this contract whenever a proof adds a function, equation, claim, or rewrite
-that contributes to closing a reachability claim. A successful Prover run
+that contributes to closing a reachability claim. A successful Intent Check service run
 establishes closure under the supplied theory; validate that theory before
 claiming a proof of the program.
 

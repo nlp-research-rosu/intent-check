@@ -161,7 +161,7 @@ test("without a global CLI: Codex receives setup guidance; PLUGIN_ROOT alone sel
   ctx.env.PATH = "";
   const n = fp.state.requests.length;
   const r = await run("prompt", cfx("prompt", ctx.repo, ctx.transcript), ctx.env, { hostFlag: false });
-  assert.match(r.json.hookSpecificOutput.additionalContext, /kit-onboarding/);
+  assert.match(r.json.hookSpecificOutput.additionalContext, /onboarding/);
   assert.equal(fs.existsSync(path.join(ctx.data, "connect.json")), false);
   assert.equal(fp.state.requests.slice(n).some((x) => x.path === "/api/cli-connect"), false);
   const r2 = await run("prompt", cfx("prompt", ctx.repo, ctx.transcript), ctx.env, { hostFlag: false });

@@ -1,11 +1,11 @@
 # intent-check
 
-The `intent` plugin for Claude Code and Codex. It checks code your agent writes against what you asked for, in the background, and reports concerns with a link to the result in the prover console. It has four modes:
+The `intent` plugin for Claude Code and Codex. It checks code your agent writes against what you asked for, in the background, and reports concerns with a link to the result in the Intent Check console. It has four modes:
 
 - **check**: reviews each turn that changed code, when the turn ends (`/intent:on`).
 - **live**: also reviews every edit as it happens (`/intent:live`).
 - **deepscan**: a review on demand of files, a folder or the whole repo (`/intent:deepscan`).
-- **prove**: formal proofs with K, for properties a review cannot settle (`/intent:prove`). KIT, the proof engine, runs behind this mode.
+- **prove**: formal proofs with K, for properties a review cannot settle (`/intent:prove`).
 
 Status: private pre-release, under construction.
 
@@ -15,7 +15,7 @@ Automatically, after each turn that changes code with logic (functions, state, c
 
 ## What is sent, and what stays local
 
-After a turn that changes source files, the plugin sends to the prover service:
+After a turn that changes source files, the plugin sends to the Intent Check service:
 
 - your last few prompts in the session (and the first one), the approved plan and todo items, and the agent's final message for the turn
 - the diff of each changed source file and the file itself (large files: only the changed regions)
@@ -48,7 +48,7 @@ claude plugin install intent --marketplace nlp-research-rosu/intent-check
 
 This needs Claude Code 2.1.292 or newer. On an older version, run `claude plugin marketplace add nlp-research-rosu/intent-check` and then `claude plugin install intent@intentcomputing`.
 
-Then restart Claude Code or run `/reload-plugins`. If the global CLI is installed, hooks show a browser sign-in link automatically. Otherwise ask the agent to follow `kit-onboarding` to install it. Approve the link to enable checks; your task can continue while sign-in is pending. If anything looks wrong later, run `/intent:doctor`. See [Signing in](#signing-in).
+Then restart Claude Code or run `/reload-plugins`. If the global CLI is installed, hooks show a browser sign-in link automatically. Otherwise ask the agent to follow `onboarding` to install it. Approve the link to enable checks; your task can continue while sign-in is pending. If anything looks wrong later, run `/intent:doctor`. See [Signing in](#signing-in).
 
 ## Commands
 
@@ -73,23 +73,23 @@ The choice is saved in the plugin's `config.json` as `live`. `INTENT_LIVE=1` or 
 - An update: on Claude Code it runs `claude plugin marketplace update` and `claude plugin update` for you, and tells you to run `/reload-plugins` when a new version was installed. Where the `claude` command is not available (the desktop app, for example) it says how to update by hand.
 - Anything only you can fix (checks turned off, an environment variable, no network) is listed as a "To do" line.
 
-To revoke a machine's key, use the prover console. Uninstalling the plugin does not remove the saved key, because the `intent-check` command shares it; delete `credentials.json` (see below) to sign out.
+To revoke a machine's key, use the Intent Check console. Uninstalling the plugin does not remove the saved key, because the `intent-check` command shares it; delete `credentials.json` (see below) to sign out.
 
 On Codex, ask the agent ("turn live mode on", "run the Intent Check doctor"); it runs the plugin's `hooks.js live`, `on`, `off` or `doctor`, which may need your approval to write outside the sandbox. Hooks run `node` directly (Node.js 18+ on your PATH).
 
 ## Signing in
 
-Use `kit-onboarding` to install the global `intent-check` CLI. Without a key, hooks run `intent-check login` in the background and show its browser approval link, without blocking your task. Concurrent sessions share that login; a later prompt confirms approval once. If the CLI is missing, hooks point to onboarding and never install a private copy. You can also run `intent-check login` yourself: keep it running until it reports `connected`. The CLI saves the key in `~/.config/intent-check/credentials.json` (`$XDG_CONFIG_HOME/intent-check/` when set, `%APPDATA%\intent-check\` on Windows). Keys are stored per API origin. The plugin and command share that file, so you sign in once for both.
+Use `onboarding` to install the global `intent-check` CLI. Without a key, hooks run `intent-check login` in the background and show its browser approval link, without blocking your task. Concurrent sessions share that login; a later prompt confirms approval once. If the CLI is missing, hooks point to onboarding and never install a private copy. You can also run `intent-check login` yourself: keep it running until it reports `connected`. The CLI saves the key in `~/.config/intent-check/credentials.json` (`$XDG_CONFIG_HOME/intent-check/` when set, `%APPDATA%\intent-check\` on Windows). Keys are stored per API origin. The plugin and command share that file, so you sign in once for both.
 
-In the cloud and in CI, where nobody can open a link, set `INTENT_API_KEY` to a key from the prover console. It takes precedence over the saved key, for the plugin and the command.
+In the cloud and in CI, where nobody can open a link, set `INTENT_API_KEY` to a key from the Intent Check console. It takes precedence over the saved key, for the plugin and the command.
 
 The plugin and CLI share endpoint settings in `~/.config/intent-check/config.toml` (the same XDG/Windows directory as credentials). Set `server_url` for the API and `portal_url` for the console. `INTENT_API_URL` and `INTENT_CONSOLE_URL` override them; blank variables count as unset. The plugin reads TOML through the global `intent-check config` command. Plugin preferences such as `disabled` and `live` remain host-local in `config.json`; endpoints do not.
 
 ## Prove
 
-`/intent:prove [what to prove]` proves a program correct with K: partial correctness (if it terminates and the precondition holds, the postcondition holds). The agent follows the proof skills (`using-kit` and the skills it points to), calling the global `intent-check` CLI directly. If setup is missing, it uses `kit-onboarding`. On Codex, ask the agent to prove something.
+`/intent:prove [what to prove]` proves a program correct with K: partial correctness (if it terminates and the precondition holds, the postcondition holds). The agent follows the proof skills (`using-prove` and the skills it points to), calling the global `intent-check` CLI directly. If setup is missing, it uses `onboarding`. On Codex, ask the agent to prove something.
 
-Proof files go under `.intent/prove/<target>/`, one folder per program or function (spec, scope, `PROOF.md`, scripts). Commit them. The CLI's session state is in `.intent/prove/sessions/`; do not commit that folder. All `.intent/` paths are relative to the automatically detected repository root, even when commands run from a subdirectory. Outside a repository, the CLI uses the project directory. Results are shown in the prover console.
+Proof files go under `.intent/prove/<target>/`, one folder per program or function (spec, scope, `PROOF.md`, scripts). Commit them. The CLI's session state is in `.intent/prove/sessions/`; do not commit that folder. All `.intent/` paths are relative to the automatically detected repository root, even when commands run from a subdirectory. Outside a repository, the CLI uses the project directory. Results are shown in the Intent Check console.
 
 ## The `intent-check` command
 
@@ -105,8 +105,8 @@ On Windows, download `install-intent-check.ps1` from the same release and run it
 
 | Variable | Effect |
 |---|---|
-| `INTENT_API_URL` | The prover API the plugin and the CLI talk to (default `https://prover.intentcomputing.org`). |
-| `INTENT_CONSOLE_URL` | The prover console that sign-in and result links open in, for the plugin and the CLI. |
+| `INTENT_API_URL` | The Intent Check service API the plugin and the CLI talk to (default `https://prover.intentcomputing.org`). |
+| `INTENT_CONSOLE_URL` | The Intent Check console that sign-in and result links open in, for the plugin and the CLI. |
 | `INTENT_API_KEY` | The API key, instead of the saved one, for the plugin and the CLI. For cloud sessions and CI. |
 | `INTENT_DISABLED=1` | Turns the plugin off; nothing is sent. |
 | `DO_NOT_TRACK=1` | The same. |
@@ -131,7 +131,7 @@ codex plugin add intent@intentcomputing
 
 The Codex IDE extension (VS Code) and the Codex desktop app load the same plugins. Run these commands in a terminal, then restart the extension or app.
 
-Then start `codex` and choose "Trust all and continue" when it says the plugin's hooks need review (or trust them in `/hooks`). Hooks start sign-in through the global CLI when needed; if it is missing, use `kit-onboarding` to install it.
+Then start `codex` and choose "Trust all and continue" when it says the plugin's hooks need review (or trust them in `/hooks`). Hooks start sign-in through the global CLI when needed; if it is missing, use `onboarding` to install it.
 
 Intent Check 0.2.0 updated its edit hook (it now also runs after `apply_patch` and shell commands in live mode). If Codex lists it as Modified, approve it in `/hooks` (or the app's hook review); the first session after the update says so once.
 
@@ -148,7 +148,7 @@ Codex hooks are plain command strings, so the same `node "${CLAUDE_PLUGIN_ROOT}/
     /intent:deepscan [files or a folder] [fast|balanced|full]
 
 - **Files** (at most 10): the fast review. The request is queued, runs when the turn ends and takes a few minutes; the result arrives as a note. You can also just ask the agent ("check auth.py with Intent Check"). In a project without git, run it from the project root (the folder the session started in).
-- **Nothing, or one folder**: a scan of the whole repo, or of that part of it, for behaviour that breaks what the code is meant to do. It runs on the prover API, so it does not hold up your session. Pick a depth:
+- **Nothing, or one folder**: a scan of the whole repo, or of that part of it, for behaviour that breaks what the code is meant to do. It runs on the Intent Check service API, so it does not hold up your session. Pick a depth:
 
 | Depth | Takes | Best for |
 |---|---|---|
@@ -169,8 +169,8 @@ Earlier versions had a separate `check` command for files, and `--depth` and `--
 ## Development
 
 - Zero runtime dependencies. Plain ESM JavaScript, Node 18 syntax.
-- `npm test` (node:test). `npm run test:integration` runs the real `claude -p` and `codex exec` against a mock model API and the fake prover (no LLM, no secrets; skips a CLI that is not installed); CI runs it on Linux, macOS and Windows. `test/e2e/claude-e2e.sh` drives a real Claude Code session through tmux; `test/e2e/codex-e2e.sh` runs `codex exec` in an isolated `CODEX_HOME`.
-- Backend: the prover API (`nlp-research-rosu/prover`). Its `openapi.yaml` is the contract; `test/helpers/fake-prover.js` mirrors it for tests.
+- `npm test` (node:test). `npm run test:integration` runs the real `claude -p` and `codex exec` against a mock model API and a fake Intent Check service (no LLM, no secrets; skips a CLI that is not installed); CI runs it on Linux, macOS and Windows. `test/e2e/claude-e2e.sh` drives a real Claude Code session through tmux; `test/e2e/codex-e2e.sh` runs `codex exec` in an isolated `CODEX_HOME`.
+- Backend: the Intent Check service API (`nlp-research-rosu/prover`). Its `openapi.yaml` is the contract; `test/helpers/fake-prover.js` mirrors it for tests.
 - CLI: `cli/` (Rust). `cargo fmt --check`, `cargo clippy --locked -- -D warnings`, `cargo test --locked`, and the scripts in `cli/tests/` (each takes the binary path).
 - `INTENT_DEBUG=1` adds one line per hook call to `intent.log` in the plugin data folder. Test-only: `INTENT_PIPELINE=llm|canned` (honoured only where the server allows overrides), `INTENT_DEEPSCAN_POLL_MS` and `INTENT_DEEPSCAN_BUSY_MS` (waits in tests).
 - `NOTICE` lists the Apache-2.0 code this plugin ports from Anthropic's security-guidance plugin.

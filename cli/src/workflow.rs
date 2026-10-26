@@ -214,7 +214,7 @@ fn finish(
         .and_then(|code| i32::try_from(code).ok());
     let timed_out = task["status"] == "timed_out"
         || last_run.and_then(|run| run["outcome"].as_str()) == Some("timeout");
-    // Prover can reuse a completed result without executing a tool in this task.
+    // The Intent Check service can reuse a completed result without executing a tool in this task.
     let completed_without_run = tool_runs.is_some_and(Vec::is_empty)
         && task["status"] == "completed"
         && !task["result"].is_null()
@@ -225,7 +225,7 @@ fn finish(
         response["exitCode"] = Value::Null;
         if !completed_without_run {
             let error = if timed_out {
-                "Prover task timed out."
+                "Intent Check service task timed out."
             } else {
                 "Backend did not provide a final tool exit code."
             };

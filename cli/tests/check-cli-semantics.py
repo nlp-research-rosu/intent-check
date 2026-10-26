@@ -606,7 +606,7 @@ class Tests(unittest.TestCase):
         for command in ("run", "validate", "prove"):
             result = self.operation(command, code=1)
             self.assertIsNone(result["exitCode"])
-            self.assertEqual(result["error"], "Prover task timed out.")
+            self.assertEqual(result["error"], "Intent Check service task timed out.")
             self.assertEqual(result["task"]["status"], "timed_out")
             self.assertIsNone(result["task"]["result"])
             self.assertEqual(self.server.cancel_requests, [])

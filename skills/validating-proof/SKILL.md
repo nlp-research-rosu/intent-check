@@ -39,8 +39,8 @@ For a justified replay, select the affected claims and required dependencies.
 Start an audit session and copy the proof sources into its separate
 `workspaceDir/inputs/`. Preserve the original task IDs and evidence directories.
 Confirm the selected semantics independently, then submit only the selected
-claims through the Kit Prover client
-([running-k.md](../shared/running-k.md)). Prover may reuse an internal
+claims through the `intent-check` CLI
+([running-k.md](../shared/running-k.md)). The Intent Check service may reuse an internal
 content address. Count the replay as successful only when its task reports
 `proved`, the final tool exits 0, and stdout confirms success under
 [reading the result](../shared/running-k.md#reading-the-result). Check which
@@ -284,9 +284,9 @@ exception. Without a witness, record the narrower evidence gap rather than
 claiming unsoundness. A required obligation without justification remains
 unresolved; it cannot receive PASS.
 
-## Unavailable Prover
+## Unavailable Intent Check service
 
-If the required Prover checks cannot run, record BLOCKED and the
+If the required Intent Check service checks cannot run, record BLOCKED and the
 instrument error. Do not substitute an unchecked proof or audit.
 
 ## Verdict artifact

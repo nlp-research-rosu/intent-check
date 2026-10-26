@@ -13,7 +13,7 @@ use std::{path::PathBuf, process};
 use uuid::Uuid;
 
 #[derive(Parser)]
-#[command(name = "intent-check", version, about = "intent-check CLI for the remote Prover server", after_help = help::ROOT)]
+#[command(name = "intent-check", version, about = "intent-check CLI for the remote Intent Check service", after_help = help::ROOT)]
 struct Cli {
     /// Project directory; automatically uses its repository root when inside a repo.
     #[arg(long, global = true)]
@@ -30,7 +30,7 @@ enum Command {
     /// Show the effective configuration and its file location.
     #[command(after_help = help::CONFIG)]
     Config,
-    /// Check whether the configured Prover server is healthy.
+    /// Check whether the configured Intent Check service is healthy.
     #[command(after_help = help::HEALTH)]
     Health,
     /// List supported language definitions and their versions.
@@ -173,7 +173,7 @@ pub struct ProveArgs {
     /// Stop symbolic execution at this diagnostic depth.
     ///
     /// Bounds rewrite steps along each execution path, not time: one step can
-    /// still diverge. Prover's execution limits apply. Compare stdout residuals
+    /// still diverge. The Intent Check service's execution limits apply. Compare stdout residuals
     /// at increasing depths to diagnose progress; remove this bound before
     /// claiming proof success.
     #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
