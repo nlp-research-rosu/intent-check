@@ -1,21 +1,21 @@
-# Running K through Prover
+# Running K through Intent Check
 
-Use this reference to choose live K operations and apply KIT's evidence and
+Use this reference to choose live K operations and apply prove mode's evidence and
 workflow rules. Detailed CLI usage lives in the executable's help.
 
 ## Shell setup
 
-Live mode requires the global `intent-check` CLI and a reachable Prover server.
-Locate the executable on `PATH`. If it is missing or KIT needs first-time
-setup, use [kit-onboarding](../kit-onboarding/SKILL.md). Otherwise proceed with
+Live verification requires the global `intent-check` CLI and a reachable Intent Check service.
+Locate the executable on `PATH`. If it is missing or Intent Check needs first-time
+setup, use [onboarding](../onboarding/SKILL.md). Otherwise proceed with
 the requested operation using the saved key. For authentication or
 permission errors, sign in with `intent-check login`
-([kit-help](../kit-help/SKILL.md#connection)).
+([proof-help](../proof-help/SKILL.md#connection)).
 
 ## CLI contract
 
 `intent-check` is the only live K client. For command usage, configuration
-and resource limits, follow [kit-help](../kit-help/SKILL.md). Use its command
+and resource limits, follow [proof-help](../proof-help/SKILL.md). Use its command
 reference for `health` and `semantics` during setup. Use the CLI's structured
 results for workflow decisions.
 
@@ -50,7 +50,7 @@ supported revision models the program language, the live pipeline is BLOCKED.
 
 ## Backends
 
-Prover owns backend selection and definition reuse. For module or definition
+The Intent Check service owns backend selection and definition reuse. For module or definition
 mismatches, inspect the selected registry entry and submitted proof sources;
 use the semantics and proof command help for diagnostic controls.
 
@@ -77,7 +77,7 @@ to select claims and declare assumptions.
 
 Require `task.status` of `completed`, `task.result` of `proved`, and no
 `task.error`. If tools ran, also require the final tool exit code to be 0.
-Prover may reuse a result with `toolRuns: []`; no new tool exit code exists
+The Intent Check service may reuse a result with `toolRuns: []`; no new tool exit code exists
 in that case. Then inspect the submitted claim selection and the selected backend's
 per-claim evidence in saved stdout. Check which claims were admitted with
 `--trusted`.
@@ -106,7 +106,7 @@ does not by itself prove that its server task stopped.
 - Validate to separate source or module failures from proof behavior.
 - Isolate claims and inspect bounded residuals when a proof stalls; see
   [bounded inspection](../proving-spec/SKILL.md#symptom-router-and-bounded-inspection).
-- For task timeouts, follow [kit-help](../kit-help/SKILL.md#task-timeouts).
+- For task timeouts, follow [proof-help](../proof-help/SKILL.md#task-timeouts).
 
 ## Recording prove.sh
 

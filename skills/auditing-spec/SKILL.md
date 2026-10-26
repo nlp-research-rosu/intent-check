@@ -64,10 +64,10 @@ For every function in `VERIFICATION-SUMMARIES`:
 
 ## Mechanical checks
 
-When parsing or module structure needs checking, use the KIT client's
+When parsing or module structure needs checking, use the `intent-check` CLI's
 `validate` command with the construction session ID,
 `verification.k`, and `spec.k`
-([running-k.md](../shared/running-k.md)). Prover prepares the necessary
+([running-k.md](../shared/running-k.md)). The Intent Check service prepares the necessary
 semantics definition inside that validation task. Parser or module errors are
 findings now, not surprises during proving. Matching successful proof evidence
 already establishes that the submitted structure was accepted; avoid duplicate
@@ -90,9 +90,9 @@ instead of failing the stage.
 For a missing, misplaced, or unreadable plain-language opening, cite the
 section order or wording as the witness.
 
-## Unavailable Prover
+## Unavailable Intent Check service
 
-If the required Prover checks cannot run, record BLOCKED and the
+If the required Intent Check service checks cannot run, record BLOCKED and the
 instrument error. Do not substitute an unchecked proof or audit.
 
 ## Verdict artifact

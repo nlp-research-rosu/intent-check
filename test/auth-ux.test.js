@@ -38,7 +38,7 @@ test("keys are per service: a key saved for another URL is not used", async () =
   const ctx = setup();
   saveKey(ctx.data, TEST_KEY, "http://127.0.0.1:1");
   const r = await start(ctx);
-  assert.match(r.json.systemMessage, /kit-onboarding/);
+  assert.match(r.json.systemMessage, /onboarding/);
   assert.equal(fs.existsSync(path.join(ctx.data, "connect.json")), false);
   assert.match((await slash("doctor", ctx)).stdout, /Key source: none/);
 });
@@ -81,13 +81,13 @@ test("/intent:doctor explains why nothing was sent: not connected, off, and reco
   const ctx = setup();
   const none = await slash("doctor", ctx);
   assert.match(none.stdout, /State: not connected/);
-  assert.match(none.stdout, /kit-onboarding.*intent-check login/);
+  assert.match(none.stdout, /onboarding.*intent-check login/);
   assert.match(none.stdout, /Account: none/);
   assert.match(none.stdout, /Nothing is being sent because this machine is not connected to an account yet\./);
   const off = await slash("doctor", ctx, { ...ctx.env, INTENT_DISABLED: "1" });
   assert.match(off.stdout, /Nothing is being sent because checks are off \(INTENT_DISABLED=1\)\./);
   assert.match(off.stdout, /To do: INTENT_DISABLED=1 is set in the environment/);
-  assert.doesNotMatch(off.stdout, /kit-onboarding/);
+  assert.doesNotMatch(off.stdout, /onboarding/);
   saveKey(ctx.data, TEST_KEY, fp.url);
   await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
   fs.writeFileSync(path.join(ctx.repo, "pricing.py"), "def a(x):\n    y = x\n    return y\n");
@@ -127,7 +127,7 @@ test("/intent:on and /intent:live save preferences and give setup guidance witho
   assert.equal(cfg().disabled, true);
   const live = await slash("live", ctx);
   assert.match(live.stdout, /^Intent Check is on \(live\)\./);
-  assert.match(live.stdout, /kit-onboarding.*intent-check login/);
+  assert.match(live.stdout, /onboarding.*intent-check login/);
   assert.deepEqual([cfg().disabled, cfg().live], [undefined, true]);
   saveKey(ctx.data, TEST_KEY, fp.url);
   assert.equal((await slash("on", ctx)).stdout, "Intent Check is on. Changes are checked at the end of each turn. Live review is now off; /intent:live turns it back on.\n");

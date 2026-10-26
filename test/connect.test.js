@@ -22,7 +22,7 @@ test("missing global CLI: SessionStart shows setup guidance once without downloa
   const n = fp.state.requests.length;
   const r = await runHook("session-start", fixture("session-start", ctx.repo), ctx.env);
   assert.equal(r.code, 0);
-  assert.match(r.json.systemMessage, /global intent-check CLI.*kit-onboarding/);
+  assert.match(r.json.systemMessage, /global intent-check CLI.*onboarding/);
   assert.doesNotMatch(r.stdout, /wait|done.*skip|Before doing anything else/);
   assert.equal((await runHook("prompt", fixture("prompt", ctx.repo), ctx.env)).stdout, "");
   assert.equal(fp.state.requests.length, n);
@@ -36,7 +36,7 @@ test("first prompt without a global CLI gives setup guidance without a private i
   const n = fp.state.requests.length;
   const r = await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
   assert.equal(r.code, 0);
-  assert.match(r.json.systemMessage, /kit-onboarding/);
+  assert.match(r.json.systemMessage, /onboarding/);
   assert.equal(fp.state.requests.length, n);
   assert.equal(fs.existsSync(path.join(ctx.data, "connect.json")), false);
 });

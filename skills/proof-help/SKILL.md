@@ -1,18 +1,18 @@
 ---
-name: kit-help
+name: proof-help
 description: 'Explain formal-proof (K) commands of the intent-check CLI: settings, evidence files, attempt limits, and task timeouts. Not for ordinary code review.'
 ---
 
 ## Components
 
-KIT is the plugin bundle of agent skills and Prover Client. Prover Client is
-the local CLI; Prover is the remote service that runs tasks.
+Prove mode in Intent Check uses agent skills and the local `intent-check` CLI.
+The remote Intent Check service runs tasks.
 The global `intent-check` CLI is installed separately from the skills.
 For setup or reconnection, use
-[kit-onboarding](../kit-onboarding/SKILL.md). Answer setup questions without
+[onboarding](../onboarding/SKILL.md). Answer setup questions without
 repeating onboarding or starting a verification task.
 
-## Prover Client commands
+## CLI commands
 
 Read `intent-check --help` for the command tree and
 `intent-check <command> --help` for arguments, examples and results.
@@ -34,7 +34,7 @@ For nested commands, use help such as `intent-check session start --help`.
 ## Connection
 
 The CLI sends the account saved by `intent-check login` (or
-`INTENT_API_KEY`) with all Prover requests. Run the requested commands. On an
+`INTENT_API_KEY`) with all Intent Check service requests. Run the requested commands. On an
 authentication or permission error, run `intent-check login` and give the user
 its `verification_url`. Keep the command running until approval is saved.
 Never read credential files into agent context.
@@ -77,11 +77,11 @@ Do not treat exhaustion as an infrastructure failure or continue live work
 through other agents while approval is pending. In a non-interactive run,
 deliver the last proved sources, or the best draft marked unproved, and report
 `exhausted`. For verification session handoffs, follow
-[using-kit](../using-kit/SKILL.md#choose-the-work-that-advances-the-target).
+[using-prove](../using-prove/SKILL.md#choose-the-work-that-advances-the-target).
 
 ## Task timeouts
 
-Prover owns task execution limits; the CLI neither sends a timeout override
+The Intent Check service owns task execution limits; the CLI neither sends a timeout override
 nor imposes a local task or queue-wait deadline. `request_timeout_seconds`
 only limits individual HTTP requests. Ctrl-C requests cancellation of this
 command's task; inspect the reported confirmation before assuming it stopped.

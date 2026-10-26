@@ -95,7 +95,7 @@ done
 
 # 1. Hooks give guidance; the explicit global CLI command starts login.
 send "Reply with just: hi"
-if wait_for 60 pane_has 'kit-onboarding'; then ok "setup guidance shown"; else bad "setup guidance not visible"; fi
+if wait_for 60 pane_has 'onboarding'; then ok "setup guidance shown"; else bad "setup guidance not visible"; fi
 XDG_CONFIG_HOME="$WORK/xdg" INTENT_API_URL="$INTENT_API_URL" INTENT_CONSOLE_URL="${INTENT_CONSOLE_URL:-$INTENT_API_URL}" intent-check login > "$WORK/login.jsonl" 2>&1 &
 LOGIN_PID=$!
 wait_for 20 grep -q 'verification_url' "$WORK/login.jsonl" || true

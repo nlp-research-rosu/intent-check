@@ -103,7 +103,7 @@ function assertHooksRan(s, events, outputs = ["SessionStart"]) {
 test("codex exec without a global CLI: hooks give setup guidance, no job is sent", { skip, timeout: 60000 }, async () => {
   const s = await session();
   assertHooksRan(s, ["SessionStart", "UserPromptSubmit", "Stop"]);
-  assert.match(s.bodies, /kit-onboarding/, note(s, "setup guidance missing from the model request"));
+  assert.match(s.bodies, /onboarding/, note(s, "setup guidance missing from the model request"));
   assert.equal(fp.jobRequests().length, 0);
 });
 

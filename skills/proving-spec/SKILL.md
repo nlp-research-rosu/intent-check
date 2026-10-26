@@ -1,6 +1,6 @@
 ---
 name: proving-spec
-description: 'Use for formal proofs with K: construct K proofs or diagnose stuck, failing, or resource-limited Prover claims. Not for ordinary code review.'
+description: 'Use for formal proofs with K: construct K proofs or diagnose stuck, failing, or resource-limited Intent Check claims. Not for ordinary code review.'
 ---
 
 ## Artifact contract
@@ -9,7 +9,7 @@ This stage produces the proof-extension layer: additions to the
 `VERIFICATION` module of `verification.k`, `prove.sh` with the exact
 commands used, and a passing proof run.
 
-`spec.k` is a set of K reachability claims. Prover attempts to prove each
+`spec.k` is a set of K reachability claims. The Intent Check service attempts to prove each
 claim by symbolically executing from the LHS and checking it reaches the RHS
 under the given conditions. When a claim remains unproved, inspect the
 residual configuration, a state it reached but could not close, in the saved
@@ -155,9 +155,9 @@ After editing `verification.k`, submit another attempt under the
 ## Proof progress
 
 For server timeouts, HTTP request limits, and cancellation, follow
-[kit-help](../kit-help/SKILL.md#task-timeouts).
+[proof-help](../proof-help/SKILL.md#task-timeouts).
 
-`intent-check prove` polls Prover automatically and updates
+`intent-check prove` polls the Intent Check service automatically and updates
 `proof-NNN/result.json`. Keep the command running and read `metrics`
 in that file to check progress when metrics are available. They may stay
 unchanged while the backend is still working.
@@ -191,7 +191,7 @@ Match the observed symptom, then open only the owning reference.
 
 | Symptom | Open |
 |---|---|
-| Prover or the Kit client is unavailable | [running-k.md, Shell setup](../shared/running-k.md#shell-setup) |
+| The Intent Check service or the `intent-check` CLI is unavailable | [running-k.md, Shell setup](../shared/running-k.md#shell-setup) |
 | Backend or definition mismatch | [running-k.md, Backends](../shared/running-k.md#backends) |
 | K cannot find the requested main syntax module | [running-k.md, Backends](../shared/running-k.md#backends) |
 | Unsure whether a backend result means success | [running-k.md, Reading the result](../shared/running-k.md#reading-the-result) |
@@ -232,7 +232,7 @@ claim without the bound for the final proof.
   construction-time classification and extension-record requirements.
 - [K functions, claims, and proof modules](../shared/k-claims.md):
   `[function]`/`[simplification]`, claim syntax, and labels.
-- [Running K through Prover](../shared/running-k.md), command discovery and
+- [Running K through Intent Check](../shared/running-k.md), command discovery and
   evidence rules.
 - `writing-spec`, states or revises `spec.k` and its scope.
 - `validating-proof`, reviews passing evidence; it checks the
