@@ -8,6 +8,7 @@ use reqwest::{
 use serde_json::{Value, json};
 use std::{
     fs,
+    io::{Cursor, Write},
     path::{Path, PathBuf},
     sync::mpsc,
     time::{Duration, Instant},
@@ -20,6 +21,35 @@ pub struct Api {
     request_timeout: Duration,
 }
 
+pub struct Upload {
+    fields: Vec<(&'static str, String)>,
+    file: UploadFile,
+}
+
+struct UploadFile {
+    field: &'static str,
+    name: String,
+    mime: Option<&'static str>,
+    bytes: Vec<u8>,
+}
+
+impl Upload {
+    fn form(&self) -> Result<multipart::Form> {
+        let form = self
+            .fields
+            .iter()
+            .fold(multipart::Form::new(), |form, (name, value)| {
+                form.text(*name, value.clone())
+            });
+        let file = &self.file;
+        let mut part = multipart::Part::bytes(file.bytes.clone()).file_name(file.name.clone());
+        if let Some(mime) = file.mime {
+            part = part.mime_str(mime)?;
+        }
+        Ok(form.part(file.field, part))
+    }
+}
+
 struct WaitResult {
     task: Value,
     stop: Option<Value>,
@@ -28,6 +58,7 @@ struct WaitResult {
 // Includes the cancellation request and all confirmation polls.
 const CANCELLATION_TIMEOUT: Duration = Duration::from_secs(5);
 const POLL_RETRIES: u32 = 3;
+const SUBMIT_RETRIES: u32 = 3;
 
 impl Api {
     pub fn new(config: &Config) -> Result<Self> {
@@ -75,7 +106,7 @@ impl Api {
         Ok(response)
     }
 
-    pub fn prepare_run(&self, root: &Path, args: RunArgs) -> Result<multipart::Form> {
+    pub fn prepare_run(&self, root: &Path, args: RunArgs) -> Result<Upload> {
         let semantics = crate::session::load(args.session)?.semantics;
         crate::semantics::require(&semantics, args.semantics.as_deref())?;
         let (program, name) = inputs::resolve(root, &args.program)?;
@@ -84,26 +115,30 @@ impl Api {
             .ok_or_else(|| anyhow!("Program path has no file name"))?
             .to_string_lossy()
             .into_owned();
-        let form = multipart::Form::new()
-            .text("semanticsId", semantics.id.clone())
-            .text("semanticsCommit", semantics.commit.clone())
-            .part(
-                "programFile",
-                multipart::Part::bytes(fs::read(program)?).file_name(file_name),
-            );
-        Ok(form)
+        Ok(Upload {
+            fields: vec![
+                ("semanticsId", semantics.id),
+                ("semanticsCommit", semantics.commit),
+            ],
+            file: UploadFile {
+                field: "programFile",
+                name: file_name,
+                mime: None,
+                bytes: fs::read(program)?,
+            },
+        })
     }
 
-    pub fn submit_run(&self, form: multipart::Form) -> Result<Value> {
-        self.submit("/runs", form)
+    pub fn submit_run(&self, upload: &Upload) -> Result<Value> {
+        self.submit("/runs", upload)
     }
 
-    pub fn submit_validation(&self, form: multipart::Form) -> Result<Value> {
-        self.submit("/proof-dry-runs", form)
+    pub fn submit_validation(&self, upload: &Upload) -> Result<Value> {
+        self.submit("/proof-dry-runs", upload)
     }
 
-    pub fn submit_proof(&self, form: multipart::Form) -> Result<Value> {
-        self.submit("/proofs", form)
+    pub fn submit_proof(&self, upload: &Upload) -> Result<Value> {
+        self.submit("/proofs", upload)
     }
 
     pub fn complete(
@@ -177,7 +212,7 @@ impl Api {
         root: &Path,
         args: ProofArgs,
         depth: Option<u64>,
-    ) -> Result<multipart::Form> {
+    ) -> Result<Upload> {
         let semantics = crate::session::load(args.session)?.semantics;
         crate::semantics::require(&semantics, args.semantics.as_deref())?;
         let (_, spec_name) = inputs::resolve_proof(root, &args.spec)?;
@@ -192,56 +227,79 @@ impl Api {
             sources.push(file);
         }
         let files = inputs::load(root, &sources)?;
-        let mut form = multipart::Form::new()
-            .percent_encode_noop()
-            .text("semanticsId", semantics.id.clone())
-            .text("semanticsCommit", semantics.commit.clone())
-            .text("specEntryFile", spec_name)
-            .text("specModule", args.spec_module);
+        let mut fields = vec![
+            ("semanticsId", semantics.id),
+            ("semanticsCommit", semantics.commit),
+            ("specEntryFile", spec_name),
+            ("specModule", args.spec_module),
+        ];
         if let Some(name) = verification_name {
-            form = form.text("verificationEntryFile", name).text(
+            fields.push(("verificationEntryFile", name));
+            fields.push((
                 "verificationModule",
                 args.verification_module
                     .ok_or_else(|| anyhow!("Missing verification module"))?,
-            );
+            ));
         }
+        let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
         for (name, bytes) in files {
             if name.chars().any(|c| c == '"' || c.is_control()) {
                 bail!("Unsupported characters in upload path: {name:?}");
             }
-            let file_name = Path::new(&name)
-                .file_name()
-                .ok_or_else(|| anyhow!("K source path has no file name"))?
-                .to_string_lossy()
-                .into_owned();
-            form = form.part(
-                format!("specFile[{name}]"),
-                multipart::Part::bytes(bytes).file_name(file_name),
-            );
+            archive.start_file(name, options)?;
+            archive.write_all(&bytes)?;
         }
         for (field, values) in [
             ("claim", args.claim),
             ("excludeClaim", args.exclude_claim),
             ("trusted", args.trusted),
         ] {
-            for value in values {
-                form = form.text(field, value);
-            }
+            fields.extend(values.into_iter().map(|value| (field, value)));
         }
         if let Some(depth) = depth {
-            form = form.text("depth", depth.to_string());
+            fields.push(("depth", depth.to_string()));
         }
-        Ok(form)
+        Ok(Upload {
+            fields,
+            file: UploadFile {
+                field: "specArchive",
+                name: "spec.zip".into(),
+                mime: Some("application/zip"),
+                bytes: archive.finish()?.into_inner(),
+            },
+        })
     }
 
-    fn submit(&self, path: &str, form: multipart::Form) -> Result<Value> {
-        let request = self
-            .http
-            .post(format!("{}{path}", self.base))
-            .multipart(form);
-        let value = self.json(request)?;
-        task_id(&value)?;
-        Ok(value)
+    // One key per logical submission: a retry after a timeout or 5xx
+    // replays the task the first attempt may have created.
+    fn submit(&self, path: &str, upload: &Upload) -> Result<Value> {
+        let key = uuid::Uuid::new_v4().to_string();
+        let mut failures = 0;
+        loop {
+            let request = self
+                .http
+                .post(format!("{}{path}", self.base))
+                .header("Idempotency-Key", &key)
+                .multipart(upload.form()?);
+            match self.json(request) {
+                Ok(value) => {
+                    task_id(&value)?;
+                    return Ok(value);
+                }
+                Err(error) if retryable_error(&error) && failures < SUBMIT_RETRIES => {
+                    failures += 1;
+                    let delay = Duration::from_secs(1 << (failures - 1));
+                    eprintln!(
+                        "{path}: {error}; retrying submission in {}s ({failures}/{SUBMIT_RETRIES})",
+                        delay.as_secs()
+                    );
+                    std::thread::sleep(delay);
+                }
+                Err(error) => return Err(error),
+            }
+        }
     }
 
     fn wait(&self, accepted: &Value, poll: u64, evidence: &Path) -> Result<WaitResult> {
@@ -264,7 +322,7 @@ impl Api {
                 Ok(task) => task,
                 Err(error) => {
                     failures += 1;
-                    let retry = retryable_poll_error(&error) && failures <= POLL_RETRIES;
+                    let retry = retryable_error(&error) && failures <= POLL_RETRIES;
                     snapshot["wait"] = json!({"reason": "polling_error", "taskId": id,
                         "error": error.to_string(), "retrying": retry,
                         "consecutiveFailures": failures});
@@ -506,7 +564,7 @@ impl Api {
     }
 }
 
-fn retryable_poll_error(error: &anyhow::Error) -> bool {
+fn retryable_error(error: &anyhow::Error) -> bool {
     error.downcast_ref::<reqwest::Error>().is_some_and(|error| {
         error.is_timeout()
             || error.is_connect()

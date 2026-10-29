@@ -11,12 +11,12 @@ pub fn run_program(args: RunArgs) -> CommandResult {
     }
     let api = Api::new(&config)?;
     drop(lock);
-    let form = api.prepare_run(&proof_session.project_root, args)?;
+    let upload = api.prepare_run(&proof_session.project_root, args)?;
     let (mut proof_session, lock) = session::open(id)?;
     if proof_session.runs_used >= config.max_run_attempts {
         return exhausted("run", proof_session.runs_used, config.max_run_attempts);
     }
-    let response = api.submit_run(form)?;
+    let response = api.submit_run(&upload)?;
     proof_session.runs_used += 1;
     session::save(&proof_session)?;
     let evidence =
@@ -51,7 +51,7 @@ pub fn validate(args: ProofArgs) -> CommandResult {
     }
     let api = Api::new(&config)?;
     drop(lock);
-    let form = api.prepare_proof(&root, args, None)?;
+    let upload = api.prepare_proof(&root, args, None)?;
     let (mut proof_session, lock) = session::open(id)?;
     if proof_session.validations_used >= config.max_validation_attempts {
         return exhausted(
@@ -60,7 +60,7 @@ pub fn validate(args: ProofArgs) -> CommandResult {
             config.max_validation_attempts,
         );
     }
-    let response = api.submit_validation(form)?;
+    let response = api.submit_validation(&upload)?;
     proof_session.validations_used += 1;
     session::save(&proof_session)?;
     let evidence = root.join(format!("validation-{:03}", proof_session.validations_used));
@@ -97,7 +97,7 @@ pub fn prove(args: ProveArgs) -> CommandResult {
     }
     let api = Api::new(&config)?;
     drop(lock);
-    let form = api.prepare_proof(&root, args.proof, args.depth)?;
+    let upload = api.prepare_proof(&root, args.proof, args.depth)?;
     let (mut proof_session, lock) = session::open(id)?;
     if proof_session.attempts_used >= config.max_proof_attempts {
         return exhausted(
@@ -106,7 +106,7 @@ pub fn prove(args: ProveArgs) -> CommandResult {
             config.max_proof_attempts,
         );
     }
-    let response = api.submit_proof(form)?;
+    let response = api.submit_proof(&upload)?;
     proof_session.attempts_used += 1;
     session::save(&proof_session)?;
     let evidence = root.join(format!("proof-{:03}", proof_session.attempts_used));
