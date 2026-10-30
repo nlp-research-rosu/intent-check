@@ -159,7 +159,6 @@ export function createFakeProver(opts = {}) {
         const idem = req.headers["idempotency-key"];
         st.idem = st.idem || new Map();
         let id = idem && st.idem.get(idem);
-        if (idem && !id && st.deepscan && st.deepscan.idem && st.deepscan.idem.has(idem)) return json(res, 400, { code: "INVALID_REQUEST", message: "That Idempotency-Key was used for a DeepScan." });
         const replay = !!id;
         if (!id) {
           id = newId();
@@ -196,7 +195,6 @@ export function createFakeProver(opts = {}) {
         const idem = req.headers["idempotency-key"];
         ds.idem = ds.idem || new Map();
         let id = idem && ds.idem.get(idem);
-        if (idem && !id && st.idem && st.idem.has(idem)) return json(res, 400, { code: "INVALID_REQUEST", message: "That Idempotency-Key was used for an intent check." });
         const replay = !!id;
         if (!id) {
           id = newId();

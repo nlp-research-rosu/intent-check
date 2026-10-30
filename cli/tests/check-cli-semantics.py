@@ -2,6 +2,8 @@
 """Exercise global semantics and explicit sessions against a loopback server."""
 import concurrent.futures
 from contextlib import contextmanager
+import email
+import email.policy
 import io
 import json
 import os
@@ -13,6 +15,7 @@ import tempfile
 import threading
 import time
 import unittest
+import uuid
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -32,6 +35,13 @@ def archive_bytes(identity, files=None):
         for name, content in (ARCHIVE_FILES if files is None else files).items():
             archive.writestr(f"{root}/{name}", content)
     return output.getvalue()
+
+
+def form_parts(content_type, body):
+    message = email.message_from_bytes(
+        f"Content-Type: {content_type}\r\n\r\n".encode() + body, policy=email.policy.HTTP)
+    return {part.get_param("name", header="content-disposition"): part
+            for part in message.iter_parts()}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -110,7 +120,8 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(task)
 
     def do_POST(self):
-        body = self.rfile.read(int(self.headers.get("Content-Length", 0))).decode()
+        raw = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        body = raw.decode("latin-1")
         if self.path.endswith("/cancel"):
             task_id = self.path.split("/")[-2]
             with self.server.changed:
@@ -119,10 +130,24 @@ class Handler(BaseHTTPRequestHandler):
                 self.server.changed.notify_all()
             self.respond({"status": "cancelling"}, 202)
             return
+        key = self.headers.get("Idempotency-Key")
         with self.server.changed:
             self.server.uploads.append((self.path, body))
-            task_id = f"task-{len(self.server.uploads)}"
+            self.server.keys.append(key)
+            self.server.forms.append(form_parts(self.headers["Content-Type"], raw))
+            # A failed reply may follow a task the server already created.
+            task_id = self.server.tasks_by_key.setdefault(key, f"task-{len(self.server.uploads)}")
+            failure = self.server.submit_failures.pop(0) if self.server.submit_failures else None
             self.server.changed.notify_all()
+        if failure == "timeout":
+            time.sleep(2)
+            return
+        if failure == 409:
+            self.respond({"code": "IDEMPOTENCY_CONFLICT", "message": "Key reused"}, 409)
+            return
+        if failure:
+            self.respond({"code": "INTERNAL_ERROR", "message": "controlled outage"}, failure)
+            return
         if self.server.reject:
             self.respond({"code": "UNSUPPORTED_SEMANTICS", "message": "Revision changed"}, 400)
             return
@@ -150,6 +175,10 @@ class Tests(unittest.TestCase):
         self.server.task_status = "completed"
         self.server.has_result = True
         self.server.uploads = []
+        self.server.keys = []
+        self.server.forms = []
+        self.server.tasks_by_key = {}
+        self.server.submit_failures = []
         self.server.mutex = threading.Lock()
         self.server.changed = threading.Condition(self.server.mutex)
         self.server.task_states = {}
@@ -565,6 +594,36 @@ class Tests(unittest.TestCase):
         self.operation("prove")
         self.assertTrue((self.workspace / "proof-001/result.json").is_file())
 
+    def test_retries_resend_the_same_idempotency_key(self):
+        self.config.write_text(self.config.read_text() + "request_timeout_seconds = 1\n")
+        for command, path in (("run", "/runs"), ("validate", "/proof-dry-runs"),
+                              ("prove", "/proofs")):
+            with self.subTest(command=command):
+                start = len(self.server.uploads)
+                self.server.submit_failures = [503, "timeout"]
+                result = self.operation(command)
+                keys = self.server.keys[start:]
+                self.assertEqual([p for p, _ in self.server.uploads[start:]], [path] * 3)
+                self.assertEqual(len(set(keys)), 1)
+                self.assertEqual(uuid.UUID(keys[0]).version, 4)
+                self.assertEqual(result["task"]["id"], f"task-{start + 1}")
+        self.assertEqual(len(set(self.server.keys)), 3)
+        self.assertEqual(self.show()["attemptsUsed"], 1)
+
+    def test_submission_retries_are_bounded(self):
+        self.server.submit_failures = [503] * 5
+        result = self.operation("prove", code=1)
+        self.assertIn("503", result["message"])
+        self.assertEqual(len(self.server.uploads), 4)
+        self.assertEqual(self.show()["attemptsUsed"], 0)
+
+    def test_idempotency_conflict_is_not_retried(self):
+        self.server.submit_failures = [409]
+        result = self.operation("prove", code=1)
+        self.assertIn("IDEMPOTENCY_CONFLICT", result["message"])
+        self.assertEqual(len(self.server.uploads), 1)
+        self.assertEqual(self.show()["attemptsUsed"], 0)
+
     def test_raw_exit_codes_and_response_fields_for_every_command(self):
         for command in ("run", "validate", "prove"):
             self.config.write_text(self.config.read_text() +
@@ -779,14 +838,22 @@ class Tests(unittest.TestCase):
                      "--verification-module", "VERIFICATION",
                      "--source", "inputs/lib/helper.k")
             body = self.server.uploads[-1][1]
-            for path in ("spec.k", "verification.k", "lib/helper.k"):
-                self.assertIn(f'name="specFile[{path}]"', body)
+            paths = ("spec.k", "verification.k", "lib/helper.k")
+            self.assertNotIn("specFile[", body)
             self.assertNotIn("name*=", body)
             self.assertNotIn("inputs/", body)
             self.assertIn('name="specEntryFile"\r\n\r\nspec.k', body)
             self.assertIn('name="verificationEntryFile"\r\n\r\nverification.k', body)
-            for path in ("spec.k", "verification.k", "lib/helper.k"):
-                self.assertIn((self.workspace / "inputs" / path).read_text(), body)
+            part = self.server.forms[-1]["specArchive"]
+            self.assertEqual(part.get_filename(), "spec.zip")
+            self.assertEqual(part.get_content_type(), "application/zip")
+            with zipfile.ZipFile(io.BytesIO(part.get_payload(decode=True))) as archive:
+                self.assertEqual({entry.filename: entry.compress_type
+                                  for entry in archive.infolist()},
+                                 dict.fromkeys(paths, zipfile.ZIP_DEFLATED))
+                for path in paths:
+                    self.assertEqual(archive.read(path),
+                                     (self.workspace / "inputs" / path).read_bytes())
         result = self.operation("prove", code=1, extra=("--source", str(self.root / "program.mpy")))
         self.assertIn("escapes", result["message"])
         self.assertEqual(self.show()["attemptsUsed"], 1)
