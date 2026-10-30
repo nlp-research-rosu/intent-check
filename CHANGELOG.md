@@ -6,6 +6,8 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-30
+
 ### Changed
 
 - The CLI sends each run, validation and proof with an `Idempotency-Key` and retries it with the same key after a timeout, connection error or server error, so a retry never starts a second task. Proof and validation inputs are uploaded as one `specArchive` zip instead of one `specFile` field per file. This needs an Intent Check service with `Idempotency-Key` and `specArchive` support on these routes; an older service rejects the archive.
