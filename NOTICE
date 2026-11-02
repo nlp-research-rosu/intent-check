@@ -1,6 +1,10 @@
 Intent Check plugin
 Copyright 2026 Intent Computing
 
+The local HTML viewer embeds Geist Variable (Latin subset), from
+@fontsource-variable/geist 5.3.0, Copyright 2024 The Geist Project Authors,
+under the SIL Open Font License 1.1. See cli/src/viewer/Geist-OFL.txt.
+
 This product includes logic ported from the security-guidance plugin in
 https://github.com/anthropics/claude-plugins-official (plugins/security-guidance),
 Copyright Anthropic, PBC, licensed under the Apache License, Version 2.0

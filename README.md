@@ -168,6 +168,28 @@ For a whole-repo or folder scan:
 
 Earlier versions had a separate `check` command for files, and `--depth` and `--scope` flags; both are now plain arguments of `deepscan`.
 
+## Local HTML viewer
+
+Run `intent-check view` from a repository and open the URL it prints. The read-only
+viewer listens on `127.0.0.1` until Ctrl-C and refreshes local data every ten seconds.
+It displays saved file reviews, DeepScan reports, proof documents and CLI operation
+results from `.intent/`, plus queued and submitted file checks. It does not submit
+checks, enable per-edit live mode or contact the service. A submitted check means the
+plugin is awaiting a result, not that the viewer confirmed its server status.
+
+The repository name comes from Git's `origin` URL, without `.git`, or the root folder
+name when no origin is configured. `--project <directory>` selects another repository.
+Active file checks are read from Claude Code and Codex plugin data. For an isolated or
+custom installation, pass `--plugin-data <directory>` (repeat for multiple hosts).
+
+`intent-check view --output intent-report.html` exports a self-contained offline HTML
+snapshot. The file includes the UI, font and local evidence; it needs no account or
+network. Existing output files are not overwritten. Review the evidence before sharing
+it. Hidden files, symlinks, temporary/binary files and files above 16 MiB are excluded;
+skipped symlinks and oversized files are listed in the viewer. Plugin session prompts,
+transcripts, credentials and source workspaces are not read into the report. DeepScan
+supporting files remain remote. Offline exports do not refresh.
+
 ## Development
 
 - Zero runtime dependencies. Plain ESM JavaScript, Node 18 syntax.

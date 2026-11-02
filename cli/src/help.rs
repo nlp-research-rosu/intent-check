@@ -10,6 +10,8 @@ selects another project, with the same root detection. Execution commands use
 Configuration is shared.
 
 Commands print one JSON object to stdout; diagnostics may also go to stderr.
+View prints a listening URL when its local server starts and a final stopped
+object on Ctrl-C; --output exports HTML and returns immediately.
 Login first prints a pending JSON object, waits for browser approval, then
 prints its final result. Keep that command running while the user signs in.
 Run, validate, and prove return the unmodified server response under task,
@@ -350,3 +352,24 @@ Bounded diagnosis:
   Use the same sessionId for subsequent attempts.\n\n{EVIDENCE}"
     )
 }
+pub const VIEW: &str = r#"Examples:
+  intent-check view
+  intent-check view --output intent-report.html
+  intent-check --project ../my-repo view --plugin-data /path/to/plugin/data
+
+Without --output, serves a read-only viewer on 127.0.0.1. Open the printed URL;
+Ctrl-C stops the server. The page refreshes local artifacts and active checks
+every ten seconds. It never submits tasks or contacts the remote service.
+
+--output writes a self-contained offline HTML snapshot, including its font.
+It never overwrites an existing file. Share it only with people who may read
+the included .intent evidence. It does not include source workspaces,
+credentials, plugin prompts or transcripts. Symlinks and hidden files are not
+exported; queued requests are represented by task metadata only.
+
+The name comes from the origin repository name, falling back to the root folder.
+File reviews, DeepScan reports and proof sessions come from this project's
+.intent directory. Active file checks come from installed Claude Code/Codex
+plugin data; set --plugin-data for a custom or isolated plugin installation.
+Submitted means the plugin is awaiting a result, not a confirmed server status.
+The viewer does not enable the plugin's per-edit live checking mode."#;
