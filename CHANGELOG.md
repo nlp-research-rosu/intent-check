@@ -8,6 +8,7 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ### Added
 
+- `intent-check view` serves a repository-aware live local viewer for saved evidence and active file checks. `--output` exports the same UI as a self-contained offline HTML report.
 - DeepScan saves its final report and task/source metadata in `.intent/deepscan/<task-id>/`, with verified downloads, resumable collection and explicit expiry status. Saved reports remain available offline; supporting detail files stay on the service.
 
 ## [1.0.2] - 2026-10-30

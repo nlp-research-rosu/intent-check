@@ -5,6 +5,7 @@ mod help;
 mod inputs;
 mod semantics;
 mod session;
+mod viewer;
 mod workflow;
 
 use clap::{Args, Parser, Subcommand};
@@ -24,6 +25,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// View local check artifacts live, or export a self-contained HTML report.
+    #[command(after_help = help::VIEW)]
+    View(viewer::ViewArgs),
     /// Connect this machine in the browser; save the credential without displaying it.
     #[command(after_help = help::LOGIN)]
     Login,
@@ -214,6 +218,7 @@ fn dispatch(cli: Cli) -> CommandResult {
         std::env::set_current_dir(project)?;
     }
     match cli.command {
+        Command::View(args) => viewer::view(args),
         Command::Login => auth::login(),
         Command::Config => Ok((0, config::view()?)),
         Command::Health => {
