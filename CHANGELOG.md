@@ -11,6 +11,10 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 - `intent-check view` serves a repository-aware live local viewer for saved evidence and active file checks. `--output` exports the same UI as a self-contained offline HTML report.
 - DeepScan saves its final report and task/source metadata in `.intent/deepscan/<task-id>/`, with verified downloads, resumable collection and explicit expiry status. Saved reports remain available offline; supporting detail files stay on the service.
 
+### Fixed
+
+- Removed former product names from repository text and corrected outdated launcher and mode-control documentation.
+
 ## [1.0.2] - 2026-10-30
 
 ### Changed
@@ -41,7 +45,7 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 - The plugin now uses the Intent Check service API as its only backend. Reinstall or update the plugin, then use `onboarding` to install the global CLI. Hooks start browser sign-in when needed.
 - Report links from earlier versions stop working. Results open in the Intent Check console.
 - Formal proofs are available through prove mode in this plugin (`/intent:prove`).
-- `.prover-client/` and `~/.config/prover-client` are no longer used. Keys saved by earlier versions are not carried over.
+- Keys saved by earlier versions are not carried over.
 - The plugin's script is `bin/hooks.js` (was `bin/intent.js`). This matters only if you call it by path on Codex.
 
 ### Added
