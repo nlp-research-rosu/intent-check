@@ -162,6 +162,8 @@ For a whole-repo or folder scan:
 - DeepScan reads your code, not Intent Check's own `.intent/` results (except `.intent/NOTES.md`).
 - The upload is listed in `.intent/.sent.log` (paths and sizes, never contents). Intent Check must be on and signed in; `INTENT_DISABLED=1` stops DeepScan too.
 - The command prints the report link and returns. When the scan finishes, a short summary with the top findings appears at your next message in that repo (also in a new session), once. The link shows the full report and live progress.
+- The plugin saves the final report as `.intent/deepscan/<task-id>/report.json`, after checking its size and SHA-256 against the task response. Beside it, `meta.json` records the task status, scan scope, submitted snapshot hash and per-file hashes. `source_sha256` identifies the local bytes read for a file; `submitted_sha256` identifies its redacted upload text. No source contents are copied into this folder.
+- Report collection runs in the background and resumes on a later message if interrupted, even after the summary has been delivered. `meta.json` distinguishes a saved report from pending, expired or unavailable data. Saved reports are not removed when plugin state or server files expire. Supporting files linked from the report remain on the service; the plugin does not download the sandbox workspace.
 - Findings are flagged, not reproduced. Ask the agent to reproduce the ones you care about.
 
 Earlier versions had a separate `check` command for files, and `--depth` and `--scope` flags; both are now plain arguments of `deepscan`.
