@@ -4,7 +4,8 @@ const boot = JSON.parse(document.getElementById('data').textContent);
 const refreshInterval = 10_000;
 let data = boot.snapshot;
 let connected = true;
-const state = { view: 'overview', review: null, reviewTab: 'VERDICT.md', scan: null, scanTab: 'report', proof: null, proofTab: 'report', file: null, filter: '' };
+const initialState = { view: 'overview', review: null, reviewTab: 'VERDICT.md', scan: null, scanTab: 'report', proof: null, proofTab: 'report', file: null, filter: '' };
+const state = { ...initialState };
 const page = document.getElementById('page');
 const reviewFiles = ['INTENT.md', 'SPEC.k', 'VERIFICATION.k', 'SEMANTICS.k', 'REASONING.md', 'VERDICT.md', 'meta.json'];
 const terminal = new Set(['completed', 'done', 'failed', 'cancelled', 'canceled', 'timed_out', 'superseded']);
@@ -101,7 +102,7 @@ function records() {
   const reviews = paths.filter(p => p.endsWith('/meta.json') && !p.startsWith('prove/') && !p.startsWith('deepscan/'))
     .map(p => ({ path: p.slice(0, -10), meta: json(p) })).filter(r => r.meta?.review_id);
   const scans = paths.filter(p => /^deepscan\/[^/]+\/meta.json$/.test(p))
-    .map(p => ({ path: p, dir: p.slice(0, -9), meta: json(p), report: json(p.replace(/meta.json$/, 'report.json')) })).filter(s => s.meta);
+    .map(p => ({ path: p, meta: json(p), report: json(p.replace(/meta.json$/, 'report.json')) })).filter(s => s.meta);
   for (const scan of scans) scan.progress = data.scanStates[scan.meta.task_id] || { status: scan.meta.task?.status || scan.meta.status };
   const operations = paths.filter(p => /^prove\/sessions\/[^/]+\/[^/]+\/result.json$/.test(p))
     .map(p => ({ path: p, evidence: json(p) })).filter(o => o.evidence?.task);
@@ -156,7 +157,7 @@ function reviewsPage(r) {
   }
   const files = reviewFiles.filter(f => Object.hasOwn(data.files, `${review.path}/${f}`));
   const tab = files.includes(state.reviewTab) ? state.reviewTab : files[0];
-  return heading(review.path, 'Last completed review saved for this source path.', '<button class="btn" data-view="reviews">All files</button>' + status(review.meta.verdict) + serviceLink(review.meta.url))
+  return heading(review.path, 'Last completed review saved for this source path.', status(review.meta.verdict) + serviceLink(review.meta.url))
     + `<div class="stack">${active}<div class="row small muted"><span>Reviewed ${date(review.meta.reviewed_at)}</span><span class="mono">SHA-256 ${escape(review.meta.source_sha256)}</span></div><div class="card"><div class="file-tabs" aria-label="Review artifacts">${files.map(f => `<button data-review-tab="${f}" class="${tab === f ? 'active' : ''}">${f}</button>`).join('')}</div>${fileView(`${review.path}/${tab}`)}</div></div>`;
 }
 function finding(card) {
@@ -167,10 +168,11 @@ function scansPage(r) {
   const scan = r.scans.find(s => s.path === state.scan) || r.scans.at(-1);
   if (!scan) return heading('DeepScan', 'Whole-repository and scoped scan reports.') + empty('No local scans', 'Start a DeepScan with the installed plugin.');
   state.scan = scan.path;
-  const { meta, report, dir } = scan, source = meta.source || {};
+  const { meta, report } = scan, source = meta.source || {};
   const select = r.scans.length > 1 ? `<div class="select-row"><label class="small muted">Scan <select id="scan-select">${r.scans.map(s => `<option value="${escape(s.path)}" ${s.path === scan.path ? 'selected' : ''}>${escape(s.meta.task_id)}</option>`).join('')}</select></label></div>` : '';
   let body;
-  if (state.scanTab === 'metadata') body = `<div class="card">${fileView(scan.path)}</div>`;
+  if (state.scanTab === 'metadata') body = `<div class="card card-body"><h2>Scan details</h2><dl class="kv"><dt>Task state</dt><dd>${status(scan.progress.status)}${scan.progress.stage ? ' · ' + escape(human(scan.progress.stage)) : ''}</dd><dt>Created</dt><dd>${date(meta.created_at)}</dd><dt>Report saved</dt><dd>${date(meta.report?.saved_at)}</dd><dt>Report SHA-256</dt><dd class="mono">${escape(meta.report?.sha256 || '—')}</dd>${meta.report?.reason ? `<dt>Collection error</dt><dd>${escape(meta.report.reason)}</dd>` : ''}</dl></div>`
+    + `<div class="card card-body"><h2>Scanned source</h2><dl class="kv"><dt>Branch / commit</dt><dd class="mono">${escape(source.branch || '—')} · ${escape(source.head_sha || 'No pinned commit')}</dd><dt>Working tree</dt><dd>${source.dirty ? 'Uncommitted source included' : 'Clean at snapshot time'}</dd><dt>Snapshot SHA-256</dt><dd class="mono">${escape(source.snapshot_sha256 || '—')}</dd><dt>Files</dt><dd>${(source.files || []).map(f => `<div class="small mono">${escape(f.path)} <span class="muted">${escape(f.source_sha256)}</span></div>`).join('')}</dd><dt>Omitted paths</dt><dd>${(source.trimmed || []).map(f => `${escape(f.path)}: ${escape(f.reason)}`).join('<br>') || 'None recorded'}</dd></dl></div>`;
   else if (!report) body = empty('Final report not saved yet', `Task: ${scan.progress.status}${scan.progress.stage ? ' · ' + scan.progress.stage : ''}. Collection: ${meta.report?.status || 'unknown'}. ${meta.report?.reason || ''}`);
   else {
     const coverage = report.coverage || {};
@@ -181,7 +183,7 @@ function scansPage(r) {
       + `<div class="card card-body"><h2>Coverage</h2><dl class="kv"><dt>Files / bytes</dt><dd>${escape(coverage.file_count)} files · ${escape(coverage.bytes)} bytes</dd><dt>Checked</dt><dd>${list(coverage.checked)}</dd><dt>Not checked</dt><dd>${list(coverage.not_checked)}</dd><dt>Limitations</dt><dd>${list(coverage.notes)}</dd></dl></div>`;
   }
   return heading('DeepScan', `${human(meta.depth)} review · ${meta.scope || 'whole repository'}`, scanOutcome(scan) + serviceLink(meta.url)) + select
-    + `<div class="row small mono muted" style="margin-bottom:15px">${escape(meta.task_id)} ${status(meta.report?.status)}</div><div class="tabs"><button data-scan-tab="report" class="${state.scanTab === 'report' ? 'active' : ''}">Report</button><button data-scan-tab="metadata" class="${state.scanTab === 'metadata' ? 'active' : ''}">Scan metadata</button></div><div class="stack">${body}<div class="card card-body"><h2>Scanned source</h2><dl class="kv"><dt>Branch / commit</dt><dd class="mono">${escape(source.branch || '—')} · ${escape(source.head_sha || 'No pinned commit')}</dd><dt>Working tree</dt><dd>${source.dirty ? 'Uncommitted source included' : 'Clean at snapshot time'}</dd><dt>Snapshot SHA-256</dt><dd class="mono">${escape(source.snapshot_sha256 || '—')}</dd><dt>Files</dt><dd>${(source.files || []).map(f => `<div class="small mono">${escape(f.path)} <span class="muted">${escape(f.source_sha256)}</span></div>`).join('')}</dd><dt>Omitted paths</dt><dd>${(source.trimmed || []).map(f => `${escape(f.path)}: ${escape(f.reason)}`).join('<br>') || 'None recorded'}</dd></dl><div class="row">${report ? fileButton(dir + 'report.json', 'Raw report.json') : ''}${fileButton(scan.path, 'Raw meta.json')}</div></div></div>`;
+    + `<div class="row small mono muted" style="margin-bottom:15px">${escape(meta.task_id)} ${status(meta.report?.status)}</div><div class="tabs"><button data-scan-tab="report" class="${state.scanTab === 'report' ? 'active' : ''}">Report</button><button data-scan-tab="metadata" class="${state.scanTab === 'metadata' ? 'active' : ''}">Scan metadata</button></div><div class="stack">${body}</div>`;
 }
 function operationsView(r) {
   const files = r.paths.filter(p => p.startsWith('prove/sessions/') && !r.operations.some(o => o.path === p));
@@ -239,6 +241,18 @@ function render() {
   filterArtifacts();
   connection();
 }
+function readLocation() {
+  const params = new URLSearchParams(location.hash.slice(1));
+  for (const [key, value] of Object.entries(initialState)) state[key] = params.get(key) ?? value;
+  if (!['overview', 'reviews', 'scans', 'proofs', 'artifacts'].includes(state.view)) state.view = 'overview';
+}
+function navigate() {
+  render();
+  const params = new URLSearchParams(Object.entries(state).filter(([key, value]) => value != null && value !== initialState[key]));
+  const hash = params.toString();
+  if (location.hash.slice(1) !== hash) location.hash = hash;
+}
+window.addEventListener('hashchange', () => { readLocation(); render(); });
 document.addEventListener('click', async event => {
   const button = event.target.closest('[data-view],[data-review],[data-review-tab],[data-scan],[data-scan-tab],[data-proof-tab],[data-file],[data-artifact],[data-copy],[data-download]');
   if (!button) return;
@@ -258,8 +272,7 @@ document.addEventListener('click', async event => {
   }
   if (d.artifact) {
     state.file = d.artifact;
-    document.getElementById('artifact-content').innerHTML = fileView(state.file);
-    document.querySelectorAll('[data-artifact]').forEach(b => b.classList.toggle('active', b.dataset.artifact === state.file));
+    navigate();
     return;
   }
   if (d.view) { state.view = d.view; if (d.view === 'reviews') state.review = null; }
@@ -273,7 +286,7 @@ document.addEventListener('click', async event => {
     state.view = d.file.startsWith('prove/sessions/') ? 'proofs' : 'artifacts';
     if (state.view === 'proofs') state.proofTab = 'operations';
   }
-  render();
+  navigate();
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('menu').setAttribute('aria-expanded', 'false');
 });
@@ -281,8 +294,8 @@ document.addEventListener('input', event => {
   if (event.target.id === 'file-search') { state.filter = event.target.value; filterArtifacts(); }
 });
 document.addEventListener('change', event => {
-  if (event.target.id === 'scan-select') { state.scan = event.target.value; render(); }
-  if (event.target.id === 'proof-select') { state.proof = event.target.value; render(); }
+  if (event.target.id === 'scan-select') { state.scan = event.target.value; navigate(); }
+  if (event.target.id === 'proof-select') { state.proof = event.target.value; navigate(); }
 });
 document.getElementById('menu').onclick = () => {
   const open = document.getElementById('sidebar').classList.toggle('open');
@@ -291,6 +304,7 @@ document.getElementById('menu').onclick = () => {
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') { document.getElementById('sidebar').classList.remove('open'); document.getElementById('menu').setAttribute('aria-expanded', 'false'); }
 });
+readLocation();
 render();
 
 // Refresh only local data, never the service. An export has no dataUrl and no timer.
