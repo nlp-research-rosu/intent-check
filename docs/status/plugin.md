@@ -1,4 +1,8 @@
-# Plugin agent status
+# Plugin implementation notes
+
+## Historical rollout (September 2026)
+
+The milestone and review notes in this section describe the September rollout, not current work. See the [README](../../README.md) for current installation and usage.
 
 Milestone: M2a (Claude Code plugin core). Stacked PRs (each merges into the one before; merge in order):
 
@@ -10,17 +14,17 @@ Milestone: M2a (Claude Code plugin core). Stacked PRs (each merges into the one 
 6. `feat/plugin-m2b` → `feat/plugin-m2a-fixes`: M2b (`intent deepscan <files>` queue for S5, renames/deletes, full skill + commands).
 7. `feat/plugin-m5` → `feat/plugin-m2b`: M5 Codex.
 
-## Current step
+### Review status at the time
 
 Second re-review of #6/#7 fixed (queue retries with stable Idempotency-Key and a 3-try cap, per-item failures, imperative 'without asking' rules, loud off/on failure, non-git subfolder queues, Codex off drops the queue, finisher refresh). Tests 143 (m2b) / 158 (m5) on Node 22 and 18. Against staging on 2026-09-28: claude-e2e 14/14 (22:30-22:33), codex-e2e 13/13 (22:28-22:30), Codex login intact.
 
 #1-#5 merged (main 675c8d8). #6 (M2b, now based on main) and #7 (M5, based on feat/plugin-m2b) carry the review fixes; origin/main is merged into both. Tests 139 (m2b) / 151 (m5) on Node 22 and 18. `test/e2e/codex-e2e.sh` against staging: 13/13 PASS (2026-09-28 22:03), real Codex login intact, no leftover processes or temp dirs.
 
-## Next step
+### Planned follow-up at the time
 
 Wait for review/merge of PRs 1-7 and the orchestrator's Codex e2e. Then M6 plugin parts (prompt-injection tests on reviewed code, hook UX pass, token-overhead measurement, install docs).
 
-## Design notes for whoever resumes
+## Runtime design
 
 - Every hook and command runs `node ${CLAUDE_PLUGIN_ROOT}/bin/hooks.js` directly (Claude Code hooks in exec form, so no shell is needed and Windows without `sh` works). `bin/intent` is the POSIX `sh` launcher (issue #22). No hook or command references it, but Claude Code puts the plugin's `bin/` on the Bash tool's PATH, so it is the bare `intent` command there: it `exec`s `bin/hooks.js` when Node >=18 is on PATH, otherwise prints a short no-Node message for `session-start`/`prompt`/`deepscan`/`doctor` and exits 0 silently for everything else. `bin/hooks.js` line 1 is an old-syntax Node version check that says so on stderr once per data dir (marker `.node-too-old-<version>`); everything else is in `lib/`. `lib/hooks.js` is host-neutral; `lib/claude.js` holds the Claude output protocol. `lib/codex.js` + `hooks/codex-hooks.json` are the Codex side; the host comes from `--host codex` (or `PLUGIN_ROOT`), never from `CLAUDECODE`.
 - API: the prover (`INTENT_API_URL`, default `https://prover.intentcomputing.org`). Checks are `POST /intent-checks` and `GET /tasks/{id}`; `lib/api.js` maps a task to the status and snake_case result shapes the rest of the plugin reads and downloads a check's artifacts (the API answers 302 to a signed link, followed without the key). Report links are `{console}/tasks/{id}` (`INTENT_CONSOLE_URL`, default `https://prover-console.intentcomputing.org`).
@@ -31,7 +35,7 @@ Wait for review/merge of PRs 1-7 and the orchestrator's Codex e2e. Then M6 plugi
 
 ## Commands (simplified 2026-10-13)
 
-- Five user commands: `on`, `live`, `off`, `deepscan`, `doctor` (`lib/commands.js`, `lib/deepscan.js`). `check`, `mode`, `status`, `connect` and `disconnect` are gone.
+- Six Claude Code slash commands: `on`, `live`, `off`, `deepscan`, `doctor`, `prove`. The first five use the JavaScript plugin (`lib/commands.js`, `lib/deepscan.js`); `prove` uses the global `intent-check` CLI. `check`, `mode`, `status`, `connect` and `disconnect` are gone.
 - `on` is end-of-turn review only; `live` is on plus per-edit review (`config.json` `live`, `INTENT_LIVE=1|0` overrides). End-of-turn review always runs while on.
 - `deepscan` routes by target: files go to the queue (`lib/queue.js`, the fast `POST /intent-checks` check, no network in the command), a folder or nothing goes to `POST /deepscans`. Depth is one bare word; there are no flags.
 - `doctor` reports state (it validates the key with `GET /tasks?limit=1` and shows the key source and its last 4 characters), directs missing or rejected connections to onboarding and `intent-check login`, and on Claude Code runs the host's plugin update commands (`hostUpdate`). It never starts sign-in.
@@ -43,9 +47,9 @@ Wait for review/merge of PRs 1-7 and the orchestrator's Codex e2e. Then M6 plugi
 - `intent deepscan [files or a folder] [fast|balanced|full]` (depth default fast) sends `depth` at the top level of the upload next to `meta`, records it in the scan file and names it with its expected time in the start message (fast 15-20 min, balanced 30-35, full 40-45). 
 - `POST /deepscans` busy (429 `RATE_LIMITED` with `Retry-After`) is retried once, then one line.
 
-## Open questions
+## Codex behavior
 
-- Codex does not load plugin `commands/` (not in its manifest handling; research/03 lists skills and hooks only), so Codex users turn checks off via the skill (`hooks.js off`, may need sandbox escalation) or `INTENT_DISABLED=1`.
+- Codex uses the plugin's skills and hooks, not its `commands/` slash commands. Users can turn checks off via the skill (`hooks.js off`, may need sandbox escalation) or `INTENT_DISABLED=1`.
 - `codex exec` prints only `hook: <Event> Completed`, never hook context; the e2e checks delivery through the plugin log (`hook.output` events) and by asking the model to quote it.
 
 ## Needs orchestrator

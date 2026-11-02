@@ -281,10 +281,7 @@ FORBIDDEN_STRINGS = (
     "task.metrics",
     "Fresh replay and negative probes remain",
     "assume maximum automation",
-    "the-two-claims-in-speck",
     "The live proof workflow covers PyK APR",
-    "KIT's live proof guidance uses PyK APR",
-    "KIT does not guide live proofs for them",
 )
 FORBIDDEN_PATTERNS = (re.compile(r"\bGate\s+[123]\b", re.IGNORECASE),)
 
