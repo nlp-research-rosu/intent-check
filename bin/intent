@@ -1,7 +1,7 @@
 #!/bin/sh
-# Optional POSIX launcher for the bare `intent` command. Registered hooks and plugin
-# commands run `node .../bin/hooks.js` directly; they do not use this launcher's
-# no-Node fallback. No bash, no dependencies.
+# POSIX launcher (issue #22): every hook and command routes through this script instead of
+# calling `node .../bin/hooks.js` directly, so a machine without Node degrades gracefully
+# instead of every hook failing silently. No bash, no dependencies.
 #
 # - Node >=18 on PATH: exec bin/hooks.js, replacing this process so stdin, stdout, stderr and
 #   the exit code (including the asyncRewake exit 2 + stderr) pass through unchanged.

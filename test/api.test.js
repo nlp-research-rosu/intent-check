@@ -1,4 +1,4 @@
-// The Intent Check API client against the fake service, in-process.
+// The prover client against the fake prover, in-process.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";

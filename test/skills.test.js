@@ -32,9 +32,10 @@ test("skills and prove.md: no .intent-check/ project path (the project folder is
   for (const f of [...mdFiles(SKILLS), path.join(ROOT, "commands", "prove.md")]) assert.doesNotMatch(fs.readFileSync(f, "utf8"), /(^|[^/\w])\.intent-check\//, f);
 });
 
-test("skills: relative markdown links resolve and comma spacing is clean", () => {
+test("skills: no prover-client left, and relative markdown links resolve", () => {
   for (const f of mdFiles(SKILLS)) {
     const src = fs.readFileSync(f, "utf8");
+    assert.doesNotMatch(src, /prover-client/, f);
     assert.doesNotMatch(src, / ,|,  /, `${path.relative(ROOT, f)}: stray comma spacing`);
     for (const m of src.matchAll(/\]\(([^)]+)\)/g)) {
       if (/^(https?:|#|mailto:)/.test(m[1])) continue;
