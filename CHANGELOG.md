@@ -6,6 +6,8 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-11-02
+
 ### Added
 
 - `intent-check view` serves a repository-aware live local viewer for saved evidence and active file checks. `--output` exports the same UI as a self-contained offline HTML report.
