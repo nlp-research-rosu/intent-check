@@ -123,7 +123,7 @@ function navigation(r) {
 }
 function activeChecks(r) {
   if (!r.active.length) return '';
-  return `<section><div class="section-heading"><h2>Active checks</h2>${badge(r.active.length, 'running')}</div><div class="card table-wrap"><table><thead><tr><th>Check</th><th>Target</th><th>Last local state</th><th>Submitted</th><th></th></tr></thead><tbody>${r.active.map(a => `<tr><td>${escape(a.kind)}<span class="subline mono">${escape(a.id.slice(0, 8))}</span></td><td>${(a.paths || []).map(escape).join('<br>') || '—'}</td><td>${status(a.status)}</td><td class="muted small">${date(a.submittedAt)}</td><td>${serviceLink(a.url)}</td></tr>`).join('')}</tbody></table></div><p class="scope-note">Submitted means the plugin is awaiting a result; it is not a confirmed server running state. Completed file reviews below remain the last saved results until replaced.</p></section>`;
+  return `<section><div class="section-heading"><h2>Active checks</h2>${badge(r.active.length, 'running')}</div><div class="card table-wrap"><table><thead><tr><th>Check</th><th>Target</th><th>Last local state</th><th>Submitted</th><th></th></tr></thead><tbody>${r.active.map(a => `<tr><td>${escape(a.kind)}<span class="subline mono">${escape(a.id.slice(0, 8))}</span></td><td>${(a.paths || []).map(escape).join('<br>') || '—'}</td><td>${status(a.status)}</td><td class="muted small">${date(a.submittedAt)}</td><td>${serviceLink(a.url)}</td></tr>`).join('')}</tbody></table></div></section>`;
 }
 function scanOutcome(s) {
   const count = (s.report?.cards?.length || 0) + (s.report?.one_liners?.length || 0);
@@ -133,11 +133,11 @@ function overview(r) {
   const rows = r.reviews.map(r => `<tr><td><button class="link-button mono" data-review="${escape(r.path)}">${escape(r.path)}</button><span class="subline">File review · last saved result</span></td><td>${status(r.meta.verdict)}</td><td class="mono small muted">${escape(r.meta.review_id.slice(0, 8))}</td><td class="small muted">${date(r.meta.reviewed_at)}</td></tr>`);
   rows.push(...r.scans.map(s => `<tr><td><button class="link-button" data-scan="${escape(s.path)}">${escape(s.meta.scope || 'Whole repository')}</button><span class="subline">DeepScan · ${escape(s.meta.depth)}</span></td><td>${scanOutcome(s)}</td><td class="mono small muted">${escape(s.meta.task_id?.slice(0, 8))}</td><td class="small muted">${date(s.meta.created_at)}</td></tr>`));
   rows.push(...r.operations.filter(o => o.evidence.task.kind === 'proof').map(o => `<tr><td><button class="link-button" data-file="${escape(o.path)}">Proof attempt</button><span class="subline">${escape(o.path.split('/').at(-2))}</span></td><td>${status(o.evidence.task.result || o.evidence.task.status)}</td><td class="mono small muted">${escape(o.evidence.task.id.slice(0, 8))}</td><td class="small muted">${date(o.evidence.task.finishedAt || o.evidence.task.createdAt)}</td></tr>`));
-  return heading(data.name, 'Actual reviews, scan reports and proof evidence saved for this repository.')
+  return heading(data.name, 'Reviews, scans and proof results for this repository.')
     + `<div class="stack"><div class="metrics">${[[r.active.length, 'Active checks'], [r.reviews.length, 'Files reviewed'], [r.scans.length, 'DeepScans'], [r.paths.length, 'Local artifacts']].map(([n, label]) => `<div class="card metric"><div class="label">${label}</div><div class="value">${n}</div></div>`).join('')}</div>`
     + activeChecks(r)
-    + (rows.length ? `<section><div class="section-heading"><h2>Saved results</h2></div><div class="card table-wrap"><table><thead><tr><th>Target</th><th>Result</th><th>Task</th><th>Recorded</th></tr></thead><tbody>${rows.join('')}</tbody></table></div></section>` : empty('No saved results yet', 'Run Intent Check in this repository. This page does not generate sample findings.'))
-    + `<div class="callout"><strong>Read the scope, not just the badge.</strong>File reviews are model analysis. A completed task is not necessarily a successful proof. A proof covers only its stated claims and assumptions. DeepScan supporting files remain on the service; only the final report and metadata are local.</div></div>`;
+    + (rows.length ? `<section><div class="section-heading"><h2>Saved results</h2></div><div class="card table-wrap"><table><thead><tr><th>Target</th><th>Result</th><th>Task</th><th>Recorded</th></tr></thead><tbody>${rows.join('')}</tbody></table></div></section>` : empty('No saved results yet', 'Run Intent Check in this repository.'))
+    + '</div>';
 }
 function reviewsPage(r) {
   const review = r.reviews.find(x => x.path === state.review) || r.reviews[0];
@@ -146,7 +146,7 @@ function reviewsPage(r) {
   const files = reviewFiles.filter(f => Object.hasOwn(data.files, `${review.path}/${f}`));
   const tab = files.includes(state.reviewTab) ? state.reviewTab : files[0];
   return heading(review.path, 'Last completed review saved for this source path.', status(review.meta.verdict) + serviceLink(review.meta.url))
-    + `<div class="stack">${activeChecks(r)}<div class="row small muted"><span>Reviewed ${date(review.meta.reviewed_at)}</span><span class="mono">SHA-256 ${escape(review.meta.source_sha256)}</span></div><div class="card"><div class="file-tabs" aria-label="Review artifacts">${files.map(f => `<button data-review-tab="${f}" class="${tab === f ? 'active' : ''}">${f}</button>`).join('')}</div>${fileView(`${review.path}/${tab}`)}</div><p class="scope-note">Artifacts are shown as saved. Only files emitted by this review are listed. “No concerns” does not establish formal correctness.</p></div>`;
+    + `<div class="stack">${activeChecks(r)}<div class="row small muted"><span>Reviewed ${date(review.meta.reviewed_at)}</span><span class="mono">SHA-256 ${escape(review.meta.source_sha256)}</span></div><div class="card"><div class="file-tabs" aria-label="Review artifacts">${files.map(f => `<button data-review-tab="${f}" class="${tab === f ? 'active' : ''}">${f}</button>`).join('')}</div>${fileView(`${review.path}/${tab}`)}</div></div>`;
 }
 function finding(card) {
   const level = String(card.severity || '').toLowerCase();
@@ -164,8 +164,7 @@ function scansPage(r) {
   else {
     const coverage = report.coverage || {};
     const list = items => `<ul>${(items || []).map(item => `<li>${escape(item)}</li>`).join('')}</ul>`;
-    body = `<div class="callout"><strong>Final saved report.</strong>The coverage section records the scan's checks and limitations. Supporting execution files remain remote. This view is not an independent replay or proof of the findings.</div>`
-      + (report.cards || []).map(finding).join('')
+    body = (report.cards || []).map(finding).join('')
       + ((report.one_liners || []).length ? `<div class="card card-body"><h2>Other findings</h2>${report.one_liners.map(c => `<p style="margin-top:12px">${status(c.severity)} ${inline(c.title)} <code>${escape(c.path)}:${escape(c.line)}</code></p>`).join('')}</div>` : '')
       + ((report.excluded_findings || []).length ? `<div class="card card-body"><h2>Excluded findings</h2>${report.excluded_findings.map(c => `<p style="margin-top:12px"><strong>${escape(c.title)}</strong> — ${escape(c.reason)}</p>`).join('')}</div>` : '')
       + `<div class="card card-body"><h2>Coverage</h2><dl class="kv"><dt>Files / bytes</dt><dd>${escape(coverage.file_count)} files · ${escape(coverage.bytes)} bytes</dd><dt>Checked</dt><dd>${list(coverage.checked)}</dd><dt>Not checked</dt><dd>${list(coverage.not_checked)}</dd><dt>Limitations</dt><dd>${list(coverage.notes)}</dd></dl></div>`;
@@ -175,7 +174,7 @@ function scansPage(r) {
 }
 function operationsView(r) {
   if (!r.operations.length) return empty('No CLI operations', 'Run, validation and proof results appear here when the CLI saves evidence.');
-  return `<div class="stack"><div class="callout"><strong>Lifecycle and result are separate.</strong>Validation checks source structure, not correctness. Read each proof's scope and backend result. Earlier failed attempts remain visible.</div>${r.operations.map(o => {
+  return `<div class="stack">${r.operations.map(o => {
     const task = o.evidence.task;
     return `<div class="card card-body"><div class="row between"><div><h3>${escape(human(task.kind))} · ${escape(o.path.split('/').at(-2))}</h3><p class="small mono muted">${escape(task.id)}</p></div><div class="row">${status(task.status)}${task.result ? status(task.result) : ''}</div></div><p class="small muted" style="margin-top:13px">${(task.toolRuns || []).map(run => `${escape(run.tool)}: exit ${escape(run.exitCode ?? 'not provided')}`).join(' · ') || 'No tool runs recorded'}</p><div class="row" style="margin-top:13px">${fileButton(o.path, 'Evidence result.json')}</div></div>`;
   }).join('')}</div>`;
@@ -190,12 +189,12 @@ function proofsPage(r) {
   if (!available.some(([id]) => id === state.proofTab)) state.proofTab = available[0][0];
   const tab = available.find(([id]) => id === state.proofTab);
   const body = state.proofTab === 'operations' ? operationsView(r) : `<div class="card">${fileView(target + tab[2])}</div>`;
-  return heading(target ? target.slice(6, -1) : 'Proofs', 'Formal proof artifacts and CLI operation evidence; scope comes from the saved files.') + select
+  return heading(target ? target.slice(6, -1) : 'Proofs', 'Proof reports, scope and CLI operations.') + select
     + `<div class="tabs">${available.map(([id, label]) => `<button data-proof-tab="${id}" class="${id === state.proofTab ? 'active' : ''}">${label}</button>`).join('')}</div>${body}`
     + (target ? `<div class="row" style="margin-top:16px">${r.paths.filter(p => p.startsWith(target) && !p.slice(target.length).includes('/') && !['PROOF.md', 'SCOPE.md'].includes(p.slice(target.length))).map(p => fileButton(p, p.slice(target.length))).join('')}</div>` : '');
 }
 function artifactsPage(r) {
-  if (!r.paths.length) return heading('All artifacts', 'Local evidence files.') + empty('No artifacts saved yet', 'The viewer does not create sample files.');
+  if (!r.paths.length) return heading('All artifacts', 'Local evidence files.') + empty('No artifacts saved yet', 'Run Intent Check in this repository.');
   if (!Object.hasOwn(data.files, state.file)) state.file = r.paths[0];
   const groups = new Map();
   for (const path of r.paths) {
@@ -203,7 +202,7 @@ function artifactsPage(r) {
     if (!groups.has(group)) groups.set(group, []);
     groups.get(group).push(path);
   }
-  return heading('All artifacts', 'Local evidence documents and result JSON. Hidden files, symlinks, credentials and plugin transcripts are not bundled.')
+  return heading('All artifacts', 'Browse local evidence files.')
     + `<div class="artifact-grid"><div class="card"><div style="padding:12px 12px 4px"><input class="filter" id="file-search" placeholder="Filter paths…" aria-label="Filter artifact paths" value="${escape(state.filter)}"></div><div class="artifact-tree">${[...groups].map(([name, paths]) => `<div class="tree-group"><div class="group">${name}</div>${paths.map(p => `<button data-artifact="${escape(p)}" class="mono ${p === state.file ? 'active' : ''}">${escape(p)}</button>`).join('')}</div>`).join('')}</div></div><div class="card" id="artifact-content">${fileView(state.file)}</div></div>`;
 }
 function filterArtifacts() {
