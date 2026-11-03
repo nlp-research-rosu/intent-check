@@ -32,7 +32,7 @@ Turn it off with `/intent:off` in Claude Code (back on with `/intent:on` or `/in
 
 Detailed steps for each tool, interface (desktop app, CLI, VS Code) and OS are in [docs/install.json](docs/install.json). The two sections below are the CLI short form.
 
-Requirements: Node.js 18+ on your `PATH` (get it at nodejs.org). The same goes for Codex.
+Requirements: the global `intent-check` CLI on your `PATH`, with plugin-runtime capabilities. The same goes for Codex. Use the `onboarding` skill to check the installed version against the latest stable release and install or update only when needed and authorized. Hooks never install software.
 
 In a Claude Code session, type:
 
@@ -75,7 +75,7 @@ The choice is saved in the plugin's `config.json` as `live`. `INTENT_LIVE=1` or 
 
 To revoke a machine's key, use the Intent Check console. Uninstalling the plugin does not remove the saved key, because the `intent-check` command shares it; delete `credentials.json` (see below) to sign out.
 
-On Codex, ask the agent ("turn live mode on", "run the Intent Check doctor"); it runs the plugin's `hooks.js live`, `on`, `off` or `doctor`, which may need your approval to write outside the sandbox. Hooks run `node` directly (Node.js 18+ on your PATH).
+On Codex, ask the agent ("turn live mode on", "run the Intent Check doctor"); it runs `intent-check live`, `on`, `off` or `doctor` with the plugin's host/root identity, which may need your approval to write outside the sandbox. Hooks and detached workers run the native CLI; Node.js is not required.
 
 ## Signing in
 
@@ -192,15 +192,15 @@ Then start `codex` and choose "Trust all and continue" when it says the plugin's
 
 Intent Check 0.2.0 updated its edit hook (it now also runs after `apply_patch` and shell commands in live mode). If Codex lists it as Modified, approve it in `/hooks` (or the app's hook review); the first session after the update says so once.
 
-Codex hooks are plain command strings, so the same `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" ...` line serves every OS.
-- Codex cannot wake an idle session, so concerns reach the agent with your next message (or at the end of the same turn, if the check already finished). Clean checks show one short "no concerns" line the next time you prompt.
-- Codex does not load plugin slash commands. Ask the agent instead ("turn Intent Check off", "turn live mode on", "run the Intent Check doctor"); it runs the plugin's `hooks.js off`, `live` or `doctor`, which may need your approval to write outside the sandbox. `INTENT_DISABLED=1` when starting Codex also turns checks off.
+Both hosts launch the global native CLI through full command strings. Claude hooks read the host-exported plugin root and data environment variables directly, avoiding shell-specific path interpolation; detached children receive that identity as explicit arguments. Codex retains its quoted plugin-root argument.
+- Codex cannot wake an idle session, so concerns reach the agent with your next message (or at the end of the same turn, if the check already finished). Clean checks stay silent on Codex.
+- Codex does not load plugin slash commands. Ask the agent instead ("turn Intent Check off", "turn live mode on", "run the Intent Check doctor"); it runs `intent-check off`, `live` or `doctor` with the installed plugin identity, which may need your approval to write outside the sandbox. `INTENT_DISABLED=1` when starting Codex also turns checks off.
 - To ask for a review, ask the agent to check specific files ("check auth.py with Intent Check"), or for a whole-repo scan, ask for a DeepScan.
 - The doctor does not update the plugin on Codex; update it from Codex's plugin list.
 
 ## DeepScan
 
-`/intent:deepscan` is the one command for a review on demand (Codex: ask the agent, it runs `hooks.js deepscan`). What it does depends on what you name:
+`/intent:deepscan` is the one command for a review on demand (Codex: ask the agent, it runs `intent-check deepscan`). What it does depends on what you name:
 
     /intent:deepscan [files or a folder] [fast|balanced|full]
 
@@ -249,8 +249,9 @@ supporting files remain remote. Offline exports do not refresh.
 
 ## Development
 
-- Zero runtime dependencies. Plain ESM JavaScript, Node 18 syntax.
+- The native Rust CLI owns hooks, capture, reviews, DeepScan and detached workers. Browser JavaScript powers the local viewer; Node.js is only needed for development tooling.
 - `npm test` (node:test). `npm run test:integration` runs the real `claude -p` and `codex exec` against a mock model API and a fake Intent Check service (no LLM, no secrets; skips a CLI that is not installed); CI runs it on Linux, macOS and Windows. `test/e2e/claude-e2e.sh` drives a real Claude Code session through tmux; `test/e2e/codex-e2e.sh` runs `codex exec` in an isolated `CODEX_HOME`.
+- The legacy JavaScript runtime suites still import the removed `lib/` modules and launch `bin/hooks.js`; they need native-entrypoint migration before they can validate this runtime.
 - Backend: the Intent Check service API (`nlp-research-rosu/prover`). Its `openapi.yaml` is the contract; `test/helpers/fake-prover.js` mirrors it for tests.
 - CLI: `cli/` (Rust). `cargo fmt --check`, `cargo clippy --locked -- -D warnings`, `cargo test --locked`, and the scripts in `cli/tests/` (each takes the binary path).
 - `INTENT_DEBUG=1` adds one line per hook call to `intent.log` in the plugin data folder. Test-only: `INTENT_PIPELINE=llm|canned` (honoured only where the server allows overrides), `INTENT_DEEPSCAN_POLL_MS` and `INTENT_DEEPSCAN_BUSY_MS` (waits in tests).

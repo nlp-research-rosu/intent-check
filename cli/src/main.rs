@@ -4,6 +4,7 @@ mod config;
 mod help;
 mod inputs;
 mod requirements;
+mod runtime;
 mod semantics;
 mod session;
 mod storage;
@@ -27,6 +28,20 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Enable end-of-turn source reviews.
+    On(runtime::PublicArgs),
+    /// Disable automatic reviews and uploads.
+    Off(runtime::PublicArgs),
+    /// Enable source review after each edit as well as at turn end.
+    Live(runtime::PublicArgs),
+    /// Inspect connection and review status; repair the plugin connection/update when enabled.
+    Doctor(runtime::PublicArgs),
+    /// Queue an explicit review of named files for the next turn end.
+    Review(runtime::ReviewArgs),
+    /// Scan the repository or one folder; named files queue a review instead.
+    Deepscan(runtime::ReviewArgs),
+    /// Show installed plugin-runtime capabilities without network access.
+    Runtime,
     /// Manage schema-validated local requirements. REQUIREMENTS.md remains directly editable.
     #[command(subcommand, after_help = help::REQUIREMENTS)]
     Requirements(requirements::Command),
@@ -200,7 +215,32 @@ pub struct ProveArgs {
 pub type CommandResult = anyhow::Result<(i32, Value)>;
 
 fn main() {
-    let (exit, value) = dispatch(Cli::parse()).unwrap_or_else(|error| {
+    if let Some(exit) = runtime::entry() {
+        process::exit(exit);
+    }
+    let cli = Cli::parse();
+    let public = match &cli.command {
+        Command::On(args) => Some(runtime::public("on", args, cli.project.as_deref(), &[])),
+        Command::Off(args) => Some(runtime::public("off", args, cli.project.as_deref(), &[])),
+        Command::Live(args) => Some(runtime::public("live", args, cli.project.as_deref(), &[])),
+        Command::Doctor(args) => Some(runtime::public("doctor", args, cli.project.as_deref(), &[])),
+        Command::Review(args) => Some(runtime::review("review", args, cli.project.as_deref())),
+        Command::Deepscan(args) => Some(runtime::review("deepscan", args, cli.project.as_deref())),
+        _ => None,
+    };
+    if let Some(result) = public {
+        match result {
+            Ok(text) => {
+                println!("{text}");
+                process::exit(0);
+            }
+            Err(error) => {
+                eprintln!("Intent Check: {error}");
+                process::exit(1);
+            }
+        }
+    }
+    let (exit, value) = dispatch(cli).unwrap_or_else(|error| {
         (
             1,
             json!({"status": "failure", "message": error.to_string()}),
@@ -229,6 +269,15 @@ fn dispatch(cli: Cli) -> CommandResult {
         std::env::set_current_dir(project)?;
     }
     match cli.command {
+        Command::Runtime => Ok((0, runtime::capabilities())),
+        Command::On(_)
+        | Command::Off(_)
+        | Command::Live(_)
+        | Command::Doctor(_)
+        | Command::Review(_)
+        | Command::Deepscan(_) => {
+            unreachable!("Public runtime commands dispatched before JSON output")
+        }
         Command::Requirements(command) => requirements::dispatch(command),
         Command::View(args) => viewer::view(args),
         Command::Login => auth::login(),

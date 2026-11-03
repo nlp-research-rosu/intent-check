@@ -2,7 +2,7 @@
   "name": "intent-check",
   "version": "1.0.3",
   "private": true,
-  "description": "Intent Check plugin for Claude Code and Codex. Zero runtime dependencies.",
+  "description": "Intent Check plugin for Claude Code and Codex, powered by the native intent-check CLI.",
   "type": "module",
   "engines": {
     "node": ">=18"

@@ -40,6 +40,7 @@ pub fn intent(root: &Path, create: bool) -> Result<PathBuf> {
     if create {
         fs::create_dir_all(&dir)?;
         for (name, text) in [
+            ("README.md", include_str!("evidence-readme.md")),
             ("REQUIREMENTS.md", crate::requirements::BRIEF),
             (".ignore", "*\n"),
             (".gitignore", ".sent.log\n.queue\n"),

@@ -351,6 +351,25 @@ pub fn brief(root: &Path) -> Result<Option<String>> {
     Ok(Some(fs::read_to_string(file)?))
 }
 
+pub(crate) fn context(root: &Path, paths: &[String]) -> Result<serde_json::Value> {
+    for path in paths {
+        relative_path(path)?;
+    }
+    let docs = documents(root)?;
+    let records: Vec<_> = docs
+        .iter()
+        .flat_map(|(_, _, doc)| &doc.requirements)
+        .filter(|record| {
+            paths.is_empty()
+                || record
+                    .targets
+                    .iter()
+                    .any(|target| paths.contains(&target.path))
+        })
+        .collect();
+    Ok(json!({"schema_version":1,"brief":brief(root)?,"requirements":records}))
+}
+
 pub fn dispatch(command: Command) -> CommandResult {
     let root = session::project_root(&std::env::current_dir()?)?;
     let mut docs = documents(&root)?;

@@ -32,8 +32,19 @@ Get-Command intent-check
 intent-check --version
 ```
 
-Check for CLI updates using the released installer below, even if the CLI
-is already installed.
+Read the latest stable release tag from
+`https://api.github.com/repos/nlp-research-rosu/intent-check/releases/latest`
+and compare it with `intent-check --version`. Reuse an installed current stable
+CLI. Do not select main, a pull request or a prerelease automatically.
+
+For automatic reviews or DeepScan, run `intent-check runtime` and verify that
+`capabilities` includes `hooks-v1`, `requirements-context-v1`, `reviews-v1` and
+`deepscan-v1`. For requirements, also check `intent-check requirements context --help`.
+If the installed CLI is missing, outdated or lacks a required capability, explain
+what installation/update is needed and obtain authorization unless the user already
+requested it. Then use the published checksum-verifying installer below. If the latest
+stable release still lacks the capability, report that limitation; do not install a
+development build or repeatedly reinstall. Hooks never install or update software.
 
 On macOS or Linux, install or update with:
 
@@ -53,7 +64,7 @@ Invoke-WebRequest `
 
 The installers select the platform binary, verify its checksum and configure
 PATH. Start a new terminal or agent session, or run the shell command printed
-by the installer, then repeat the detection commands above.
+by the installer, then repeat the version and required capability checks above.
 
 ## Connect to Intent Check
 
