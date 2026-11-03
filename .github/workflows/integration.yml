@@ -39,6 +39,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - name: Build matching CLI for plugin tests
+        run: cargo build --manifest-path cli/Cargo.toml --locked
+      - name: Add matching CLI to PATH
+        shell: bash
+        run: echo "$GITHUB_WORKSPACE/cli/target/debug" >> "$GITHUB_PATH"
       - name: Install the CLIs
         shell: bash
         env:

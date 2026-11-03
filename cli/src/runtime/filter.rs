@@ -223,7 +223,7 @@ fn code(bytes: &mut [u8], mut i: usize, brace: bool) -> usize {
             let previous = bytes[..i]
                 .iter()
                 .rev()
-                .find(|b| ![b' ', b'\t', b'\r'].contains(b))
+                .find(|b| !b" \t\r".contains(b))
                 .copied()
                 .unwrap_or(b'\n');
             if b"\n(,=:[!&|?{};".contains(&previous) {
