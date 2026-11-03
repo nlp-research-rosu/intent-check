@@ -1,4 +1,4 @@
-// Test harness: temp data dirs, throwaway git repos, and running bin/hooks.js like Claude Code does.
+// Test harness: temp data dirs, throwaway git repos, and the checkout-built native runtime.
 import { spawn, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-export const BIN = path.join(ROOT, "bin", "hooks.js");
+export const BIN = path.join(ROOT, "cli", "target", "debug", process.platform === "win32" ? "intent-check.exe" : "intent-check");
 export const FIXTURES = path.join(ROOT, "test", "fixtures", "claude");
 
 // Resolve assertions against the latest saved generation, not the removed mutable unit folder.
@@ -59,11 +59,14 @@ export function baseEnv(dataDir, apiUrl, extra = {}) {
   return { ...env, CLAUDE_PLUGIN_DATA: dataDir, XDG_CONFIG_HOME: xdgDir(dataDir), INTENT_API_URL: apiUrl, INTENT_CONSOLE_URL: apiUrl, CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PLUGIN_ROOT: ROOT, INTENT_LIVE: "0", ...extra };
 }
 
-// Run one hook like Claude Code: JSON on stdin, capture stdout/stderr/exit code.
+// Run a native hook or public command: JSON on stdin, capture stdout/stderr/exit code.
 export function runHook(event, payload, env, { timeoutMs = 60000, onSpawn } = {}) {
   return new Promise((resolve) => {
     const t0 = Date.now();
-    const child = spawn(process.execPath, [BIN, event], { env, cwd: payload && payload.cwd && fs.existsSync(payload.cwd) ? payload.cwd : ROOT });
+    const args = ["on", "off", "live", "doctor", "review", "deepscan"].includes(event)
+      ? [event]
+      : ["__hook", "--host", "claude-code", event];
+    const child = spawn(BIN, args, { env, cwd: payload && payload.cwd && fs.existsSync(payload.cwd) ? payload.cwd : ROOT });
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (d) => { stdout += d; });

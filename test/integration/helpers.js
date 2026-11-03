@@ -3,7 +3,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
-import { tmpdir } from "../helpers/env.js";
+import { BIN, tmpdir } from "../helpers/env.js";
 
 const WIN = process.platform === "win32";
 
@@ -26,7 +26,7 @@ export function cleanEnv(extra = {}) {
     if (k === "CLAUDE_CODE_GIT_BASH_PATH") continue; // where Claude Code finds Git Bash on Windows
     if (/^(INTENT_|CLAUDE|ANTHROPIC_|CODEX_|OPENAI_)/i.test(k) || k === "DO_NOT_TRACK") delete env[k];
   }
-  return { ...env, ...extra };
+  return { ...env, PATH: [path.dirname(BIN), env.PATH].filter(Boolean).join(path.delimiter), ...extra };
 }
 
 const q = (a) => (/[\s"&|<>^()%!]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a);
@@ -70,10 +70,11 @@ export function runCli(bin, args, { env, cwd, timeoutMs = 55000, input = "" } = 
 
 export const basename = (p) => path.basename(p);
 
-// A PATH that has what Claude Code and the hooks' git calls need, and no node. `oldNode` adds a
+// A PATH with the checkout-built runtime and the hooks' git tools, but no node. `oldNode` adds a
 // `node` that reports itself as 16.1.0 (the real binary behind it, with process.versions patched).
 export function toolsDir({ oldNode = false } = {}) {
   const dir = tmpdir("intent-it-path-");
+  fs.symlinkSync(BIN, path.join(dir, path.basename(BIN)));
   for (const t of ["git", "sh", "bash", "env", "uname", "dirname", "mkdir", "rm", "cat", "ls", "sed", "grep", "head", "tr", "date", "id", "sleep", "readlink", "basename", "chmod", "cp", "mv", "touch", "ps", "pwd", "sort", "wc"]) {
     const r = spawnSync("which", [t], { encoding: "utf8" });
     const p = r.status === 0 ? r.stdout.trim() : "";
