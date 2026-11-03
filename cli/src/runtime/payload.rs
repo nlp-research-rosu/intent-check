@@ -364,3 +364,429 @@ fn host_version(payload: &Value) -> String {
         .map(|c| clip(&c[1], 40))
         .unwrap_or_else(|| "unknown".into())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::runtime::tests::Fixture;
+
+    fn file(f: &Fixture, rel: &str, text: &str, diff: Option<&str>) -> FileChange {
+        let diff = diff
+            .map(str::to_owned)
+            .unwrap_or_else(|| capture::new_diff(rel, text));
+        FileChange {
+            rel: rel.into(),
+            abs: f.root.join(rel),
+            bytes: text.as_bytes().to_vec(),
+            text: text.into(),
+            changed: capture::changed(&diff),
+            diff: Some(diff),
+            worktree: false,
+        }
+    }
+
+    fn build_files(f: &Fixture, files: &[FileChange]) -> Result<Option<Built>> {
+        let snap = json!({"prompts":["Add a helper that applies a percentage discount. It should never go below zero.",format!("also use key sk-proj-{}", "Zq8".repeat(14))],"first_prompt":"Build me a pricing module for the shop","plan":"1. Add apply_discount","todos":["Add apply_discount","Clamp at zero"]});
+        let stop = json!({"permission_mode":"acceptEdits","last_assistant_message":"Added apply_discount. It handles all the edge cases."});
+        build(
+            &f.rt,
+            &f.root,
+            files,
+            BuildContext {
+                snap: &snap,
+                stop: &stop,
+                key: "e43a48a0bbd65fcbe24d5a8b665b86a3",
+                turn: "turn-3",
+                mode: "edit",
+                edit: false,
+            },
+        )
+    }
+
+    #[test]
+    fn request_fields_hash_redaction_and_threshold() {
+        let f = Fixture::new();
+        let source = "# pricing.py\ndef apply_discount(price_cents: int, percent: int) -> int:\n    return price_cents - price_cents * percent // 100\n";
+        let b = build_files(&f, &[file(&f, "pricing.py", source, None)])
+            .expect("build request")
+            .expect("eligible request");
+        assert_eq!(b.request["mode"], "edit");
+        assert_eq!(b.request["changed_lines"], 3);
+        assert_eq!(
+            b.request["units"][0]["sha256"],
+            "a949e6048d964c91f2a1587532adda76e4348d987f3c78cdf6c47f5b7b94a510"
+        );
+        assert_eq!(
+            b.request["intent"]["first_prompt"],
+            "Build me a pricing module for the shop"
+        );
+        assert_eq!(
+            b.request["intent"]["agent_message"],
+            "Added apply_discount. It handles all the edge cases."
+        );
+        assert!(!b.request.to_string().contains("Zq8Zq8Zq8"));
+        assert_eq!(b.redactions, 1);
+        assert!(
+            build_files(&f, &[file(&f, "a.py", "x = 1\ny = 2\n", None)])
+                .expect("small request")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn unit_and_changed_line_caps_drop_later_files() {
+        let f = Fixture::new();
+        let files: Vec<_> = (0..12)
+            .map(|i| file(&f, &format!("m{i}.py"), "a\nb\nc\n", None))
+            .collect();
+        let b = build_files(&f, &files)
+            .expect("build capped request")
+            .expect("eligible request");
+        assert_eq!(array(&b.request["units"]).len(), 10);
+        assert_eq!(b.request["truncated"], true);
+        let big = (0..1400)
+            .map(|i| format!("x{i} = {i}\n"))
+            .collect::<String>();
+        let files = [
+            file(&f, "big.py", &big, None),
+            file(&f, "more.py", &"y = 1\n".repeat(200), None),
+            file(&f, "c.py", "a\nb\nc\n", None),
+        ];
+        let b = build_files(&f, &files)
+            .expect("build capped request")
+            .expect("eligible request");
+        assert_eq!(
+            array(&b.request["units"])
+                .iter()
+                .map(|u| string(&u["path"]))
+                .collect::<Vec<_>>(),
+            vec!["big.py", "c.py"]
+        );
+        assert_eq!(b.request["truncated"], true);
+    }
+
+    #[test]
+    fn touched_regions_preserve_line_coordinates_and_eof() {
+        let body = |n| (1..=n).map(|i| format!("line {i}\n")).collect::<String>();
+        for (n, diff, want) in [
+            (
+                3000,
+                "@@ -100,1 +100,2 @@\n-line 100\n+line 100\n+line 101\n@@ -2500,0 +2501,1 @@\n+line 2501\n",
+                json!([{"start":60,"end":141},{"start":2461,"end":2541}]),
+            ),
+            (
+                3000,
+                "@@ -2998,1 +2998,3 @@\n+a\n+b\n",
+                json!([{"start":2958,"end":3000}]),
+            ),
+            (
+                3000,
+                "@@ -100,1 +100,1 @@\n-x\n+y\n@@ -2999,0 +3000,1 @@\n+z\n",
+                json!([{"start":60,"end":140},{"start":2960,"end":3000}]),
+            ),
+            (
+                3000,
+                "@@ -3001,2 +3000,0 @@\n-gone\n-gone\n",
+                json!([{"start":2960,"end":3000}]),
+            ),
+            (
+                2000,
+                "@@ -5000,1 +5000,1 @@\n-a\n+b\n",
+                json!([{"start":1,"end":1500}]),
+            ),
+        ] {
+            let (text, cut, regions) = unit_content(&body(n), Some(diff));
+            assert!(cut, "{diff}");
+            assert_eq!(regions, Some(want.clone()), "{diff}");
+            let parts: Vec<_> = text.split("\n...\n").collect();
+            assert_eq!(parts.len(), array(&want).len());
+            for (part, range) in parts.iter().zip(array(&want)) {
+                let a = number(&range["start"]);
+                let b = number(&range["end"]);
+                assert!(a >= 1 && a <= b && b <= n as u64, "{range}");
+                assert_eq!(part.lines().count() as u64, b - a + 1);
+                assert!(
+                    part.starts_with(&format!("line {a}\n"))
+                        && part.ends_with(&format!("line {b}")),
+                    "{range}"
+                );
+            }
+            assert!(!text.ends_with('\n'));
+        }
+        let content = body(1500);
+        assert_eq!(
+            unit_content(&content, Some("@@ -1,1 +1,1 @@\n-a\n+b\n")),
+            (content.clone(), false, None)
+        );
+        assert!(unit_content(&(content + "extra\n"), None).1);
+        let f = Fixture::new();
+        let b = build_files(
+            &f,
+            &[file(
+                &f,
+                "big.py",
+                &body(2000),
+                Some("@@ -1000,1 +1000,1 @@\n-a\n+b\n@@ -1500,0 +1500,1 @@\n+x\n"),
+            )],
+        )
+        .expect("build regions")
+        .expect("eligible request");
+        assert_eq!(
+            b.request["units"][0]["regions"],
+            json!([{"start":960,"end":1040},{"start":1460,"end":1540}])
+        );
+        assert_eq!(b.request["units"][0]["content_truncated"], true);
+        let small = build_files(&f, &[file(&f, "s.py", "a\nb\nc\n", None)])
+            .expect("small build")
+            .expect("small request");
+        assert!(small.request["units"][0].get("regions").is_none());
+    }
+
+    #[test]
+    fn prior_reads_latest_generation_and_optional_verification() {
+        let f = Fixture::new();
+        for (i, name) in ["status-done-concerns.json", "status-done-no-concerns.json"]
+            .iter()
+            .enumerate()
+        {
+            let raw = fs::read(
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../test/fixtures/api/examples")
+                    .join(name),
+            )
+            .expect("read fixture");
+            let ex: Value = serde_json::from_slice(&raw).expect("parse fixture");
+            let unit = &ex["result"]["units"][0];
+            let dir = format!(".intent/files/pricing.py/checks/{}", string(&ex["job_id"]));
+            crate::storage::intent(&f.root, true).expect("scaffold");
+            f.write(&format!("{dir}/meta.json"),&json!({"path":"pricing.py","review_id":ex["job_id"],"source_sha256":unit["checked_sha256"],"submitted_at":i+1}).to_string());
+            for (name, text) in unit["artifacts"].as_object().expect("fixture artifacts") {
+                f.write(&format!("{dir}/{name}"), string(text));
+            }
+            let p =
+                prior(&f.root, "pricing.py", &redact::Redactor::new()).expect("prior artifacts");
+            assert_eq!(p["source_sha256"], unit["checked_sha256"]);
+            assert!(string(&p["spec_k"]).contains("PRICING-SPEC"));
+            if i == 0 {
+                assert!(p["verification_k"].is_null());
+            } else {
+                assert!(string(&p["verification_k"]).contains("PRICING-VERIFICATION"));
+                assert!(string(&p["verification_k"]).contains("floordiv"));
+            }
+            let b = build_files(&f, &[file(&f, "pricing.py", "a\nb\nc\n", None)])
+                .expect("build with prior")
+                .expect("request");
+            assert_eq!(b.request["units"][0]["prior"], p);
+        }
+        assert!(prior(&f.root, "other.py", &redact::Redactor::new()).is_none());
+    }
+
+    #[test]
+    fn prior_artifacts_ignore_oversized_and_symlinked_files_and_redact_contents() {
+        let f = Fixture::new();
+        f.write(
+            ".intent/files/app.py/checks/j/meta.json",
+            r#"{"path":"app.py","review_id":"j","submitted_at":1}"#,
+        );
+        f.write(
+            ".intent/files/app.py/checks/j/SPEC.k",
+            &"x".repeat(70 * 1024),
+        );
+        f.write(
+            ".intent/files/app.py/checks/j/SEMANTICS.k",
+            "token = \"Xk29fLq8Zr4Tw7Vb\"\n",
+        );
+        let p = prior(&f.root, "app.py", &redact::Redactor::new()).expect("prior semantics");
+        assert!(p["intent_md"].is_null());
+        assert!(p["spec_k"].is_null());
+        assert!(!string(&p["semantics_k"]).contains("Xk29fLq8Zr4Tw7Vb"));
+        #[cfg(unix)]
+        {
+            let outside = Fixture::new();
+            let credentials =
+                outside.write("credentials", "aws_secret_access_key = Xk29fLq8Zr4Tw7Vb\n");
+            std::os::unix::fs::symlink(
+                credentials,
+                f.root.join(".intent/files/app.py/checks/j/INTENT.md"),
+            )
+            .expect("symlink prior artifact");
+            let p = prior(&f.root, "app.py", &redact::Redactor::new()).expect("prior semantics");
+            assert!(p["intent_md"].is_null());
+            std::os::unix::fs::symlink(f.root.join(".intent"), outside.root.join(".intent"))
+                .expect("symlink intent root");
+            assert!(prior(&outside.root, "app.py", &redact::Redactor::new()).is_none());
+        }
+    }
+
+    #[test]
+    fn prior_chooses_newest_submission_even_when_older_evidence_arrives_late() {
+        let f = Fixture::new();
+        for (id, submitted, content) in [
+            ("N", Some(2000), "new"),
+            ("O", Some(1000), "old"),
+            ("L", None, "legacy"),
+        ] {
+            let dir = format!(".intent/files/a.py/checks/{id}");
+            f.write(
+                &format!("{dir}/meta.json"),
+                &json!({"path":"a.py","review_id":id,"submitted_at":submitted}).to_string(),
+            );
+            f.write(&format!("{dir}/INTENT.md"), content);
+            assert_eq!(
+                prior(&f.root, "a.py", &redact::Redactor::new()).expect("latest prior")["intent_md"],
+                "new"
+            );
+        }
+    }
+
+    #[test]
+    fn clipped_context_keeps_complete_unicode_and_removes_nuls() {
+        let f = Fixture::new();
+        let text = format!("{}😀tail", "a".repeat(3999));
+        assert_eq!(clip(&text, 4000).encode_utf16().count(), 3999);
+        let files = [file(&f, "a.py", "x = 1\ny = 2\nz = 3\n", None)];
+        let snap = json!({"prompts":[text,"lone � and nul \0"]});
+        let built = build(
+            &f.rt,
+            &f.root,
+            &files,
+            BuildContext {
+                snap: &snap,
+                stop: &json!({}),
+                key: "s",
+                turn: "t",
+                mode: "edit",
+                edit: false,
+            },
+        )
+        .expect("build unicode request")
+        .expect("unicode request");
+        let bytes = built.request.to_string();
+        assert!(!bytes.contains("\\u0000"));
+        assert!(serde_json::from_str::<Value>(&bytes).is_ok());
+        assert_eq!(redact::Redactor::new().text("a\0b�c").0, "ab�c");
+    }
+
+    #[test]
+    fn brief_context_redaction_limits_and_consumed_bindings() {
+        let f = Fixture::new();
+        f.write(
+            ".intent/REQUIREMENTS.md",
+            &format!(
+                "- Coupons intentionally never expire; the docstring is stale. Key sk-proj-{}\n",
+                "Zq8".repeat(14)
+            ),
+        );
+        let b = build_files(&f, &[file(&f, "pricing.py", "a\nb\nc\n", None)])
+            .expect("build brief")
+            .expect("request");
+        assert!(
+            string(&b.request["intent"]["notes"]).contains("Coupons intentionally never expire")
+        );
+        assert!(!string(&b.request["intent"]["notes"]).contains("Zq8Zq8Zq8"));
+        f.write("pricing.py", "a\nb\nc\n");
+        f.write(".intent/REQUIREMENTS.md", &"x".repeat(5000));
+        f.write(".intent/files/pricing.py/requirements.json",r#"{"schema_version":1,"requirements":[{"id":"REQ-001","statement":"Prices remain nonnegative","targets":[{"path":"pricing.py","symbol":"apply_discount"}]}]}"#);
+        let b = build_files(&f, &[file(&f, "pricing.py", "a\nb\nc\n", None)])
+            .expect("limited brief")
+            .expect("request");
+        assert_eq!(string(&b.request["intent"]["notes"]).len(), 4000);
+        assert_eq!(b.binding["brief"]["partial"], true);
+        assert_eq!(b.request["truncated"], true);
+        assert_eq!(b.binding["records"], json!([]));
+        assert_eq!(
+            b.binding["excluded"],
+            json!([{"id":"REQ-001","reason":"context_limit"}])
+        );
+        for text in [None, Some("")] {
+            let f = Fixture::new();
+            if let Some(text) = text {
+                f.write(".intent/REQUIREMENTS.md", text);
+            }
+            let b = build_files(&f, &[file(&f, "pricing.py", "a\nb\nc\n", None)])
+                .expect("empty brief")
+                .expect("request");
+            assert!(b.request["intent"].get("notes").is_none());
+        }
+        let f = Fixture::new();
+        f.write(".intent/REQUIREMENTS.md", &"x".repeat(1024 * 1024 + 1));
+        assert!(build_files(&f, &[file(&f, "pricing.py", "a\nb\nc\n", None)]).is_err());
+    }
+
+    #[test]
+    fn idempotency_depends_on_session_turn_paths_and_hashes() {
+        let sent = json!([{"rel":"a.py","sha256":"1"}]);
+        let a = idem("s", "t", &sent);
+        assert_eq!(a, idem("s", "t", &sent));
+        assert_ne!(a, idem("s", "t2", &sent));
+        assert_ne!(a, idem("s2", "t", &sent));
+        assert_ne!(a, idem("s", "t", &json!([{"rel":"b.py","sha256":"1"}])));
+        assert_ne!(a, idem("s", "t", &json!([{"rel":"a.py","sha256":"2"}])));
+        assert!(re(r"^[0-9a-f]{64}$").is_match(&a));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_brief_fails_closed() {
+        let f = Fixture::new();
+        let outside = Fixture::new();
+        let target = outside.write("secret.md", "- leaked\n");
+        f.write(".intent/placeholder", "");
+        std::os::unix::fs::symlink(target, f.root.join(".intent/REQUIREMENTS.md"))
+            .expect("symlink brief");
+        let error = match build_files(&f, &[file(&f, "pricing.py", "a\nb\nc\n", None)]) {
+            Err(e) => e,
+            Ok(_) => panic!("symlinked brief accepted"),
+        };
+        assert!(
+            error
+                .to_string()
+                .contains("requirements could not be validated"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn turn_snapshot_excludes_later_prompts_and_later_first_prompt() {
+        let s = json!({"prompts":["Add discount helpers. The result must never go below zero.","Now rename everything to snake_case"],"prompt_ids":["turn-aaaa","turn-bbbb"],"first_prompt":"Add discount helpers. The result must never go below zero.","first_prompt_id":"turn-aaaa","turn_id":"turn-bbbb"});
+        let a = prompts_up_to(&s, "turn-aaaa");
+        assert_eq!(
+            a["prompts"],
+            json!(["Add discount helpers. The result must never go below zero."])
+        );
+        assert_eq!(a["turn_id"], "turn-aaaa");
+        assert_eq!(a["first_prompt"], s["first_prompt"]);
+        let mut later = s.clone();
+        later["prompts"][0] = json!("ok");
+        later["first_prompt_id"] = json!("turn-bbbb");
+        assert!(prompts_up_to(&later, "turn-aaaa")["first_prompt"].is_null());
+        for turn in ["turn-bbbb", "turn-zzzz", ""] {
+            assert_eq!(prompts_up_to(&s, turn)["prompts"], s["prompts"]);
+        }
+        assert_eq!(prompts_up_to(&s, "")["turn_id"], "turn-bbbb");
+    }
+
+    #[test]
+    fn codex_transcript_uses_latest_modes_and_requires_explicit_unrestricted_approval() {
+        let mut f = Fixture::new();
+        f.rt.host = "codex".into();
+        let transcript =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../test/fixtures/codex/rollout.jsonl");
+        let payload = json!({"transcript_path":transcript});
+        assert_eq!(
+            codex_modes(&payload),
+            json!({"approval_policy":"on-request","sandbox":"workspace-write","collaboration_mode":"default"})
+        );
+        assert_eq!(permission(&f.rt, &payload), "default");
+        assert_eq!(host_version(&payload), "0.147.0");
+        for (approval, sandbox, mode, want) in [
+            ("never", "workspace-write", "default", "bypassPermissions"),
+            ("never", "read-only", "default", "default"),
+            ("never", "danger-full-access", "plan", "default"),
+        ] {
+            let path=f.write("rollout.jsonl",&format!("{}\n{}\n",json!({"type":"turn_context","payload":{"approval_policy":"on-request"}}),json!({"type":"turn_context","payload":{"approval_policy":approval,"sandbox_policy":{"type":sandbox},"collaboration_mode":{"mode":mode}}})));
+            assert_eq!(permission(&f.rt, &json!({"transcript_path":path})), want);
+        }
+        assert_eq!(permission(&f.rt, &json!({})), "default");
+    }
+}

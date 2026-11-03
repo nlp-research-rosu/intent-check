@@ -99,7 +99,7 @@ test("failed job: one user note, /intent:doctor shows the error, last check not 
   assert.equal(r.code, 0);
   assert.ok(await waitFor(() => (readSessionFiles(ctx.data)[0] || { notes: [] }).notes.length > 0));
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "thanks" }), ctx.env);
-  assert.match(next.json.systemMessage, /^Intent Check could not finish checking `pricing\.py`, so there is no report for it\. Run \/intent:deepscan with the files to try again\. · http:\/\/127\.0\.0\.1:\d+\/tasks\/[0-9a-f-]{36}$/);
+  assert.match(next.json.systemMessage, /^Intent Check could not finish checking `pricing\.py`, so there is no report for it\. Run intent-check review with the files to try again\. · http:\/\/127\.0\.0\.1:\d+\/tasks\/[0-9a-f-]{36}$/);
   assert.doesNotMatch(next.json.systemMessage, /[\u2013\u2014]/);
   const again = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "and again" }), ctx.env);
   assert.equal(again.stdout, "");
@@ -125,16 +125,10 @@ test("failed job: Codex shows the note too (it drops only quiet notes)", async (
   const ctx = setup();
   await turn(ctx, { "pricing.py": PRICING });
   assert.ok(await waitFor(() => (readSessionFiles(ctx.data)[0] || { notes: [] }).notes.length > 0));
-  const { drainNotes } = await import("../lib/runner.js");
-  const keep = process.env.CLAUDE_PLUGIN_DATA;
-  process.env.CLAUDE_PLUGIN_DATA = ctx.data;
-  try {
-    const key = path.basename(fs.readdirSync(path.join(ctx.data, "sessions"))[0], ".json");
-    const out = drainNotes(key, { host: "codex" });
-    assert.match(out.user, /^Intent Check could not finish checking `pricing\.py`/);
-  } finally {
-    if (keep === undefined) delete process.env.CLAUDE_PLUGIN_DATA; else process.env.CLAUDE_PLUGIN_DATA = keep;
-  }
+  const out = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "next" }), ctx.env, { host: "codex" });
+  assert.equal(out.code, 0, out.stderr);
+  assert.match(out.json.hookSpecificOutput.additionalContext, /Intent Check could not finish checking `pricing\.py`/);
+  assert.equal(out.json.systemMessage, undefined);
 });
 
 test("superseded job: no note and no recorded error", async () => {
@@ -209,7 +203,7 @@ test("headless (claude -p): detaches at once, never wakes, result becomes a note
 });
 
 test("entrypoint matrix: only the SDKs/local-agent/mcp detach; everything else (including unset) wakes", async () => {
-  for (const entrypoint of ["cli", "claude-vscode", "claude-desktop", ""]) {
+  for (const entrypoint of ["cli", "claude-vscode", "claude-desktop", "claude-jetbrains", "anything-else", ""]) {
     const ctx = setup({ env: { CLAUDE_CODE_ENTRYPOINT: entrypoint } });
     const r = await turn(ctx, { "pricing.py": PRICING });
     assert.equal(r.code, 2, `entrypoint ${JSON.stringify(entrypoint)} should wake`);
@@ -419,21 +413,12 @@ test("a turn that only touches filtered-out files gets a skipped-files note, onc
   assert.equal(again.stdout, "");
 });
 
-test("old-Node shim: exits 0 with one stderr line when Node is older than 18", async () => {
-  const pre = path.join(tmpdir(), "old-node.cjs");
-  fs.writeFileSync(pre, "Object.defineProperty(process, 'versions', { value: { ...process.versions, node: '16.20.0' } });\n");
-  const r = await new Promise((resolve) => {
-    const c = spawn(process.execPath, ["--require", pre, BIN, "prompt"], { stdio: ["pipe", "pipe", "pipe"] });
-    let out = "";
-    c.stdout.on("data", (d) => { out += d; });
-    c.stderr.on("data", (d) => { out += d; });
-    c.on("close", (code) => resolve({ code, out }));
-    c.stdin.end("{}");
-  });
+test("native hooks capture prompts without Node on PATH", async () => {
+  const ctx = setup({ env: { PATH: "" } });
+  const r = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "capture this without Node" }), ctx.env);
   assert.equal(r.code, 0);
-  assert.match(r.out, /^Intent Check needs Node 18 or newer \(found 16\.20\.0\)[^\n]*\n\{"systemMessage":"[^\n]*"\}\n$/);
-  const first = fs.readFileSync(BIN, "utf8").split("\n")[0];
-  assert.doesNotMatch(first, /\?\.|\?\?|=>|\bconst\b|\blet\b|`/);
+  assert.equal(r.stderr, "");
+  assert.deepEqual(readSessionFiles(ctx.data)[0].prompts, ["capture this without Node"]);
 });
 
 void sleep;

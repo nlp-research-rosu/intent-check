@@ -356,3 +356,44 @@ pub(super) fn include(path: &str, content: &str) -> bool {
     let comparisons = re(r"[=!]==?|<=|>=").find_iter(&code).count();
     script_only && arithmetic >= 1 && flow + arithmetic + comparisons >= 3
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn source_and_ui_filter_vectors() {
+        let cases: Vec<Value> =
+            serde_json::from_str(include_str!("../../../test/fixtures/native/filter.json"))
+                .expect("valid filter vectors");
+        for case in cases {
+            let args = &case["args"];
+            let path = string(&args[0]);
+            let actual = match string(&case["op"]) {
+                "include" => json!(include(path, string(&args[1]))),
+                "classify" => json!(classify(path)),
+                "language" => json!(language(path)),
+                "logic" => json!(include(
+                    &format!("components/probe{}", string(&args[1])),
+                    path
+                )),
+                op => panic!("unknown filter operation {op}"),
+            };
+            assert_eq!(actual, case["expected"], "{}: {args}", case["label"]);
+        }
+    }
+
+    #[test]
+    fn large_files_with_unmatched_braces_stay_linear() {
+        let unit = "function helper(x) {\n  const y = x + 1;\n  return y;\n}\n";
+        let mut content = unit.repeat((1024 * 1024_usize).div_ceil(unit.len()));
+        content.push_str("function broken(x) { if (x) { for (;;) {\n");
+        let mut best = Duration::MAX;
+        for _ in 0..5 {
+            let start = Instant::now();
+            include("components/bench.js", &content);
+            best = best.min(start.elapsed());
+        }
+        assert!(best < Duration::from_millis(200), "filter took {best:?}");
+    }
+}

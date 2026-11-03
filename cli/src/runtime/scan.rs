@@ -52,16 +52,17 @@ pub(super) fn queued(root: &Path) -> Result<Vec<(PathBuf, Value)>> {
     Ok(out)
 }
 pub(super) fn discard_queue(root: &Path) -> Result<()> {
+    if !root.join(".intent/.queue").try_exists()? {
+        return Ok(());
+    }
     for (path, _) in queued(root)? {
         fs::remove_file(path)?;
     }
     Ok(())
 }
 pub(super) fn checked_file(root: &Path, cwd: &Path, value: &str) -> Result<capture::FileChange> {
-    let abs = cwd
-        .join(value)
-        .canonicalize()
-        .with_context(|| format!("{value}: not found"))?;
+    let abs =
+        capture::canonical(&cwd.join(value)).with_context(|| format!("{value}: not found"))?;
     let rel =
         capture::relative(root, &abs).with_context(|| format!("{value}: outside the repo"))?;
     anyhow::ensure!(
@@ -242,10 +243,7 @@ fn snapshot(rt: &Runtime, scope: Option<&str>, depth: &str) -> Result<Snapshot> 
     );
     let root = capture::root(&cwd);
     let scope = if let Some(scope) = scope {
-        let path = cwd
-            .join(scope)
-            .canonicalize()
-            .context("Scan folder not found")?;
+        let path = capture::canonical(&cwd.join(scope)).context("Scan folder not found")?;
         let relative = path
             .strip_prefix(&root)
             .context("Scan folder is outside the repo")?
@@ -348,7 +346,7 @@ fn snapshot(rt: &Runtime, scope: Option<&str>, depth: &str) -> Result<Snapshot> 
         if !meta.is_file() {
             continue;
         }
-        if !abs.canonicalize().is_ok_and(|p| p.starts_with(&root)) {
+        if !capture::canonical(&abs).is_ok_and(|p| p.starts_with(&root)) {
             trim(&path, "symlink");
             continue;
         }

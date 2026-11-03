@@ -26,7 +26,11 @@ export function cleanEnv(extra = {}) {
     if (k === "CLAUDE_CODE_GIT_BASH_PATH") continue; // where Claude Code finds Git Bash on Windows
     if (/^(INTENT_|CLAUDE|ANTHROPIC_|CODEX_|OPENAI_)/i.test(k) || k === "DO_NOT_TRACK") delete env[k];
   }
-  return { ...env, PATH: [path.dirname(BIN), env.PATH].filter(Boolean).join(path.delimiter), ...extra };
+  const pathKey = Object.keys(env).find((key) => key.toUpperCase() === "PATH");
+  const inheritedPath = pathKey ? env[pathKey] : "";
+  // Windows treats environment names case-insensitively; Node picks just one of Path/PATH.
+  for (const key of Object.keys(env)) if (key.toUpperCase() === "PATH") delete env[key];
+  return { ...env, PATH: [path.dirname(BIN), inheritedPath].filter(Boolean).join(path.delimiter), ...extra };
 }
 
 const q = (a) => (/[\s"&|<>^()%!]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a);

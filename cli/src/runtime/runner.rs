@@ -3,6 +3,7 @@ use protocol::{Api, Reply};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 static INTERRUPTED: AtomicBool = AtomicBool::new(false);
+
 pub(super) fn interrupted() -> bool {
     INTERRUPTED.load(Ordering::Relaxed)
 }
@@ -177,8 +178,7 @@ fn connection(rt: &Runtime, key: &str, out: &mut Output, wait: u64) -> Result<()
             return Ok(());
         }
         let mut command = Command::new(env::current_exe()?);
-        let log = state::append(&output, true)?;
-        log.set_len(0)?;
+        let log = state::login_output(&output)?;
         command
             .arg("login")
             .env("INTENT_API_URL", &rt.config.server_url)
@@ -299,8 +299,11 @@ fn tool_paths(payload: &Value, root: &Path) -> Vec<PathBuf> {
     } {
         paths.push(root.join(path));
     }
-    paths.sort();
-    paths.dedup();
+    for path in &mut paths {
+        *path = path.components().collect();
+    }
+    let mut seen = std::collections::HashSet::new();
+    paths.retain(|p| seen.insert(p.clone()));
     paths
 }
 fn post_tool(rt: &Runtime, payload: &Value, key: &str) -> Result<Output> {
@@ -479,6 +482,9 @@ fn failure(rt: &Runtime, key: &str, r: &Reply, used: &str) -> Result<()> {
         false,
         &format!("service answered {} ({})", r.status, r.code()),
     )?;
+    if r.status == 401 && rt.key()?.as_deref() != Some(used) {
+        return Ok(());
+    }
     if [401, 426].contains(&r.status) {
         rt.global_mut(|g|{g["paused"]=json!({"id":&hash(format!("{used}\n{}",rt.version))[..16],"code":r.status,"source":if env::var("INTENT_API_KEY").is_ok(){"env"}else{"file"},"at":iso(now())});Ok(())})?;
         if r.status == 401
@@ -489,6 +495,9 @@ fn failure(rt: &Runtime, key: &str, r: &Reply, used: &str) -> Result<()> {
         }
     }
     let text = match r.status {
+        401 if env::var("INTENT_API_KEY").is_ok() => {
+            "Intent Check: INTENT_API_KEY was not accepted, so checks are paused. Set a valid environment key, or unset it and run intent-check login."
+        }
         401 => {
             "Intent Check: the API key was not accepted, so checks are paused. Run intent-check login to reconnect."
         }
@@ -506,19 +515,19 @@ fn failure(rt: &Runtime, key: &str, r: &Reply, used: &str) -> Result<()> {
             "Intent Check: the service could not start the review; it will retry when appropriate."
         }
     };
+    let once = if [401, 426].contains(&r.status) {
+        format!("paused:{}", &hash(format!("{used}\n{}", rt.version))[..16])
+    } else {
+        format!("failure:{}:{}", r.status, r.code())
+    };
     rt.session_mut(key, |s| {
-        state::note(
-            s,
-            text,
-            true,
-            "info",
-            Some(&format!("failure:{}:{}", r.status, r.code())),
-        );
+        state::note(s, text, true, "info", Some(&once));
         Ok(())
     })
 }
 pub(super) fn run_dir(root: &Path, id: &str) -> Result<PathBuf> {
     anyhow::ensure!(protocol::valid_id(id), "Invalid run ID");
+    anyhow::ensure!(root.is_dir(), "Project folder no longer exists");
     crate::storage::intent(root, true)?;
     let dir = root.join(".intent/runs").join(id);
     crate::storage::safe_parent(root, &dir)?;
@@ -536,6 +545,7 @@ fn request_record(root: &Path, id: &str, built: &payload::Built) -> Result<()> {
 }
 pub(super) fn audit(root: &Path, entry: Value) {
     let _ = (|| -> Result<()> {
+        anyhow::ensure!(root.is_dir(), "Project folder no longer exists");
         crate::storage::intent(root, true)?;
         let path = root.join(".intent/.sent.log");
         crate::storage::safe_parent(root, &path)?;
@@ -640,13 +650,13 @@ pub(super) fn stop(rt: &Runtime, payload: &Value, can_wake: bool, poll: bool) ->
             state::note(
                 s,
                 if p["code"] == 426 {
-                    "Intent Check: plugin update required; checks are paused."
+                    "Intent Check: checks are paused because this plugin version is too old for the service. Update the intent plugin to resume."
                 } else {
-                    "Intent Check: API key rejected; checks are paused."
+                    "Intent Check: checks are paused because the API key was not accepted. Set a valid key, or unset INTENT_API_KEY and run intent-check login."
                 },
                 true,
                 "info",
-                Some("paused"),
+                Some(&format!("paused:{}", string(&p["id"]))),
             );
             Ok(())
         })?;
@@ -804,7 +814,7 @@ pub(super) fn stop(rt: &Runtime, payload: &Value, can_wake: bool, poll: bool) ->
                     rt.session_mut(&key, |s| {
                         state::note(
                             s,
-                            "Intent Check: gave up on a requested review after 3 failed attempts.",
+                            &format!("Intent Check: gave up on a requested review of {} file{} after 3 failed attempts.", array(&q["paths"]).len(), if array(&q["paths"]).len() == 1 { "" } else { "s" }),
                             true,
                             "info",
                             None,
@@ -827,17 +837,28 @@ pub(super) fn stop(rt: &Runtime, payload: &Value, can_wake: bool, poll: bool) ->
         }
     }
     if changes.files.is_empty() && !changes.skipped.is_empty() {
-        rt.session_mut(&key,|s|{state::note(s,&format!("Intent Check: skipped {} (styling, markup, tests, config or vendored code); it checks code with logic.",changes.skipped.join(", ")),true,"skipped",Some("skipped"));Ok(())})?;
+        rt.session_mut(&key, |s| {
+            state::note(
+                s,
+                &render::skipped(&changes.skipped),
+                true,
+                "skipped",
+                Some("skipped"),
+            );
+            Ok(())
+        })?;
     }
     let mut out = Output::default();
     if poll {
-        poll_loop(
+        if !poll_loop(
             rt,
             &key,
             can_wake,
             rt.started + Duration::from_millis(840000),
             false,
-        )?;
+        )? {
+            return Ok(Output::default());
+        }
     } else {
         if !array(&rt.session(&key)["pending"]).is_empty() {
             let _ = rt.spawn("finish", &key);
@@ -861,7 +882,9 @@ pub(super) fn stop(rt: &Runtime, payload: &Value, can_wake: bool, poll: bool) ->
         )?;
         if !out.context.is_empty() {
             out.exit = 2;
-            out.summary = "Intent Check found concerns".into();
+            if out.summary.is_empty() {
+                out.summary = "Intent Check found concerns".into();
+            }
         }
     }
     Ok(out)
@@ -950,12 +973,17 @@ fn settle(rt: &Runtime, key: &str, job: &Value, status: &Value, can_wake: bool) 
         s["pending"].as_array_mut().context("Pending jobs must be an array")?.retain(|j|j["job_id"]!=id);
         if edit {if result.is_object(){s["edit_jobs"][id]["settled"]=json!(true);}else{state::remove(&mut s["edit_jobs"],id);}}
         if !result.is_object() {
-            if status["status"]=="failed" {let text=if status["error"]["code"]=="SPEND_CAP"{"Intent Check: today's free check limit was reached, so recent changes were not checked. Checks resume tomorrow.".into()}else{format!("Intent Check could not finish checking your changes, so there is no report for it. Run intent-check review with the files to try again. · {}",string(&job["url"]))};state::note(s,&text,true,"failed",None);}return Ok(false);
+            if status["status"]=="failed" {let text=if status["error"]["code"]=="SPEND_CAP"{"Intent Check: today's free check limit was reached, so recent changes were not checked. Checks resume tomorrow.".into()}else{render::failed(string(&job["url"]),&array(&job["sent"]).iter().map(|p|string(&p["rel"])).collect::<Vec<_>>())};state::note(s,&text,true,"failed",None);}return Ok(false);
         }
         let concerns=render::concerns(result,&job["sent"]);
         if !s["flags"]["delivered"].is_object(){s["flags"]["delivered"]=json!({});}
         s["flags"]["delivered"].as_object_mut().expect("Delivery map").retain(|_,v|now().saturating_sub(number(v))<3600000);
-        if concerns.is_empty() {state::note(s,&format!("Intent Check: no concerns in {}{} · {}",array(&job["sent"]).iter().map(|p|string(&p["rel"])).collect::<Vec<_>>().join(", "),if result["partial"]==true{" (partial review)"}else{""},string(&job["url"])),true,"quiet",None);return Ok(false);}
+        if concerns.is_empty() {
+            let paths = array(&job["sent"]).iter().map(|p|string(&p["rel"])).collect::<Vec<_>>();
+            state::note(s,&render::no_concerns(string(&job["url"]),result["partial"]==true,&paths),true,"quiet",None);
+            if let Some(note)=s["notes"].as_array_mut().and_then(|a|a.last_mut()) { note["userText"]=json!(render::no_concerns_user(string(&job["url"]),&paths)); }
+            return Ok(false);
+        }
         let fresh:Vec<_>=concerns.into_iter().filter(|c|s["flags"]["delivered"][hash(format!("{}\n{}\n{}",string(&c["path"]),string(&c["type"]),string(&c["title"])))].is_null()).collect();
         if fresh.is_empty(){return Ok(false);}
         for c in &fresh{s["flags"]["delivered"][hash(format!("{}\n{}\n{}",string(&c["path"]),string(&c["type"]),string(&c["title"])))]=json!(now());}
@@ -965,7 +993,7 @@ fn settle(rt: &Runtime, key: &str, job: &Value, status: &Value, can_wake: bool) 
         let wake=can_wake && job["wake"]!=false && array(&s["wakes"]).len()<3 && !fresh.iter().any(|c|!s["woken"][string(&c["path"])].is_null());
         if wake{state::push(&mut s["wakes"],json!(now()),3);for c in &fresh{s["woken"][string(&c["path"])]=json!(now());}}
         state::note(s,&text,false,"concerns",None);
-        if let Some(note)=s["notes"].as_array_mut().and_then(|a|a.last_mut()){note["wake"]=json!(wake);}
+        if let Some(note)=s["notes"].as_array_mut().and_then(|a|a.last_mut()){note["wake"]=json!(wake);note["summary"]=json!(render::summary(&fresh));}
         Ok(wake)
     })?;
     if status["status"] == "failed" {
@@ -973,19 +1001,31 @@ fn settle(rt: &Runtime, key: &str, job: &Value, status: &Value, can_wake: bool) 
             rt,
             false,
             &format!(
-                "check failed on the service ({})",
+                "check failed on the service ({}), job {id}",
                 string(&status["error"]["code"])
             ),
         )?;
     }
     Ok(wake)
 }
-fn poll_loop(rt: &Runtime, key: &str, wake: bool, deadline: Instant, finisher: bool) -> Result<()> {
+fn poll_loop(
+    rt: &Runtime,
+    key: &str,
+    wake: bool,
+    deadline: Instant,
+    finisher: bool,
+) -> Result<bool> {
     let token = id();
-    rt.session_mut(key, |s| {
+    let claimed = rt.session_mut(key, |s| {
+        if finisher && state::alive(number(&s["owner"]["pid"])) {
+            return Ok(false);
+        }
         s["owner"] = json!({"pid":std::process::id(),"token":token,"at":now()});
-        Ok(())
+        Ok(true)
     })?;
+    if !claimed {
+        return Ok(false);
+    }
     let api = Api::new(rt)?;
     let mut delay = 2000;
     let result = (|| -> Result<()> {
@@ -1007,6 +1047,9 @@ fn poll_loop(rt: &Runtime, key: &str, wake: bool, deadline: Instant, finisher: b
             }
             for job in jobs {
                 let r = api.check(string(&job["job_id"]), 10000);
+                if rt.session(key)["owner"]["token"] != token {
+                    return Ok(());
+                }
                 if r.ok()
                     && ["done", "failed", "superseded"].contains(&string(&r.body["status"]))
                     && settle(rt, key, &job, &r.body, wake)?
@@ -1031,16 +1074,17 @@ fn poll_loop(rt: &Runtime, key: &str, wake: bool, deadline: Instant, finisher: b
         }
         Ok(())
     })();
-    rt.session_mut(key, |s| {
-        if s["owner"]["token"] == token {
+    let owned = rt.session_mut(key, |s| {
+        let owned = s["owner"]["token"] == token;
+        if owned {
             s["owner"] = Value::Null;
         }
-        Ok(())
+        Ok(owned)
     })?;
-    if !finisher && !array(&rt.session(key)["pending"]).is_empty() {
+    if owned && !finisher && !array(&rt.session(key)["pending"]).is_empty() {
         let _ = rt.spawn("finish", key);
     }
-    result
+    result.map(|()| owned)
 }
 fn late(rt: &Runtime, key: &str) -> Result<()> {
     rt.session_mut(key, |s| {
@@ -1115,7 +1159,8 @@ pub(super) fn worker(rt: &Runtime, action: &str, argument: &str) -> Result<()> {
             false,
             Instant::now() + Duration::from_secs(1800),
             true,
-        );
+        )
+        .map(|_| ());
     }
     if action == "scan" {
         return scan::wait(rt, argument);
@@ -1142,6 +1187,7 @@ pub(super) fn worker(rt: &Runtime, action: &str, argument: &str) -> Result<()> {
                 if rt.disabled().is_some() || !rt.live() {
                     break;
                 }
+                rt.log("shell.scan", json!({"pass":pass}));
                 let snap = rt.session(&key);
                 let changes = capture::collect(rt, &snap, &cwd(&payload)?);
                 for file in &changes.files {
@@ -1167,11 +1213,11 @@ pub(super) fn worker(rt: &Runtime, action: &str, argument: &str) -> Result<()> {
                 }
                 let again = rt.session_mut(&key, |s| {
                     let again = s["flags"]["shell_scan"]["again"] == true && pass < 2;
-                    s["flags"]["shell_scan"] = if again {
-                        json!({"at":now(),"again":false})
+                    if again {
+                        s["flags"]["shell_scan"] = json!({"at":now(),"again":false});
                     } else {
-                        Value::Null
-                    };
+                        state::remove(&mut s["flags"], "shell_scan");
+                    }
                     Ok(again)
                 })?;
                 if !again {
@@ -1277,4 +1323,281 @@ fn edit(rt: &Runtime, payload: &Value) -> Result<()> {
         delay = (delay * 3 / 2).min(15000);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::runtime::tests::Fixture;
+
+    const REVIEW_ID: &str = "11111111-1111-1111-1111-111111111111";
+
+    fn example(stub: bool) -> Value {
+        serde_json::from_str(if stub {
+            include_str!("../../../test/fixtures/api/examples/status-done-no-concerns.json")
+        } else {
+            include_str!("../../../test/fixtures/api/examples/status-done-concerns.json")
+        })
+        .expect("review fixture")
+    }
+
+    fn save(f: &Fixture, rel: &str, id: &str, stub: bool, submitted: u64) -> PathBuf {
+        let mut status = example(stub);
+        status["result"]["units"][0]["path"] = json!(rel);
+        let unit = &status["result"]["units"][0];
+        let job = json!({"repo":f.root,"job_id":id,"url":"https://x.test/report","submitted_at":submitted,"sent":[{"rel":rel,"sha256":unit["checked_sha256"]}]});
+        settle(&f.rt, "storage", &job, &status, false).expect("settle review fixture");
+        f.root
+            .join(".intent/files")
+            .join(rel)
+            .join("checks")
+            .join(id)
+    }
+
+    #[test]
+    fn stored_artifacts_metadata_and_generations_keep_their_bindings() {
+        let f = Fixture::new();
+        let rel = "src/billing/pricing.py";
+        let dir = save(&f, rel, REVIEW_ID, false, 2000);
+        let expected = example(false);
+        let unit = &expected["result"]["units"][0];
+        for name in ["INTENT.md", "SPEC.k", "SEMANTICS.k", "VERDICT.md"] {
+            assert_eq!(
+                fs::read_to_string(dir.join(name)).expect("stored artifact"),
+                unit["artifacts"][name]
+            );
+        }
+        let meta = state::read(&dir.join("meta.json"));
+        assert_eq!(meta["source_sha256"], unit["checked_sha256"]);
+        assert_eq!(meta["review_id"], REVIEW_ID);
+        assert_eq!(meta["url"], "https://x.test/report");
+        assert_eq!(meta["verdict"], "concerns");
+        assert_eq!(meta["reviewed_at"], expected["result"]["checked_at"]);
+        assert_eq!(meta["versions"]["plugin"], f.rt.version);
+        assert!(
+            !fs::read_dir(&dir)
+                .expect("generation directory")
+                .flatten()
+                .any(|p| p.path().extension().is_some_and(|e| e == "tmp"))
+        );
+        let later = save(&f, rel, "22222222-2222-2222-2222-222222222222", true, 3000);
+        let stub = example(true);
+        for name in ["VERIFICATION.k", "REASONING.md"] {
+            assert_eq!(
+                fs::read_to_string(later.join(name)).expect("verification artifact"),
+                stub["result"]["units"][0]["artifacts"][name]
+            );
+        }
+        assert!(!later.join("SEMANTICS.k").exists());
+        assert!(dir.join("SEMANTICS.k").exists());
+        let old = save(&f, rel, "33333333-3333-3333-3333-333333333333", false, 1000);
+        assert!(old.join("SEMANTICS.k").exists());
+        assert!(!later.join("SEMANTICS.k").exists());
+        assert_eq!(state::read(&later.join("meta.json"))["submitted_at"], 3000);
+        assert_eq!(state::read(&dir.join("meta.json"))["submitted_at"], 2000);
+    }
+
+    #[test]
+    fn scaffolding_preserves_existing_readmes_brief_requirements_and_mtimes() {
+        let f = Fixture::new();
+        crate::storage::intent(&f.root, true).expect("scaffold");
+        assert_eq!(
+            fs::read_to_string(f.root.join(".intent/.ignore")).expect("search ignore"),
+            "*\n"
+        );
+        assert_eq!(
+            fs::read_to_string(f.root.join(".intent/.gitignore")).expect("git ignore"),
+            ".sent.log\n.queue\n"
+        );
+        let readme = f.root.join(".intent/README.md");
+        assert_eq!(
+            fs::read_to_string(&readme).expect("readme"),
+            include_str!("../evidence-readme.md")
+        );
+        let modified = fs::metadata(&readme)
+            .expect("readme metadata")
+            .modified()
+            .expect("readme mtime");
+        crate::storage::intent(&f.root, true).expect("repeat scaffold");
+        assert_eq!(
+            fs::metadata(&readme)
+                .expect("readme metadata")
+                .modified()
+                .expect("readme mtime"),
+            modified
+        );
+        for text in [
+            "# .intent\n\nAn older version of this file.\n\n## Our team's rule\n\nAlways re-run the checks locally first.\n",
+            "# My notes about .intent\n\nDo not touch this.\n",
+        ] {
+            fs::write(&readme, text).expect("existing readme");
+            crate::storage::intent(&f.root, true).expect("preserve existing scaffold");
+            assert_eq!(fs::read_to_string(&readme).expect("preserved readme"), text);
+        }
+        f.write(".intent/REQUIREMENTS.md", "- Kept on purpose.\n");
+        f.write(
+            ".intent/requirements.json",
+            r#"{"version":1,"requirements":[]}"#,
+        );
+        save(&f, "pricing.py", REVIEW_ID, false, 1);
+        assert_eq!(
+            fs::read_to_string(f.root.join(".intent/REQUIREMENTS.md")).expect("brief"),
+            "- Kept on purpose.\n"
+        );
+        assert_eq!(
+            fs::read_to_string(f.root.join(".intent/requirements.json"))
+                .expect("legacy requirements"),
+            r#"{"version":1,"requirements":[]}"#
+        );
+        assert!(!f.root.join(".intent/NOTES.md").exists());
+    }
+
+    #[test]
+    fn deleted_projects_and_unsafe_unit_paths_never_receive_evidence() {
+        let f = Fixture::new();
+        for path in [
+            "../x.py",
+            "/etc/passwd",
+            "a/../../x.py",
+            "C:/x.py",
+            ".intent/x.py",
+            ".git/config",
+            "a//b.py",
+            "",
+            "a\nb.py",
+        ] {
+            let dir = save(&f, path, REVIEW_ID, false, 1);
+            assert!(!dir.join("meta.json").exists(), "{path}");
+        }
+        let gone = f.root.join("gone");
+        assert!(run_dir(&gone, REVIEW_ID).is_err());
+        audit(&gone, json!({"time":"t"}));
+        assert!(!gone.exists());
+        assert!(
+            !f.root
+                .parent()
+                .expect("fixture parent")
+                .join("x.py")
+                .exists()
+        );
+    }
+
+    #[test]
+    fn audit_holds_metadata_only_and_git_ignores_local_upload_log() {
+        let f = Fixture::new();
+        f.git(&["init", "-q"]);
+        save(&f, "pricing.py", REVIEW_ID, false, 1);
+        let entry = json!({"time":"2026-09-28T14:00:00Z","url":"https://x/intent-checks","paths":["pricing.py"],"bytes":981,"redactions":0});
+        audit(&f.root, entry.clone());
+        let text = fs::read_to_string(f.root.join(".intent/.sent.log")).expect("audit log");
+        assert_eq!(
+            serde_json::from_str::<Value>(text.trim()).expect("audit entry"),
+            entry
+        );
+        let status = f.git(&["status", "--porcelain", "-uall"]);
+        assert!(status.contains(&format!(
+            ".intent/files/pricing.py/checks/{REVIEW_ID}/SPEC.k"
+        )));
+        assert!(status.contains(".intent/README.md"));
+        assert!(!status.contains(".sent.log"));
+        f.write("pricing.py", "def apply_discount(): pass\n");
+        if let Ok(result) = Command::new("rg")
+            .args(["-l", "apply_discount", "."])
+            .current_dir(&f.root)
+            .output()
+        {
+            assert!(result.status.success());
+            assert_eq!(
+                String::from_utf8_lossy(&result.stdout)
+                    .trim()
+                    .trim_start_matches("./"),
+                "pricing.py"
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn planted_source_folder_symlink_cannot_redirect_evidence() {
+        let f = Fixture::new();
+        let outside = Fixture::new();
+        fs::create_dir_all(f.root.join(".intent/files")).expect("evidence parent");
+        std::os::unix::fs::symlink(&outside.root, f.root.join(".intent/files/src"))
+            .expect("source folder link");
+        save(&f, "src/pricing.py", REVIEW_ID, false, 1);
+        assert_eq!(
+            fs::read_dir(&outside.root).expect("outside folder").count(),
+            0
+        );
+    }
+
+    #[test]
+    fn audit_never_appends_to_hard_linked_log() {
+        let f = crate::runtime::tests::Fixture::new();
+        let outside = crate::runtime::tests::Fixture::new();
+        let profile = outside.write("profile", "# profile\n");
+        crate::storage::intent(&f.root, true).expect("scaffold");
+        fs::hard_link(&profile, f.root.join(".intent/.sent.log")).expect("hard link audit log");
+        audit(&f.root, json!({"time":"t","paths":["x"]}));
+        assert_eq!(fs::read_to_string(profile).expect("profile"), "# profile\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn audit_never_follows_symlinked_log() {
+        let f = crate::runtime::tests::Fixture::new();
+        let outside = crate::runtime::tests::Fixture::new();
+        let rc = outside.write("bashrc", "# rc\n");
+        crate::storage::intent(&f.root, true).expect("scaffold");
+        std::os::unix::fs::symlink(&rc, f.root.join(".intent/.sent.log"))
+            .expect("symlink audit log");
+        audit(&f.root, json!({"time":"t","paths":["$(curl evil)"]}));
+        assert_eq!(fs::read_to_string(rc).expect("rc file"), "# rc\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn evidence_writes_reject_symlinked_intent_without_touching_history() {
+        let f = crate::runtime::tests::Fixture::new();
+        let outside = crate::runtime::tests::Fixture::new();
+        let old = outside.write("gone.py/VERDICT.md", "x");
+        std::os::unix::fs::symlink(&outside.root, f.root.join(".intent"))
+            .expect("link intent folder");
+        let error = run_dir(&f.root, REVIEW_ID).expect_err("symlinked intent must be refused");
+        assert!(error.to_string().contains("real directory"), "{error}");
+        assert_eq!(fs::read_to_string(old).expect("preserved history"), "x");
+        assert!(!outside.root.join("runs/new").exists());
+    }
+
+    #[test]
+    fn patch_paths_keep_add_update_and_move_targets_not_deleted_or_moved_from() {
+        let f = crate::runtime::tests::Fixture::new();
+        let payload: Value = serde_json::from_str(include_str!(
+            "../../../test/fixtures/codex/post-tool-apply-patch.json"
+        ))
+        .expect("Codex patch fixture");
+        let util = Path::new("/work/proj/util.py");
+        let util = if util.is_absolute() {
+            util.to_path_buf()
+        } else {
+            f.root.join(util)
+        };
+        assert_eq!(
+            tool_paths(&payload, &f.root),
+            vec![
+                f.root.join("calc.py"),
+                util.components().collect::<PathBuf>(),
+                f.root.join("new_name.py")
+            ]
+        );
+        assert!(tool_paths(&json!({"tool_name":"apply_patch"}), &f.root).is_empty());
+        let command = "*** Begin Patch\r\n*** Update File: old.py\r\n*** Move to: new.py\r\n@@\r\n-a\r\n+b\r\n*** Add File: x.py\r\n+1\r\n*** End Patch";
+        assert_eq!(
+            tool_paths(
+                &json!({"tool_name":"apply_patch","tool_input":{"command":command}}),
+                &f.root
+            ),
+            vec![f.root.join("new.py"), f.root.join("x.py")]
+        );
+    }
 }

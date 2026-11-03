@@ -65,6 +65,74 @@ pub(super) fn append(path: &Path, private: bool) -> Result<File> {
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(if private { 0o600 } else { 0o644 });
     }
+    let file = options.open(path)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        ensure!(
+            file.metadata()?.nlink() == 1,
+            "Log file must not be hard-linked"
+        );
+    }
+    #[cfg(windows)]
+    ensure!(
+        windows_link_count(&file)? == 1,
+        "Log file must not be hard-linked"
+    );
+    Ok(file)
+}
+
+#[cfg(windows)]
+fn windows_link_count(file: &File) -> io::Result<u32> {
+    use std::{ffi::c_void, mem::MaybeUninit, os::windows::io::AsRawHandle};
+    #[repr(C)]
+    struct StandardInfo {
+        allocation_size: i64,
+        end_of_file: i64,
+        number_of_links: u32,
+        delete_pending: u8,
+        directory: u8,
+    }
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetFileInformationByHandleEx(
+            handle: *mut c_void,
+            class: i32,
+            info: *mut c_void,
+            size: u32,
+        ) -> i32;
+    }
+    let mut info = MaybeUninit::<StandardInfo>::uninit();
+    // SAFETY: the file owns a live handle; FileStandardInfo (1) writes this exact C layout,
+    // and the buffer is read only after the API reports success.
+    unsafe {
+        if GetFileInformationByHandleEx(
+            file.as_raw_handle(),
+            1,
+            info.as_mut_ptr().cast(),
+            size_of::<StandardInfo>() as u32,
+        ) == 0
+        {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(info.assume_init().number_of_links)
+    }
+}
+
+pub(super) fn login_output(path: &Path) -> Result<File> {
+    if let Ok(meta) = fs::symlink_metadata(path) {
+        ensure!(
+            meta.is_file() && !meta.is_symlink(),
+            "Expected a regular login output file"
+        );
+    }
+    let mut options = OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
     Ok(options.open(path)?)
 }
 pub(super) fn update<T>(
@@ -92,7 +160,9 @@ pub(super) fn update<T>(
     }
     let mut value = read(path);
     for (key, item) in default.as_object().context("Invalid state default")? {
-        if value.get(key).is_none() {
+        if value.get(key).is_none_or(|v| {
+            (item.is_array() && !v.is_array()) || (item.is_object() && !v.is_object())
+        }) {
             value[key] = item.clone();
         }
     }
@@ -106,12 +176,15 @@ pub(super) fn empty() -> Value {
 pub(super) fn session(data: &Path, key: &str) -> Value {
     let mut value = read(&data.join("sessions").join(format!("{key}.json")));
     for (key, item) in empty().as_object().expect("Session default is an object") {
-        if value.get(key).is_none() {
+        if value.get(key).is_none_or(|v| {
+            (item.is_array() && !v.is_array()) || (item.is_object() && !v.is_object())
+        }) {
             value[key] = item.clone();
         }
     }
     value
 }
+
 pub(super) fn key(payload: &Value) -> String {
     let session = payload["session_id"]
         .as_str()
@@ -200,6 +273,9 @@ pub(super) fn lease_notes(rt: &Runtime, key: &str, only: Option<&str>) -> Result
                 },
                 string(&note["text"]),
             );
+            if out.summary.is_empty() {
+                out.summary = string(&note["summary"]).into();
+            }
         }
         Ok(())
     })?;
@@ -302,4 +378,91 @@ pub(super) fn gc(rt: &Runtime) -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::runtime::tests::Fixture;
+
+    #[test]
+    fn installed_plugin_roots_resolve_their_host_data_folder() {
+        let f = Fixture::new();
+        for host in [".claude", ".codex"] {
+            let plugins = f.root.join(host).join("plugins");
+            assert_eq!(
+                data_from_root(&plugins.join("cache/intentcomputing/intent/0.1.0")),
+                Some(plugins.join("data/intent-intentcomputing"))
+            );
+        }
+        assert_eq!(data_from_root(&f.root.join("intent-check")), None);
+    }
+
+    #[test]
+    fn session_keys_and_private_state() {
+        let f = Fixture::new();
+        let key = key(&json!({"session_id":"abc"}));
+        assert!(re(r"^[0-9a-f]{32}$").is_match(&key), "{key}");
+        assert_ne!(key, super::key(&json!({"session_id":"abd"})));
+        f.rt.session_mut(&key, |s| {
+            push(&mut s["touched"], json!("/x/a.py"), 200);
+            Ok(())
+        })
+        .expect("update session");
+        assert_eq!(session(&f.rt.data, &key)["touched"], json!(["/x/a.py"]));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let path = f.rt.data.join("sessions").join(format!("{key}.json"));
+            assert_eq!(
+                fs::metadata(path)
+                    .expect("session metadata")
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o600
+            );
+        }
+    }
+
+    #[test]
+    fn corrupt_and_wrong_type_state_loads_defaults() {
+        let f = Fixture::new();
+        let path = f.rt.data.join("sessions/corrupt.json");
+        private_dir(path.parent().expect("session parent")).expect("create session parent");
+        for text in [
+            r#"{"touched":"nope","pending":null,"flags":3"#,
+            r#"{"touched":"nope","pending":null,"flags":3}"#,
+        ] {
+            fs::write(&path, text).expect("write corrupt state");
+            let s = session(&f.rt.data, "corrupt");
+            assert_eq!(s["touched"], json!([]), "{text}");
+            assert_eq!(s["pending"], json!([]), "{text}");
+            assert_eq!(s["flags"], json!({}), "{text}");
+        }
+    }
+
+    #[test]
+    fn abandoned_lock_file_does_not_block_and_concurrent_writers_keep_updates() {
+        let f = Fixture::new();
+        let path = f.rt.data.join("sessions/race.json");
+        private_dir(path.parent().expect("session parent")).expect("create session parent");
+        fs::write(path.with_extension("native-lock"), "").expect("abandoned kernel lock file");
+        thread::scope(|scope| {
+            for worker in 0..4 {
+                let path = &path;
+                scope.spawn(move || {
+                    for i in 0..20 {
+                        update(path, empty(), |s| {
+                            push(&mut s["touched"], json!(format!("{worker}:{i}")), 200);
+                            Ok(())
+                        })
+                        .expect("concurrent update");
+                    }
+                });
+            }
+        });
+        assert_eq!(array(&read(&path)["touched"]).len(), 80);
+        update(&path, empty(), |_| Ok(())).expect("lock released after updates");
+    }
 }

@@ -15,12 +15,13 @@ fn settings(rt: &Runtime, disabled: bool, live: Option<bool>) -> Result<()> {
 }
 pub(super) fn command(rt: &Runtime, command: &str) -> Result<String> {
     if command == "off" {
-        settings(rt, true, None)?;
+        settings(rt, true, None).context("could not turn checks off. Set INTENT_DISABLED=1 to stop uploads until the local data folder is writable")?;
         return Ok("Intent Check is off. Nothing will be sent until it is turned back on (intent-check on or intent-check live).".into());
     }
     if command == "on" || command == "live" {
         let was_live = rt.live();
-        settings(rt, false, Some(command == "live"))?;
+        settings(rt, false, Some(command == "live"))
+            .context("could not turn checks on; check that the local data folder is writable")?;
         if let Some(reason) = rt.disabled() {
             return Ok(format!(
                 "Intent Check is on, but {reason}=1 is set in the environment, so nothing will be sent until it is removed."
