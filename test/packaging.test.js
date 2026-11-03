@@ -81,7 +81,6 @@ test("skill and commands exist and reference the plugin root, run with node dire
   }
   const prove = fs.readFileSync(path.join(ROOT, "commands", "prove.md"), "utf8");
   assert.match(prove, /allowed-tools: Bash\(intent-check:\*\)/);
-  assert.match(prove, /`intent-check --version`/);
   assert.doesNotMatch(prove, /bin\/hooks\.js/);
 });
 

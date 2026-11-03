@@ -101,15 +101,16 @@ test("intent.notes: read from the brief, redacted, clipped and bound only to con
   assert.ok(!b.request.intent.notes.includes("Zq8Zq8Zq8"), "secret redacted");
 
   const long = tmpdir();
-  fs.mkdirSync(path.join(long, ".intent"), { recursive: true });
+  fs.mkdirSync(path.join(long, ".intent", "files", "pricing.py"), { recursive: true });
+  fs.writeFileSync(path.join(long, "pricing.py"), f.buf);
   fs.writeFileSync(path.join(long, ".intent", "REQUIREMENTS.md"), "x".repeat(5000));
-  fs.writeFileSync(path.join(long, ".intent", "requirements.json"), JSON.stringify({ version: 1, requirements: [{ id: 'req-' + 'a'.repeat(32), statement: 'Prices remain nonnegative', targets: [{kind:'repository'}], provenance:{kind:'agent',reference:'source inspection'}, assumptions:[], references:[] }] }));
+  fs.writeFileSync(path.join(long, ".intent", "files", "pricing.py", "requirements.json"), JSON.stringify({ schema_version: 1, requirements: [{ id: 'REQ-001', statement: 'Prices remain nonnegative', targets: [{path:'pricing.py',symbol:'apply_discount'}] }] }));
   const b2 = buildRequest({ files: [f], root: long, snap, stop, sessionHash: "s", turnId: "t", host: "claude-code" });
   assert.equal(b2.request.intent.notes.length, 4000);
   assert.equal(b2.requirements.brief.partial, true);
   assert.equal(b2.request.truncated, true);
   assert.deepEqual(b2.requirements.records, []);
-  assert.deepEqual(b2.requirements.excluded, [{id:'req-' + 'a'.repeat(32), reason:'context_limit'}]);
+  assert.deepEqual(b2.requirements.excluded, [{id:'REQ-001', reason:'context_limit'}]);
   assert.deepEqual(validateDef(b2.request, "JobRequest"), []);
 });
 

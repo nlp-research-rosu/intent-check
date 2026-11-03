@@ -14,7 +14,7 @@ jobs:
     name: ${{ matrix.os == 'ubuntu-latest' && format('test ({0})', matrix.node) || format('test ({0}, {1})', matrix.os, matrix.node) }}
     runs-on: ${{ matrix.os }}
     # Windows runs the files one at a time (scripts/test.mjs) and starts each hook process more slowly.
-    timeout-minutes: ${{ matrix.os == 'windows-latest' && 20 || 5 }}
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 20 || 10 }}
     strategy:
       fail-fast: false
       matrix:
@@ -25,6 +25,12 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ matrix.node }}
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - name: Build matching CLI for plugin tests
+        run: cargo build --manifest-path cli/Cargo.toml --locked
+      - name: Add matching CLI to PATH
+        shell: bash
+        run: echo "$GITHUB_WORKSPACE/cli/target/debug" >> "$GITHUB_PATH"
       # scripts/test.mjs lists the files itself and runs them one at a time on Windows.
       - run: npm test
       - run: sh -n scripts/install-intent-check.sh

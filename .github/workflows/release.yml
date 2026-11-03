@@ -21,7 +21,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     strategy:
       matrix:
         node: [18, 22]
@@ -30,6 +30,11 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ matrix.node }}
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - name: Build matching CLI for plugin tests
+        run: cargo build --manifest-path cli/Cargo.toml --locked
+      - name: Add matching CLI to PATH
+        run: echo "$GITHUB_WORKSPACE/cli/target/debug" >> "$GITHUB_PATH"
       - run: node --test test/*.test.js
   # The real claude/codex CLIs on Linux, macOS and Windows (LLM-free), before anything is released.
   integration:
