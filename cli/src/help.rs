@@ -7,7 +7,8 @@ Sessions automatically use the repository root, even from a subdirectory.
 Outside a repository they use the current directory. --project <directory>
 selects another project, with the same root detection. Execution commands use
 --session <ID>; --project on them asserts the saved project matches.
-Configuration is shared.
+Configuration is shared. Configured local language servers collect static call
+context automatically through native hooks; see `intent-check config --help`.
 
 Service, requirements and capability commands print JSON to stdout; diagnostics may
 also go to stderr. Review, DeepScan and on/off/live/doctor print human-readable text.
@@ -73,6 +74,7 @@ Settings:
   max_run_attempts          Concrete-run limit per session. Default: 50.
   max_validation_attempts   Validation limit per session. Default: 50.
   max_proof_attempts        Proof-attempt limit per session. Default: 50.
+  lsp.<name>               Optional local language-server configuration; see below.
 
 All numeric settings must be positive and are read on each command.
 The Intent Check service owns task execution limits. Run, validate, and prove do not send a
@@ -95,6 +97,43 @@ Proof uploads are frozen once in <project>/.intent/proofs/<attempt-id>/inputs/;
 standalone run/validate uploads are frozen under their run's inputs/.
 Inside a repository, <project> is always its root, not the working directory.
 Existing project-local descriptors are left untouched and are not imported.
+
+Local LSP configuration (installed executables only):
+  [lsp.pyright]
+  command = ["pyright-langserver", "--stdio"]
+  extensions = [".py", ".pyi"]
+  language_id = "python"
+  root_markers = ["pyrightconfig.json", "pyproject.toml"]
+
+  [lsp.pyright.settings.python.analysis]
+  diagnosticMode = "workspace"
+
+Optional disabled, env and initialization settings disable a server, supply its
+environment or set LSP initializationOptions. settings supplies workspace configuration.
+Commands are executable/argument arrays, not shell expressions. Servers execute with
+your permissions; configure trusted, already-installed executables. Nothing installs
+or downloads an analyzer automatically. Servers need documentSymbol and callHierarchy.
+
+While Intent Check is enabled, SessionStart and Stop hooks schedule a finite local
+background worker. It discovers matching project files, refreshes .intent/graph.json
+when source/config fingerprints change, and otherwise reuses the successful snapshot.
+Git ignores, symlinks and common dependency/build folders are excluded. Each server/root
+is reused during collection and stopped afterward; no daemon or watcher is installed.
+There is no public graph-generation command and no agent invocation is required.
+Failures do not block hooks or reviews; inspect lsp.finished/lsp.failed in the private
+plugin intent.log. A partial snapshot records issues; a failed collection with no
+completed files preserves the previous graph. Source changes during collection also
+preserve the previous graph; a later hook can retry. Concurrent collection is skipped.
+graph.json contains symbols keyed by file:qualified_name (name, file, line, end_line)
+and calls (caller, callee, file, line). Lines and inclusive implementation spans are
+1-based. Repeated symbol names use @line:column (1-based UTF-16 column). Calls sharing
+caller, callee and source line are combined. Hashes/freshness stay in private global
+LSP state; analyzer diagnostics and timings stay in plugin logs. Only partial graphs
+add status and issues. Relationships are analyzer-reported context,
+not proof or complete runtime calls. External targets are omitted. External dependency,
+analyzer binary and environment changes are not freshness-verified; requests completing
+do not establish whole-workspace indexing readiness. Nothing uploads graph context or
+adds it to reviews/DeepScan. Skill-driven analyzer installation guidance is separate.
 
 Cancellation:
   Ctrl-C requests cancellation. The request and confirmation polls

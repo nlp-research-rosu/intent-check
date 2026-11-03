@@ -6,6 +6,7 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+- Configure local language servers globally; native hooks automatically refresh project caller/callee context under `.intent/graph.json` without agent commands or uploads.
 - Run plugin hooks, background reviews, DeepScan and controls in the global native `intent-check` CLI, without Node.js; setup guidance checks stable releases and runtime capabilities separately from hook execution.
 
 ## [1.0.3] - 2026-11-02

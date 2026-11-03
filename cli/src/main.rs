@@ -3,6 +3,7 @@ mod auth;
 mod config;
 mod help;
 mod inputs;
+mod lsp;
 mod requirements;
 mod runtime;
 mod semantics;

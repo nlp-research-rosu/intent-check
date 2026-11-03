@@ -1,7 +1,7 @@
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::{env, fs, path::PathBuf};
+use std::{collections::BTreeMap, env, fs, path::PathBuf};
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
@@ -15,6 +15,7 @@ pub struct Config {
     pub max_validation_attempts: u32,
     #[serde(alias = "max_attempts")]
     pub max_proof_attempts: u32,
+    pub lsp: BTreeMap<String, crate::lsp::ServerConfig>,
 }
 
 impl Default for Config {
@@ -27,6 +28,7 @@ impl Default for Config {
             max_run_attempts: 50,
             max_validation_attempts: 50,
             max_proof_attempts: 50,
+            lsp: BTreeMap::new(),
         }
     }
 }

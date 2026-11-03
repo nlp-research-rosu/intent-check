@@ -29,6 +29,16 @@ pub(super) fn hook(rt: &Runtime, event: &str, payload: &Value) -> Result<Output>
         return Ok(Output::default());
     }
     state::private_dir(&rt.data)?;
+    if matches!(event, "session-start" | "stop")
+        && rt.config.lsp.values().any(|server| !server.disabled)
+    {
+        let result = cwd(payload)
+            .and_then(|cwd| crate::session::project_root(&cwd))
+            .and_then(|root| rt.spawn("lsp", &root.to_string_lossy()));
+        if let Err(error) = result {
+            rt.log("lsp.failed", json!({"message":format!("{error:#}")}));
+        }
+    }
     match event {
         "session-start" | "prompt" => {
             let mut out = Output::default();
@@ -1104,6 +1114,15 @@ fn late(rt: &Runtime, key: &str) -> Result<()> {
 }
 pub(super) fn worker(rt: &Runtime, action: &str, argument: &str) -> Result<()> {
     let _ = ctrlc::set_handler(|| INTERRUPTED.store(true, Ordering::Relaxed));
+    if action == "lsp" {
+        if rt.disabled().is_none() {
+            match crate::lsp::refresh(Path::new(argument), &rt.config.lsp, interrupted) {
+                Ok(result) => rt.log("lsp.finished", result),
+                Err(error) => rt.log("lsp.failed", json!({"message":format!("{error:#}")})),
+            }
+        }
+        return Ok(());
+    }
     if action == "finish" {
         anyhow::ensure!(
             re(r"^[0-9a-f]{32}$").is_match(argument),
