@@ -572,6 +572,7 @@ dependencies = [
  "clap",
  "ctrlc",
  "reqwest",
+ "ring",
  "serde",
  "serde_json",
  "toml",

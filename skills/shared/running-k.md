@@ -19,6 +19,13 @@ and resource limits, follow [proof-help](../proof-help/SKILL.md). Use its comman
 reference for `health` and `semantics` during setup. Use the CLI's structured
 results for workflow decisions.
 
+For local intent, use `intent-check requirements context --path src/pricing.py`
+or `intent-check requirements show REQ-001`. Follow the exact transport input and
+add/update examples in [local requirements](../proof-help/SKILL.md#local-requirements).
+The CLI assigns sequential IDs and derives storage from target paths; do not
+select a JSON destination or create `properties.json`. Proof `--requirement REQ-001`
+is only a content-hashed local association, not uploaded requirement context.
+
 ## Semantics descriptor
 
 Discover available IDs and capabilities with `intent-check semantics`;
@@ -32,8 +39,9 @@ the shared reference sources. Create `workspaceDir/inputs/` for session input
 files: `spec.k`, `verification.k`, local dependencies, and concrete test
 programs.
 Keep reports, scripts, and operation results outside `inputs/`; the original
-program stays in the project. Your own files (`spec.k`, `verification.k`,
-`SCOPE.md`, `prove.sh`, `PROOF.md`) go in `.intent/prove/<target>/` relative to
+program stays in the project. The CLI freezes uploaded specs and dependencies in
+the returned `proofDir/inputs/`; do not edit these snapshots. Write `SCOPE.md`,
+`prove.sh` and `PROOF.md` in `proofDir`, `.intent/proofs/<attempt-id>/`, relative to
 the session's `projectRoot`, which is detected automatically as the repository
 root, not the shell's working directory. Outside a repository it is the session's
 project directory. Pass the session ID to each live command; command
@@ -86,7 +94,7 @@ supplied theory remains insufficient for validation; follow the proof audit
 for soundness, adequacy, and non-vacuity.
 
 The CLI saves the server's `/tasks/{id}/stdout` response as `stdout` in
-`proof-NNN/result.json`. PyK APR prints each claim's summary, pending node
+`.intent/runs/<run-id>/result.json`. The corresponding request.json binds exact frozen inputs and submission controls. PyK APR prints each claim's summary, pending node
 IDs, and failing nodes' reasons and path conditions, including after a
 timeout. Other backends emit their residual as KAST in stdout; parse it
 without a recursion limit. Unproved states are not necessarily

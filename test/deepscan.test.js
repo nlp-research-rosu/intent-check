@@ -160,20 +160,20 @@ test("snapshot: over the file cap, source is kept before tests before docs; the 
   assert.deepEqual(["z/b/c.py", "a.py", "b.py"].sort(byPriority), ["a.py", "b.py", "z/b/c.py"]);
 });
 
-test("snapshot: a committed .intent/ folder is left out, except NOTES.md", async () => {
+test("snapshot: committed evidence is excluded; the validated project brief is explicit context", async () => {
   const { repo, git } = setup();
   w(repo, "src/app.py", "def f():\n    return 1\n");
   w(repo, ".intent/src/app.py/SPEC.k", "rule\n");
   w(repo, ".intent/src/app.py/VERIFICATION.k", "claim\n");
   w(repo, ".intent/README.md", "# .intent\n");
-  w(repo, ".intent/NOTES.md", "my notes\n");
+  w(repo, ".intent/REQUIREMENTS.md", "my notes\n");
   commitAll(git);
   for (const scope of [null, "."]) {
     const r = await buildSnapshot({ cwd: repo, scope });
     assert.equal(r.ok, true);
     const paths = r.meta ? JSON.parse(zlib.gunzipSync(r.gz)).files.map((f) => f.path) : [];
-    assert.ok(paths.includes("src/app.py") && paths.includes(".intent/NOTES.md"));
-    assert.ok(!paths.some((p) => p.startsWith(".intent/") && p !== ".intent/NOTES.md"));
+    assert.ok(paths.includes("src/app.py") && paths.includes(".intent/REQUIREMENTS.md"));
+    assert.ok(!paths.some((p) => p.startsWith(".intent/") && p !== ".intent/REQUIREMENTS.md"));
     for (const p of [".intent/src/app.py/SPEC.k", ".intent/src/app.py/VERIFICATION.k", ".intent/README.md"]) {
       assert.equal(r.meta.trimmed.find((t) => t.path === p), undefined, p);
     }
@@ -196,8 +196,8 @@ test("snapshot: name rules and text decoding", () => {
   assert.equal(pathReason("a/vendor/x.go"), "vendored");
   assert.equal(pathReason("yarn.lock"), "lockfile");
   assert.equal(pathReason("src/a.py"), null);
-  for (const p of [".intent/x.py/SPEC.k", ".intent/README.md", ".intent/.sent.log"]) assert.equal(isIntentOutput(p), true, p);
-  for (const p of [".intent/NOTES.md", "src/.intentional.py", "docs/intent/README.md", ".intentx/a.py"]) assert.equal(isIntentOutput(p), false, p);
+  for (const p of [".intent/files/x.py/checks/j/SPEC.k", ".intent/README.md", ".intent/.sent.log", ".intent/REQUIREMENTS.md"]) assert.equal(isIntentOutput(p), true, p);
+  for (const p of ["src/.intentional.py", "docs/intent/README.md", ".intentx/a.py"]) assert.equal(isIntentOutput(p), false, p);
   assert.equal(decodeText(Buffer.from("héllo")), "héllo");
   assert.equal(decodeText(Buffer.from([0x61, 0, 0x62])), null);
 });
@@ -401,16 +401,9 @@ test("a waiter that is not the owner of the scan exits and a second waiter does 
   assert.equal(gets(), before); // already settled: no GET for this scan
 });
 
-// ---- packaging and docs ----
+// ---- packaging ----
 
-test("packaging: command file, skill mapping and README are in place; repo mode is gone", () => {
-  const cmd = fs.readFileSync(path.join(ROOT, "commands", "deepscan.md"), "utf8");
-  assert.match(cmd, /hooks\.js" deepscan/);
-  const skill = fs.readFileSync(path.join(ROOT, "skills/intent-check/SKILL.md"), "utf8");
-  assert.match(skill, /hooks\.js deepscan/);
-  assert.ok(!/check --repo/.test(skill));
-  assert.match(fs.readFileSync(path.join(ROOT, "README.md"), "utf8"), /## DeepScan/);
-  for (const f of ["lib/queue.js", "lib/payload.js"]) assert.ok(!/mode === "repo"|"repo"/.test(fs.readFileSync(path.join(ROOT, f), "utf8")), f);
+test("packaging: the removed check command is absent", () => {
   assert.ok(!fs.existsSync(path.join(ROOT, "commands", "check.md")), "check is part of deepscan");
 });
 

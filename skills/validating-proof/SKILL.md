@@ -33,6 +33,16 @@ Inspect `prove.sh` without executing it merely to review its commands.
 Missing or mismatched evidence leaves an obligation unresolved; a recorded
 success alone is not enough.
 
+For each `--requirement REQ-001` association, inspect the current record with
+`intent-check requirements show REQ-001` and compare its saved content hash in
+the submission manifest. The ID alone cannot bind an edited or reused record.
+Requirement freshness is independent of source/input freshness. These records
+use the [local requirements schema](../proof-help/SKILL.md#local-requirements),
+with CLI-derived single-file/cross-file placement; they carry no proof status.
+Keep the directly editable project brief separate from JSON. A server aggregate
+`proved`, trusted claims or arbitrary logs do not establish per-claim coverage
+or prove that the associated requirement was met.
+
 ## Clean-room reconstruction
 
 For a justified replay, select the affected claims and required dependencies.
@@ -250,8 +260,9 @@ review or replay; disclose the assurance measures actually performed.
 
 ## Write PROOF.md
 
-Write it to `.intent/prove/<target>/PROOF.md` at the repository root (the
-session's `projectRoot`), beside `spec.k` and `prove.sh`.
+Write it to the returned `proofDir/PROOF.md`, at repository-root
+`.intent/proofs/<attempt-id>/`, beside `SCOPE.md` and `prove.sh`. Frozen specs
+live in `inputs/`; canonical results/logs remain in `.intent/runs/<run-id>/`.
 
 Begin with the exact status. Include, in order: what is proven; formal claim;
 proof-extension inventory; exact commands and actual outputs; per-gate results;

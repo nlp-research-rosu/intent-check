@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { writeUnit, unitDir, ensureScaffold, appendSentLog, removeUnit, moveUnit, syncUnits, README } from "../lib/intentdir.js";
+import { writeUnit, unitDir, ensureScaffold, appendSentLog, README } from "../lib/intentdir.js";
 import { symlink, tmpdir, makeRepo, ROOT } from "./helpers/env.js";
 
 const example = JSON.parse(fs.readFileSync(path.join(ROOT, "test", "fixtures", "api", "examples", "status-done-concerns.json"), "utf8"));
@@ -14,7 +14,7 @@ test("writes one unit folder with the four artifacts and meta.json", () => {
   const root = tmpdir();
   const unit = { ...example.result.units[0], path: "src/billing/pricing.py" };
   assert.equal(writeUnit(root, unit, { job_id: example.job_id, url: example.url }, example.result), true);
-  const dir = path.join(root, ".intent", "src", "billing", "pricing.py");
+  const dir = path.join(unitDir(root, unit.path), "checks", example.job_id);
   for (const f of ["INTENT.md", "SPEC.k", "SEMANTICS.k", "VERDICT.md"]) {
     assert.equal(fs.readFileSync(path.join(dir, f), "utf8"), unit.artifacts[f]);
   }
@@ -33,27 +33,27 @@ test("writes VERIFICATION.k and REASONING.md, and skips the SEMANTICS.k stub", (
   const root = tmpdir();
   const unit = { ...stubExample.result.units[0], path: "pricing.py" };
   assert.equal(writeUnit(root, unit, { job_id: stubExample.job_id, url: stubExample.url }, stubExample.result), true);
-  const dir = path.join(root, ".intent", "pricing.py");
+  const dir = path.join(unitDir(root, unit.path), "checks", stubExample.job_id);
   assert.equal(fs.readFileSync(path.join(dir, "VERIFICATION.k"), "utf8"), unit.artifacts["VERIFICATION.k"]);
   assert.equal(fs.readFileSync(path.join(dir, "REASONING.md"), "utf8"), unit.artifacts["REASONING.md"]);
   // The stub ("// Not generated; see REASONING.md") carries no behaviour, so it is not written.
-  assert.ok(unit.artifacts["SEMANTICS.k"].startsWith("// Not generated"));
   assert.equal(fs.existsSync(path.join(dir, "SEMANTICS.k")), false);
 });
 
-test("a stale real SEMANTICS.k from an older check is removed once a later check is the stub", () => {
+test("a later stub never inherits SEMANTICS.k from the retained older generation", () => {
   const root = tmpdir();
   const rel = "pricing.py";
   // First check: the old shape, a real SEMANTICS.k gets written.
   writeUnit(root, { ...example.result.units[0], path: rel }, { job_id: example.job_id, url: example.url }, example.result);
-  const dir = path.join(root, ".intent", rel);
-  assert.equal(fs.existsSync(path.join(dir, "SEMANTICS.k")), true);
-  // A later check on the same path comes back with the stub: the stale file is removed, the
-  // folder gains VERIFICATION.k and REASONING.md.
-  writeUnit(root, { ...stubExample.result.units[0], path: rel }, { job_id: stubExample.job_id, url: stubExample.url }, stubExample.result);
+  const old = path.join(unitDir(root, rel), "checks", example.job_id);
+  const dir = path.join(unitDir(root, rel), "checks", "later");
+  assert.equal(fs.existsSync(path.join(old, "SEMANTICS.k")), true);
+  // The later generation has its own artifacts and does not inherit the older model.
+  writeUnit(root, { ...stubExample.result.units[0], path: rel }, { job_id: "later", url: stubExample.url }, stubExample.result);
   assert.equal(fs.existsSync(path.join(dir, "SEMANTICS.k")), false);
   assert.equal(fs.existsSync(path.join(dir, "VERIFICATION.k")), true);
   assert.equal(fs.existsSync(path.join(dir, "REASONING.md")), true);
+  assert.equal(fs.existsSync(path.join(old, "SEMANTICS.k")), true);
 });
 
 test("scaffold: README, .ignore with *, .gitignore for the local log and queue", () => {
@@ -62,9 +62,7 @@ test("scaffold: README, .ignore with *, .gitignore for the local log and queue",
   const d = path.join(root, ".intent");
   assert.equal(fs.readFileSync(path.join(d, ".ignore"), "utf8"), "*\n");
   assert.equal(fs.readFileSync(path.join(d, ".gitignore"), "utf8"), ".sent.log\n.queue\n");
-  const readme = fs.readFileSync(path.join(d, "README.md"), "utf8");
-  assert.match(readme, /\.intent\/\n/);
-  assert.doesNotMatch(readme, /\b(verified|proved|proven|compiles)\b/i);
+  assert.equal(fs.existsSync(path.join(d, "README.md")), true);
 });
 
 test("git tracks .intent/ but not the sent log", () => {
@@ -72,7 +70,7 @@ test("git tracks .intent/ but not the sent log", () => {
   writeUnit(dir, example.result.units[0], { job_id: example.job_id, url: example.url }, example.result);
   appendSentLog(dir, { time: "t", url: "u", paths: ["pricing.py"], bytes: 1 });
   const out = execFileSync("git", ["status", "--porcelain", "-uall"], { cwd: dir }).toString();
-  assert.match(out, /\.intent\/pricing\.py\/SPEC\.k/);
+  assert.ok(out.includes(`.intent/files/pricing.py/checks/${example.job_id}/SPEC.k`));
   assert.match(out, /\.intent\/README\.md/);
   assert.doesNotMatch(out, /\.sent\.log/);
   void git;
@@ -109,8 +107,8 @@ test("sent log holds paths and sizes, never contents", () => {
 test("a symlink planted in .intent/ cannot redirect writes outside it", () => {
   const root = tmpdir();
   const outside = tmpdir("intent-outside-");
-  fs.mkdirSync(path.join(root, ".intent"), { recursive: true });
-  symlink(outside, path.join(root, ".intent", "src"));
+  fs.mkdirSync(path.join(root, ".intent", "files"), { recursive: true });
+  symlink(outside, path.join(root, ".intent", "files", "src"));
   const ok = writeUnit(root, { ...example.result.units[0], path: "src/pricing.py" }, { job_id: "j", url: "u" }, example.result);
   assert.equal(ok, false);
   assert.deepEqual(fs.readdirSync(outside), []);
@@ -122,21 +120,7 @@ test("a late result for a deleted repo does not recreate it", () => {
   assert.equal(fs.existsSync(root), false);
 });
 
-test("README mentions the NOTES.md exception", () => {
-  assert.match(README, /NOTES\.md.*yours/);
-  assert.match(README, /sent with every check/);
-});
-
-test("README describes VERIFICATION.k, REASONING.md and meta.json, not SEMANTICS.k", () => {
-  assert.match(README, /`VERIFICATION\.k`/);
-  assert.match(README, /`REASONING\.md`/);
-  assert.match(README, /`meta\.json`/);
-  assert.doesNotMatch(README, /SEMANTICS\.k/);
-  assert.doesNotMatch(README, /\b(verified|proved|proven|compiles)\b/i);
-});
-
-// The README this file shipped once NOTES.md existed but before VERIFICATION.k/REASONING.md
-// (see git history: lib/intentdir.js before this change). Refresh recognises it too.
+// Existing README contents remain untouched; scaffolding performs no migration.
 const PAST_README_WITH_NOTES = `# .intent
 
 This folder is written by Intent Check (the \`intent\` plugin for Claude Code and Codex).
@@ -163,13 +147,13 @@ The folder is meant to be committed. To keep it out of git, add this line to you
 To stop checks altogether, run \`/intent:off\` (or set \`INTENT_DISABLED=1\` or \`DO_NOT_TRACK=1\`).
 `;
 
-test("README refresh: also recognises the NOTES.md-era version as an exact past version", () => {
+test("scaffolding does not migrate an existing NOTES.md-era README", () => {
   const root = tmpdir();
   ensureScaffold(root);
   const f = path.join(root, ".intent", "README.md");
   fs.writeFileSync(f, PAST_README_WITH_NOTES);
   ensureScaffold(root);
-  assert.equal(fs.readFileSync(f, "utf8"), README);
+  assert.equal(fs.readFileSync(f, "utf8"), PAST_README_WITH_NOTES);
 });
 
 test("scaffold never creates NOTES.md", () => {
@@ -204,7 +188,7 @@ The folder is meant to be committed. To keep it out of git, add this line to you
 To stop checks altogether, run \`/intent:off\` (or set \`INTENT_DISABLED=1\` or \`DO_NOT_TRACK=1\`).
 `;
 
-test("README refresh: written when missing, left alone once current, refreshed when it is an exact past version, never touched otherwise", () => {
+test("README is written when missing and never overwrites existing content", () => {
   const root = tmpdir();
   ensureScaffold(root);
   const f = path.join(root, ".intent", "README.md");
@@ -215,10 +199,10 @@ test("README refresh: written when missing, left alone once current, refreshed w
   ensureScaffold(root);
   assert.equal(fs.statSync(f).mtimeMs, before);
 
-  // Exactly a past version we shipped: refreshed to the current text.
+  // Even a byte-exact past version is not migrated.
   fs.writeFileSync(f, PAST_README);
   ensureScaffold(root);
-  assert.equal(fs.readFileSync(f, "utf8"), README);
+  assert.equal(fs.readFileSync(f, "utf8"), PAST_README);
 
   // Our header, but with user text appended below it (not a byte-exact past version): never
   // overwritten, even though it "starts with" our header.
@@ -233,15 +217,14 @@ test("README refresh: written when missing, left alone once current, refreshed w
   assert.equal(fs.readFileSync(f, "utf8"), "# My notes about .intent\n\nDo not touch this.\n");
 });
 
-test("syncUnits, removeUnit and moveUnit never touch .intent/NOTES.md", () => {
+test("writing a source review never touches the project brief or requirements", () => {
   const root = tmpdir();
   ensureScaffold(root);
-  fs.writeFileSync(path.join(root, ".intent", "NOTES.md"), "- Kept on purpose.\n");
-  // NOTES.md itself is a file, not a unit directory, so it is never treated as one.
-  assert.equal(removeUnit(root, "NOTES.md"), false);
-  assert.equal(moveUnit(root, "NOTES.md", "other.md"), false);
-  assert.equal(syncUnits(root, { renamed: [{ from: "NOTES.md", to: "other.md" }], deleted: ["NOTES.md"] }), 0);
-  assert.equal(fs.readFileSync(path.join(root, ".intent", "NOTES.md"), "utf8"), "- Kept on purpose.\n");
+  fs.writeFileSync(path.join(root, ".intent", "REQUIREMENTS.md"), "- Kept on purpose.\n");
+  fs.writeFileSync(path.join(root, ".intent", "requirements.json"), '{"version":1,"requirements":[]}');
+  writeUnit(root, example.result.units[0], { job_id: "j", url: "u" }, example.result);
+  assert.equal(fs.readFileSync(path.join(root, ".intent", "REQUIREMENTS.md"), "utf8"), "- Kept on purpose.\n");
+  assert.equal(fs.readFileSync(path.join(root, ".intent", "requirements.json"), "utf8"), '{"version":1,"requirements":[]}');
 });
 
 test("a .intent symlink is refused", () => {

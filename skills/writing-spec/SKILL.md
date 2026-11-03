@@ -8,8 +8,20 @@ description: 'Use for formal proofs with K: draft or revise K reachability claim
 This stage states the theorem. It produces three artifacts: `spec.k`
 (the reachability claims), the `VERIFICATION-SUMMARIES` module of
 `verification.k` (the summary definitions the claims reference), and
-`SCOPE.md` (the scope record the spec audit reads). Write all three in
-`.intent/prove/<target>/` at the repository root (the session's `projectRoot`).
+`SCOPE.md` (the scope record the spec audit reads). Author the K sources in
+the session's `workspaceDir/inputs/` and keep the scope record outside `inputs/`.
+Prove submissions freeze exact inputs under repository-root
+`.intent/proofs/<attempt-id>/inputs/`; use the returned `proofDir` for durable
+`SCOPE.md`, reports and scripts.
+
+Read applicable local intent with `intent-check requirements context --path src/pricing.py`
+and inspect referenced records with `intent-check requirements show REQ-001`.
+Use the exact CLI-managed schema and add/update inputs in
+[local requirements](../proof-help/SKILL.md#local-requirements); do not write JSON
+directly or choose its destination. One source file's targets use its managed
+folder; cross-file targets use `.intent/files/requirements.json`. Keep requirement statements and optional
+reasons separate from proof assumptions and evidence. The editable project brief
+is one `.intent/REQUIREMENTS.md`, not per-file Markdown or synchronized JSON.
 
 `spec.k` and `verification.k` compile against the immutable semantics selected
 by the session ID. Inspect it with `intent-check session show` first:

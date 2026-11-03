@@ -237,6 +237,18 @@ class Tests(unittest.TestCase):
     def show(self, session=None):
         return self.cli("session", "show", (session or self.session)["sessionId"])
 
+    def evidence(self, operation, task_id=None):
+        candidates = []
+        for request in (self.root / ".intent/runs").glob("*/request.json"):
+            manifest = json.loads(request.read_text())
+            if manifest["operation"] != operation or manifest["session_id"] != self.session["sessionId"]:
+                continue
+            result = request.with_name("result.json")
+            if task_id and (not result.exists() or json.loads(result.read_text())["task"]["id"] != task_id):
+                continue
+            candidates.append((manifest["submitted_at"], request.parent))
+        return max(candidates)[1] if candidates else self.root / ".intent/runs/missing"
+
     @contextmanager
     def pending_operations(self):
         processes = []
@@ -373,9 +385,9 @@ class Tests(unittest.TestCase):
             result = self.operation(command)
             evidence = Path(result["evidenceDir"])
             self.assertEqual({p.name for p in evidence.iterdir()},
-                             {"result.json"})
-            kind = {"run": "run", "validate": "validation", "prove": "proof"}[command]
-            self.assertEqual(evidence.name, f"{kind}-001")
+                             {"request.json", "result.json"} | ({"inputs"} if command != "prove" else set()))
+            self.assertEqual(str(uuid.UUID(evidence.name)), evidence.name)
+            self.assertEqual(evidence.parent, self.root / ".intent/runs")
             snapshot = json.loads((evidence / "result.json").read_text())
             self.assertEqual(set(snapshot), {"task", "stdout", "stderr", "metrics"})
             self.assertEqual(snapshot["metrics"], {})
@@ -385,10 +397,12 @@ class Tests(unittest.TestCase):
             self.assertEqual(snapshot["stderr"], '"log"')
             self.assertEqual(snapshot["task"]["status"], "completed")
             self.assertEqual(result["task"], snapshot["task"])
-            self.assertEqual(set(result), {"task", "sessionId", "budget", "evidenceDir"})
-            self.assertTrue(evidence.is_relative_to(self.workspace))
-            self.assertFalse((evidence / "inputs").exists())
-            self.assertFalse((evidence / "request.json").exists())
+            self.assertEqual(set(result), {"task", "sessionId", "budget", "evidenceDir"} | ({"proofDir"} if command == "prove" else set()))
+            manifest = json.loads((evidence / "request.json").read_text())
+            self.assertEqual(manifest["operation"], command)
+            self.assertEqual((evidence / "inputs").exists(), command != "prove")
+            for item in manifest["inputs"]:
+                self.assertTrue((self.root / ".intent" / item["path"]).is_file())
         self.assertEqual([p for p, _ in self.server.uploads], ["/runs", "/proof-dry-runs", "/proofs"])
         for _, body in self.server.uploads:
             self.assertIn('name="semanticsCommit"\r\n\r\n' + IDENTITY["commit"], body)
@@ -513,10 +527,10 @@ class Tests(unittest.TestCase):
         process = subprocess.Popen(command, cwd=self.root, env=self.env,
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                    text=True)
-        evidence = self.workspace / "proof-001/result.json"
         try:
             deadline = time.monotonic() + 5
             while time.monotonic() < deadline:
+                evidence = self.evidence("prove") / "result.json"
                 if evidence.exists():
                     snapshot = json.loads(evidence.read_text())
                     if snapshot.get("metrics") == self.server.task_metrics:
@@ -547,11 +561,11 @@ class Tests(unittest.TestCase):
         self.server.has_result = False
         self.server.task_metrics = {"SPEC.entry": {"leaves": [], "nodeCount": 2,
                                                  "splitCount": 0, "longestPathLength": 1}}
-        evidence = self.workspace / "proof-001/result.json"
         with self.pending_operations() as launch:
             process = launch()
             deadline = time.monotonic() + 5
             while time.monotonic() < deadline:
+                evidence = self.evidence("prove") / "result.json"
                 if evidence.exists() and json.loads(evidence.read_text()).get("metrics"):
                     break
                 time.sleep(0.05)
@@ -571,8 +585,9 @@ class Tests(unittest.TestCase):
             first = Path(self.operation(command)["evidenceDir"])
             before = (first / "result.json").read_bytes()
             second = Path(self.operation(command)["evidenceDir"])
-            self.assertEqual(first.name, f"{kind}-001")
-            self.assertEqual(second.name, f"{kind}-002")
+            self.assertEqual(first.parent, self.root / ".intent/runs")
+            self.assertEqual(second.parent, first.parent)
+            self.assertNotEqual(first.name, second.name)
             self.assertEqual((first / "result.json").read_bytes(), before)
         self.assertEqual(self.show()["runsUsed"], 2)
 
@@ -582,7 +597,7 @@ class Tests(unittest.TestCase):
         del stored["runsUsed"]
         path.write_text(json.dumps(stored))
         result = self.operation("run")
-        self.assertEqual(Path(result["evidenceDir"]).name, "run-001")
+        self.assertEqual(Path(result["evidenceDir"]).parent, self.root / ".intent/runs")
         self.assertEqual(self.show()["runsUsed"], 1)
 
     def test_rejected_submission_does_not_consume_attempt(self):
@@ -592,7 +607,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(self.show()["attemptsUsed"], 0)
         self.server.reject = False
         self.operation("prove")
-        self.assertTrue((self.workspace / "proof-001/result.json").is_file())
+        self.assertTrue((self.evidence("prove") / "result.json").is_file())
 
     def test_retries_resend_the_same_idempotency_key(self):
         self.config.write_text(self.config.read_text() + "request_timeout_seconds = 1\n")
@@ -686,7 +701,7 @@ class Tests(unittest.TestCase):
         result = self.operation("validate", code=1)
         self.assertIn("controlled polling outage", result["message"])
         self.assertNotIn("mismatched", result["message"])
-        self.assertTrue((self.workspace / "validation-001/result.json").is_file())
+        self.assertTrue((self.evidence("validate") / "result.json").is_file())
         self.assertEqual(self.show()["validationsUsed"], 1)
 
     def test_semantics_metadata_and_module_names_are_not_interpreted(self):
@@ -703,7 +718,7 @@ class Tests(unittest.TestCase):
         self.server.task_identity["commit"] = "b" * 12
         result = self.operation("validate", code=1)
         self.assertIn("mismatched", result["message"])
-        self.assertTrue((self.workspace / "validation-001/result.json").is_file())
+        self.assertTrue((self.evidence("validate") / "result.json").is_file())
 
     def test_wrong_semantics_assertion(self):
         result = self.operation("run", code=1, extra=("--semantics", "other"))
@@ -719,7 +734,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(new["validationsUsed"], 0)
         self.assertEqual(self.show()["attemptsUsed"], 1)
         self.assertEqual(self.show()["validationsUsed"], 1)
-        self.assertTrue((self.workspace / "proof-001/result.json").exists())
+        self.assertTrue((self.evidence("prove") / "result.json").exists())
 
     def test_proof_and_validation_limits_independent(self):
         self.config.write_text(self.config.read_text() +
@@ -779,7 +794,7 @@ class Tests(unittest.TestCase):
                 self.server.poll_error = True
                 self.operation(command, code=1)
                 self.assertEqual(self.show()[counter], 1)
-                self.assertTrue((self.workspace / f"{prefix}-001/result.json").is_file())
+                self.assertTrue((self.evidence(command) / "result.json").is_file())
 
     def test_concurrent_runs_serialize_limit(self):
         self.config.write_text(self.config.read_text() + 'max_run_attempts = 3\n')
@@ -911,7 +926,7 @@ class Tests(unittest.TestCase):
             self.operation("prove", code=20)
             self.assertEqual(len(self.server.uploads), 3)
             for attempt in range(1, 4):
-                evidence = self.workspace / f"proof-{attempt:03}/result.json"
+                evidence = self.evidence("prove", f"task-{attempt}") / "result.json"
                 self.assertEqual(json.loads(evidence.read_text())["task"]["id"], f"task-{attempt}")
                 self.assertIn(f'SPEC.job-{attempt}', self.server.uploads[attempt - 1][1])
             for attempt in (3, 1, 2):
@@ -922,7 +937,7 @@ class Tests(unittest.TestCase):
                 self.assertEqual(result["budget"], {"used": attempt, "limit": 3,
                                                    "remaining": 3 - attempt})
                 evidence = Path(result["evidenceDir"])
-                self.assertEqual(evidence.name, f"proof-{attempt:03}")
+                self.assertEqual(evidence, self.evidence("prove", f"task-{attempt}"))
                 self.assertEqual(json.loads((evidence / "result.json").read_text())["task"],
                                  result["task"])
                 self.assertEqual(self.show()["attemptsUsed"], 3)
@@ -940,8 +955,9 @@ class Tests(unittest.TestCase):
             with self.server.changed:
                 self.server.task_status = "completed"
             results = [self.finish_operation(process) for process in processes]
-            self.assertEqual({Path(result["evidenceDir"]).name for result in results},
-                             {"run-001", "validation-001", "proof-001"})
+            self.assertEqual(len({Path(result["evidenceDir"]) for result in results}), 3)
+            self.assertEqual({json.loads((Path(result["evidenceDir"]) / "request.json").read_text())["operation"] for result in results},
+                             {"run", "validate", "prove"})
             self.assertEqual({result["task"]["id"] for result in results},
                              {"task-1", "task-2", "task-3"})
 
@@ -994,7 +1010,7 @@ class Tests(unittest.TestCase):
             self.assertEqual(result["task"]["status"], "completed")
             self.assertEqual(self.show()["attemptsUsed"], 2)
             for attempt in (1, 2):
-                snapshot = json.loads((self.workspace / f"proof-{attempt:03}/result.json").read_text())
+                snapshot = json.loads((self.evidence("prove", f"task-{attempt}") / "result.json").read_text())
                 self.assertEqual(snapshot["task"]["id"], f"task-{attempt}")
 
     @unittest.skipUnless(os.name == "posix", "requires POSIX SIGINT delivery")
@@ -1010,7 +1026,7 @@ class Tests(unittest.TestCase):
             self.assertIn("Interrupted", failure["message"])
             self.assertEqual(self.server.cancel_requests, ["task-1"])
             self.assertIsNone(second.poll())
-            snapshot = json.loads((self.workspace / "proof-001/result.json").read_text())
+            snapshot = json.loads((self.evidence("prove", "task-1") / "result.json").read_text())
             self.assertEqual(snapshot["task"]["status"], "cancelled")
             self.assertEqual(snapshot["wait"]["taskId"], "task-1")
             self.assertTrue(snapshot["wait"]["cancellationConfirmed"])

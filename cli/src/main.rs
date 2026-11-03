@@ -3,8 +3,10 @@ mod auth;
 mod config;
 mod help;
 mod inputs;
+mod requirements;
 mod semantics;
 mod session;
+mod storage;
 mod viewer;
 mod workflow;
 
@@ -25,6 +27,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Manage schema-validated local requirements. REQUIREMENTS.md remains directly editable.
+    #[command(subcommand, after_help = help::REQUIREMENTS)]
+    Requirements(requirements::Command),
     /// View local check artifacts live, or export a self-contained HTML report.
     #[command(after_help = help::VIEW)]
     View(viewer::ViewArgs),
@@ -126,6 +131,12 @@ pub enum TaskCommand {
 
 #[derive(Args)]
 pub struct ProofArgs {
+    /// Declared source coverage, path or path::symbol. Dependencies are not targets.
+    #[arg(long)]
+    pub target: Vec<String>,
+    /// Existing local REQ-001-style requirement ID associated with this attempt; not proof evidence.
+    #[arg(long)]
+    pub requirement: Vec<String>,
     /// Session ID; resolves the project and pinned semantics.
     #[arg(long)]
     pub session: Uuid,
@@ -218,6 +229,7 @@ fn dispatch(cli: Cli) -> CommandResult {
         std::env::set_current_dir(project)?;
     }
     match cli.command {
+        Command::Requirements(command) => requirements::dispatch(command),
         Command::View(args) => viewer::view(args),
         Command::Login => auth::login(),
         Command::Config => Ok((0, config::view()?)),

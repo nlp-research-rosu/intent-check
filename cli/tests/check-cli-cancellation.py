@@ -191,12 +191,12 @@ class CancellationTests(unittest.TestCase):
                             proc.communicate()
                 self.assertLess(time.monotonic() - started, 9)
                 result = json.loads(stdout)
-                evidence = workspace / "proof-001"
+                evidence = next((root / ".intent/runs").glob("*/result.json")).parent
                 snapshot = json.loads((evidence / "result.json").read_text())
                 task = snapshot["task"]
                 wait = snapshot["wait"]
                 self.assertEqual({p.name for p in evidence.iterdir()},
-                                 {"result.json"})
+                                 {"request.json", "result.json"})
                 state = json.loads((config / "sessions" / session_id / "session.json").read_text())
                 self.assertEqual(task["id"], "cancel-task")
                 self.assertEqual(wait["taskId"], "cancel-task")

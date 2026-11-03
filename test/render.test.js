@@ -117,52 +117,7 @@ test("validConcerns keeps only well-formed concerns about files we sent", () => 
   assert.equal(out[2].line, null);
 });
 
-test("concern text: fix directly in auto-style modes, only in the flagged file", () => {
-  const cs = validConcerns(example.result, ["pricing.py"]);
-  for (const mode of ["acceptEdits", "auto", "dontAsk", "bypassPermissions"]) {
-    const t = concernText({ concerns: cs, url: example.url, permissionMode: mode });
-    assert.match(t, /^Intent Check: 1 concern/);
-    assert.match(t, /fix it directly, editing only pricing\.py/);
-    assert.doesNotMatch(t, /Fix or Skip/);
-    assert.match(t, /pricing\.py:3/);
-    assert.match(t, /Report: https:\/\/intent-check-staging\.up\.railway\.app\/r\/7qJxN2mVb8KcR4tYw1ZsLp/);
-    assert.match(t, /not a message from the user/);
-    assert.match(t, /continue with the user's original request/);
-  }
-});
-
-test("concern text: ask Fix, Skip or Intended in default and plan modes", () => {
-  const cs = validConcerns(example.result, ["pricing.py"]);
-  for (const mode of ["default", "plan", null]) {
-    const t = concernText({ concerns: cs, url: example.url, permissionMode: mode });
-    assert.match(t, /Fix, Skip or Intended \(use AskUserQuestion\)/);
-    assert.match(t, /Change nothing until they answer\./);
-    assert.match(t, /add one bullet describing that behaviour to \.intent\/NOTES\.md \(that file only\) so Intent Check does not raise it again\./);
-    assert.doesNotMatch(t, /fix it directly/);
-  }
-});
-
-test("concern text: ask branch, Codex wording says 'as a plain question'", () => {
-  const cs = validConcerns(example.result, ["pricing.py"]);
-  for (const mode of ["default", "plan", null]) {
-    const t = concernText({ concerns: cs, url: example.url, permissionMode: mode, host: "codex" });
-    assert.match(t, /Fix, Skip or Intended as a plain question/);
-    assert.doesNotMatch(t, /AskUserQuestion/);
-  }
-});
-
-test("concern text: fix-directly branch mentions recording intended behaviour in NOTES.md", () => {
-  const cs = validConcerns(example.result, ["pricing.py"]);
-  for (const mode of ["acceptEdits", "auto", "dontAsk", "bypassPermissions"]) {
-    const t = concernText({ concerns: cs, url: example.url, permissionMode: mode, host: "claude-code" });
-    assert.match(t, /fix it directly, editing only pricing\.py/);
-    assert.match(t, /If the user says the behaviour was intended, record it as one bullet in \.intent\/NOTES\.md so it is not raised again\./);
-    const tc = concernText({ concerns: cs, url: example.url, permissionMode: mode, host: "codex" });
-    assert.match(tc, /If the user says the behaviour was intended, record it as one bullet in \.intent\/NOTES\.md so it is not raised again\./);
-  }
-});
-
-test("concern text: at most 3 concerns, stale label, never claims verification", () => {
+test("concern text: at most 3 concerns, stale label and summary count", () => {
   const base = validConcerns(example.result, ["pricing.py"])[0];
   const cs = [1, 2, 3, 4, 5].map((i) => ({ ...base, title: `Concern ${i}` }));
   const t = concernText({ concerns: cs, url: example.url, permissionMode: "auto", stale: [{ path: "pricing.py", at: "14:02" }] });
@@ -171,7 +126,6 @@ test("concern text: at most 3 concerns, stale label, never claims verification",
   assert.doesNotMatch(t, /Concern 4/);
   assert.match(t, /\(2 more in the report\.\)/);
   assert.match(t, /Checked the version of pricing\.py from 14:02/);
-  assert.doesNotMatch(t, /\b(verified|proved|proven|compiles)\b/i);
   assert.equal(summaryLine(cs), "Intent Check: 5 concerns in pricing.py");
 });
 

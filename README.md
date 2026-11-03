@@ -20,7 +20,7 @@ After a turn that changes source files, the plugin sends to the Intent Check ser
 - your last few prompts in the session (and the first one), the approved plan and todo items, and the agent's final message for the turn
 - the diff of each changed source file and the file itself (large files: only the changed regions)
 - the plugin version, host, OS and permission mode
-- `.intent/NOTES.md`, if present
+- the project brief and applicable validated requirements under `.intent/`
 
 Obvious secrets (private keys, cloud and API tokens, `KEY=value` lines with random-looking values) are masked on your machine before anything is sent. Files such as `.env*`, `*.pem` and `id_rsa*` are never sent. Tests, styling and markup-only files, generated and vendored code, config and docs are not sent either.
 
@@ -89,7 +89,64 @@ The plugin and CLI share endpoint settings in `~/.config/intent-check/config.tom
 
 `/intent:prove [what to prove]` proves a program correct with K: partial correctness (if it terminates and the precondition holds, the postcondition holds). The agent follows the proof skills (`using-prove` and the skills it points to), calling the global `intent-check` CLI directly. If setup is missing, it uses `onboarding`. On Codex, ask the agent to prove something.
 
-Proof files go under `.intent/prove/<target>/`, one folder per program or function (spec, scope, `PROOF.md`, scripts). Commit them. The CLI's session state is in `.intent/prove/sessions/`; do not commit that folder. All `.intent/` paths are relative to the automatically detected repository root, even when commands run from a subdirectory. Outside a repository, the CLI uses the project directory. Results are shown in the Intent Check console.
+All proof bundles go under `.intent/proofs/<attempt-id>/`, even for single-function targets. Each submission freezes the actual uploaded inputs there. Use the returned `proofDir` for `SCOPE.md`, `PROOF.md` and `prove.sh`. Canonical requests/results/logs are stored once under `.intent/runs/<run-id>/`. The session's `.intent/prove/sessions/` is ignored authoring scratch, not proof evidence. `--target path[::symbol]` declares covered source; supporting inputs and `--trusted` claims are not additional verified targets. `--requirement <id>` records a declared association, not an automatic proof of a requirement. All `.intent/` paths resolve from the detected repository root; outside Git, the CLI uses the project directory.
+
+## Local requirements and evidence
+
+`.intent/REQUIREMENTS.md` is one directly editable project brief. Its initial content is only `# Project requirements` and empty `## Purpose`, `## Expected behavior`, `## Constraints`, `## Out of scope` and `## Open questions` sections. No requirement prose is invented; there is no per-file Markdown or synchronization with JSON. Record actual intent without inventing user confirmation.
+
+The CLI owns structured `requirements.json` writes and derives placement from the targets:
+
+- All targets in one exact source file, including multiple methods: `.intent/files/<source-path>/requirements.json`.
+- Targets spanning multiple source files: `.intent/files/requirements.json`.
+
+For example, write this transport payload as `requirement-input.json` (outside the managed `.intent/` paths):
+
+```json
+{
+  "statement": "Reject negative input prices.",
+  "targets": [{"path": "src/pricing.py", "symbol": "calculate_total"}],
+  "reason": "Negative prices are invalid."
+}
+```
+
+```sh
+intent-check requirements add --input requirement-input.json
+intent-check requirements show REQ-001
+# Edit the transport payload, then replace the record while retaining its ID:
+intent-check requirements update REQ-001 --input requirement-input.json
+intent-check requirements list
+intent-check requirements context --path src/pricing.py
+intent-check requirements remove REQ-001
+```
+
+The first add in an empty project stores `.intent/files/src/pricing.py/requirements.json`:
+
+```json
+{
+  "schema_version": 1,
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "statement": "Reject negative input prices.",
+      "targets": [{"path": "src/pricing.py", "symbol": "calculate_total"}],
+      "reason": "Negative prices are invalid."
+    }
+  ]
+}
+```
+
+Documents require exactly `schema_version` and `requirements`. Records require `id`, `statement` and nonempty `targets`; `reason` is optional. Targets contain an exact repository-relative `path` and optional function/method qualified name `symbol`; omit `symbol` for the whole file. There is no variable targeting or symbol analysis. Unknown fields and invalid IDs/paths are rejected on reads and writes. IDs are sequential and unique across project scopes (`REQ-001`, `REQ-002`, …, `REQ-1000`), and remain stable on update. If an update changes the target files, the CLI relocates the record without duplication. `--input` reads a transport payload, not an arbitrary store destination; add/update have no `--file` scope flag. Requirement commands cannot create check/proof outcomes. There is no hosted schema dependency or competing `properties.json` store.
+
+The plugin requires the CLI from the same release with `requirements context` support, first on `PATH`; `--version` alone does not establish that capability. Verify `intent-check requirements context --help` after installing the matching CLI. An older or missing CLI stops requirement-dependent reviews with an actionable note; queued named-file requests remain queued. Invalid requirements also stop submission rather than silently dropping context.
+
+Turn, live, shell and named-file reviews save isolated generations under `.intent/files/<source-path>/checks/<run-id>/`, with actual returned artifacts and metadata referencing canonical `runs/<run-id>/result.json`. Partial runs never borrow an older spec or reasoning file. Submission timestamps determine the latest saved review; older runs remain independently readable. Renamed/deleted source does not rewrite historical evidence.
+
+Check/DeepScan outcomes are LLM-reviewed, not formal proof. Successful concrete execution or validation is not proof either. Formal results apply only to selected non-trusted claims under recorded semantics, inputs, controls and assumptions; review soundness and scope separately. Source/input freshness is independent of confidence. Request manifests record exact input hashes and controls, but omit captured prompts/transcripts. Frozen input copies are not included in offline exports.
+
+Submission manifests bind consumed structured requirement IDs and canonical content digests, the source brief digest and the exact redacted context digests. File reviews include only whole requirement records that fit the context limit; excluded IDs and partial brief text are explicitly recorded, never presented as fully submitted records. DeepScan binds the validated context actually included in its snapshot. `--requirement` on a proof is only a versioned local association: requirement prose/records are not uploaded by that flag, and no brief consumption is inferred. The viewer compares those historical bindings with current records independently from source/input freshness; edited or deleted records are stale, and missing or invalid bindings are unknown.
+
+The viewer preserves the typed server proof outcome without inferring per-claim certification from logs or tool exits. Aggregate `proved` may include trusted/admitted claims or cached results. Per-claim non-trusted coverage remains unestablished and proof audit is not recorded by the viewer; inspect the proof workflow's retained audit evidence separately.
 
 ## The `intent-check` command
 
@@ -159,11 +216,11 @@ Codex hooks are plain command strings, so the same `node "${CLAUDE_PLUGIN_ROOT}/
 For a whole-repo or folder scan:
 
 - What is sent: a snapshot of the files git tracks plus untracked files that are not ignored, as one compressed upload. Left out: files git ignores, binary files, lockfiles, vendored and generated folders (node_modules, vendor, dist, build, ...), files over 512 KB, and anything that looks like a secrets file. Obvious secrets inside the files are masked first. The limits are 3000 files and 15 MB of text; when a repo is larger, the least relevant files are dropped first and the command says so. Name a folder to scan one part of a big repo.
-- DeepScan reads your code, not Intent Check's own `.intent/` results (except `.intent/NOTES.md`).
+- DeepScan reads your code, not generated `.intent/` results. The brief and applicable structured requirements are explicitly validated and included as requirements context.
 - The upload is listed in `.intent/.sent.log` (paths and sizes, never contents). Intent Check must be on and signed in; `INTENT_DISABLED=1` stops DeepScan too.
 - The command prints the report link and returns. When the scan finishes, a short summary with the top findings appears at your next message in that repo (also in a new session), once. The link shows the full report and live progress.
-- The plugin saves the final report as `.intent/deepscan/<task-id>/report.json`, after checking its size and SHA-256 against the task response. Beside it, `meta.json` records the task status, scan scope, submitted snapshot hash and per-file hashes. `source_sha256` identifies the local bytes read for a file; `submitted_sha256` identifies its redacted upload text. No source contents are copied into this folder.
-- Report collection runs in the background and resumes on a later message if interrupted, even after the summary has been delivered. `meta.json` distinguishes a saved report from pending, expired or unavailable data. Saved reports are not removed when plugin state or server files expire. Supporting files linked from the report remain on the service; the plugin does not download the sandbox workspace.
+- The plugin saves the final report as `.intent/runs/<task-id>/report.json`, after checking its size and SHA-256 against the task response. Beside it, `request.json` binds scope, snapshot and per-file hashes; `result.json` records task and report collection status. `source_sha256` identifies local bytes; `submitted_sha256` identifies redacted upload text. No source contents are copied into this folder.
+- Report collection runs in the background and resumes on a later message if interrupted, even after the summary has been delivered. `result.json` distinguishes a saved report from pending, expired or unavailable data. Saved reports are not removed when plugin state or server files expire. Supporting files linked from the report remain on the service; the plugin does not download the sandbox workspace.
 - Findings are flagged, not reproduced. Ask the agent to reproduce the ones you care about.
 
 Earlier versions had a separate `check` command for files, and `--depth` and `--scope` flags; both are now plain arguments of `deepscan`.
@@ -186,8 +243,8 @@ custom installation, pass `--plugin-data <directory>` (repeat for multiple hosts
 snapshot. The file includes the UI, font and local evidence; it needs no account or
 network. Existing output files are not overwritten. Review the evidence before sharing
 it. Hidden files, symlinks, temporary/binary files and files above 16 MiB are excluded;
-skipped symlinks and oversized files are listed in the viewer. Plugin session prompts,
-transcripts, credentials and source workspaces are not read into the report. DeepScan
+skipped symlinks and oversized files are listed in the viewer. Only known evidence/requirements formats and paths are selected. Plugin session prompts,
+transcripts, credentials, scratch workspaces and frozen input source copies are not embedded. Source freshness is observed when the snapshot is read; an offline export does not recheck it. DeepScan
 supporting files remain remote. Offline exports do not refresh.
 
 ## Development

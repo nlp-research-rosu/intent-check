@@ -90,10 +90,10 @@ test("prior artifacts: VERIFICATION.k comes back too, redacted and schema-valid,
   assert.match(b.request.units[0].prior.verification_k, /PRICING-VERIFICATION/);
 });
 
-test("intent.notes: read from .intent/NOTES.md, redacted, clipped and schema-valid", () => {
+test("intent.notes: read from the brief, redacted, clipped and bound only to consumed context", () => {
   const root = tmpdir();
   fs.mkdirSync(path.join(root, ".intent"), { recursive: true });
-  fs.writeFileSync(path.join(root, ".intent", "NOTES.md"), "- Coupons intentionally never expire; the docstring is stale. Key sk-proj-" + "Zq8".repeat(14) + "\n");
+  fs.writeFileSync(path.join(root, ".intent", "REQUIREMENTS.md"), "- Coupons intentionally never expire; the docstring is stale. Key sk-proj-" + "Zq8".repeat(14) + "\n");
   const f = file("pricing.py", "# pricing.py\ndef apply_discount(price_cents: int, percent: int) -> int:\n    return price_cents - price_cents * percent // 100\n");
   const b = buildRequest({ files: [f], root, snap, stop, sessionHash: "s", turnId: "t", host: "claude-code" });
   assert.deepEqual(validateDef(b.request, "JobRequest"), []);
@@ -102,13 +102,18 @@ test("intent.notes: read from .intent/NOTES.md, redacted, clipped and schema-val
 
   const long = tmpdir();
   fs.mkdirSync(path.join(long, ".intent"), { recursive: true });
-  fs.writeFileSync(path.join(long, ".intent", "NOTES.md"), "x".repeat(5000));
+  fs.writeFileSync(path.join(long, ".intent", "REQUIREMENTS.md"), "x".repeat(5000));
+  fs.writeFileSync(path.join(long, ".intent", "requirements.json"), JSON.stringify({ version: 1, requirements: [{ id: 'req-' + 'a'.repeat(32), statement: 'Prices remain nonnegative', targets: [{kind:'repository'}], provenance:{kind:'agent',reference:'source inspection'}, assumptions:[], references:[] }] }));
   const b2 = buildRequest({ files: [f], root: long, snap, stop, sessionHash: "s", turnId: "t", host: "claude-code" });
   assert.equal(b2.request.intent.notes.length, 4000);
+  assert.equal(b2.requirements.brief.partial, true);
+  assert.equal(b2.request.truncated, true);
+  assert.deepEqual(b2.requirements.records, []);
+  assert.deepEqual(b2.requirements.excluded, [{id:'req-' + 'a'.repeat(32), reason:'context_limit'}]);
   assert.deepEqual(validateDef(b2.request, "JobRequest"), []);
 });
 
-test("intent.notes: absent when .intent/NOTES.md is missing or empty", () => {
+test("intent.notes: absent when the brief is missing or empty", () => {
   const f = file("pricing.py", "a\nb\nc\n");
   const b = buildRequest({ files: [f], root: tmpdir(), snap, stop, sessionHash: "s", turnId: "t", host: "claude-code" });
   assert.equal("notes" in b.request.intent, false);
@@ -116,28 +121,27 @@ test("intent.notes: absent when .intent/NOTES.md is missing or empty", () => {
 
   const empty = tmpdir();
   fs.mkdirSync(path.join(empty, ".intent"), { recursive: true });
-  fs.writeFileSync(path.join(empty, ".intent", "NOTES.md"), "");
+  fs.writeFileSync(path.join(empty, ".intent", "REQUIREMENTS.md"), "");
   const b2 = buildRequest({ files: [f], root: empty, snap, stop, sessionHash: "s", turnId: "t", host: "claude-code" });
   assert.equal("notes" in b2.request.intent, false);
 });
 
-test("intent.notes: a symlinked NOTES.md is refused", { skip: SKIP_FILE_SYMLINKS }, () => {
+test("intent.notes: a symlinked brief fails closed with an actionable error", { skip: SKIP_FILE_SYMLINKS }, () => {
   const root = tmpdir();
   const outside = tmpdir("intent-outside-");
   fs.writeFileSync(path.join(outside, "secret.md"), "- leaked\n");
   fs.mkdirSync(path.join(root, ".intent"), { recursive: true });
-  symlink(path.join(outside, "secret.md"), path.join(root, ".intent", "NOTES.md"));
-  assert.equal(readNotes(root), null);
+  symlink(path.join(outside, "secret.md"), path.join(root, ".intent", "REQUIREMENTS.md"));
+  assert.throws(() => readNotes(root), /requirements could not be validated/);
   const f = file("pricing.py", "a\nb\nc\n");
-  const b = buildRequest({ files: [f], root, snap, stop, sessionHash: "s", turnId: "t", host: "claude-code" });
-  assert.equal("notes" in b.request.intent, false);
+  assert.throws(() => buildRequest({ files: [f], root, snap, stop, sessionHash: "s", turnId: "t", host: "claude-code" }), /requirements could not be validated/);
 });
 
-test("intent.notes: an oversized NOTES.md (> 64 KB) is refused", () => {
+test("intent.notes: an oversized brief (> 1 MiB) fails closed", () => {
   const root = tmpdir();
   fs.mkdirSync(path.join(root, ".intent"), { recursive: true });
-  fs.writeFileSync(path.join(root, ".intent", "NOTES.md"), "x".repeat(64 * 1024 + 1));
-  assert.equal(readNotes(root), null);
+  fs.writeFileSync(path.join(root, ".intent", "REQUIREMENTS.md"), "x".repeat(1024 * 1024 + 1));
+  assert.throws(() => readNotes(root), /requirements could not be validated/);
 });
 
 test("idempotency key depends on session, turn, paths and file hashes", () => {

@@ -52,6 +52,8 @@ pub fn start(semantics_id: &str) -> CommandResult {
     };
     fs::create_dir_all(directory(session.session_id)?.parent().unwrap())?;
     fs::create_dir(directory(session.session_id)?)?;
+    crate::storage::intent(&session.project_root, true)?;
+    crate::storage::safe_parent(&session.project_root, &workspace(&session))?;
     fs::create_dir_all(workspace(&session))?;
     ignore_sessions(&session)?;
     save(&session)?;

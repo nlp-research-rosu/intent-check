@@ -9,6 +9,16 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 export const BIN = path.join(ROOT, "bin", "hooks.js");
 export const FIXTURES = path.join(ROOT, "test", "fixtures", "claude");
 
+// Resolve assertions against the latest saved generation, not the removed mutable unit folder.
+export function reviewPath(repo, source, artifact) {
+  const dir = path.join(repo, ".intent", "files", source, "checks");
+  try {
+    const generations = fs.readdirSync(dir).map(id => ({ id, meta: JSON.parse(fs.readFileSync(path.join(dir, id, "meta.json"), "utf8")) }))
+      .sort((a, b) => (b.meta.submitted_at || 0) - (a.meta.submitted_at || 0) || b.id.localeCompare(a.id));
+    return path.join(dir, generations[0]?.id || "missing", ...(artifact ? [artifact] : []));
+  } catch { return path.join(dir, "missing", ...(artifact ? [artifact] : [])); }
+}
+
 // Raw fixture JSON with its project dir rewritten to `dir`, escaped because a Windows path has backslashes.
 export function rewriteProjectDir(raw, dir) {
   return raw.split("/work/proj").join(JSON.stringify(dir).slice(1, -1));
