@@ -1,5 +1,6 @@
 use super::ServerConfig;
 use anyhow::{Context, Result, bail, ensure};
+use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
     io::{BufRead, BufReader, Write},
@@ -13,6 +14,20 @@ use std::{
 // Bounds an analyzer response, not the overall number of files or queries.
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(30);
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
+
+#[derive(Debug, Deserialize)]
+pub(super) struct ResponseError {
+    code: i64,
+    message: String,
+}
+
+impl std::fmt::Display for ResponseError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{} (code {})", self.message, self.code)
+    }
+}
+
+impl std::error::Error for ResponseError {}
 
 pub(super) struct Client {
     child: Child,
@@ -72,7 +87,11 @@ impl Client {
                 "capabilities": {
                     "general": {"positionEncodings": ["utf-16"]},
                     "workspace": {"configuration": true, "workspaceFolders": true},
-                    "textDocument": {"documentSymbol": {"hierarchicalDocumentSymbolSupport": true}, "callHierarchy": {}}
+                    "textDocument": {
+                        "documentSymbol": {"hierarchicalDocumentSymbolSupport": true,
+                            "symbolKind": {"valueSet": (1..=26).collect::<Vec<u32>>() }},
+                        "callHierarchy": {}, "references": {}
+                    }
                 },
                 "initializationOptions": config.initialization
             }),
@@ -116,7 +135,10 @@ impl Client {
                 continue;
             }
             if let Some(error) = message.get("error") {
-                bail!("LSP {method} failed: {error}");
+                return Err(anyhow::Error::new(serde_json::from_value::<ResponseError>(
+                    error.clone(),
+                )?))
+                .with_context(|| format!("LSP {method} failed"));
             }
             return message
                 .get("result")

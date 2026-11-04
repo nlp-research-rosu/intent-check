@@ -69,7 +69,7 @@ impl ServerConfig {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 struct Position {
     line: u32,
     character: u32,
@@ -85,6 +85,7 @@ struct Range {
 #[serde(rename_all = "camelCase")]
 struct Item {
     name: String,
+    kind: u32,
     uri: String,
     range: Range,
     selection_range: Range,
@@ -94,8 +95,88 @@ struct Item {
 struct Node {
     path: String,
     name: String,
+    kind: SymbolKind,
     range: Range,
     position: Position,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum SymbolKind {
+    File,
+    Module,
+    Namespace,
+    Package,
+    Class,
+    Method,
+    Property,
+    Field,
+    Constructor,
+    Enum,
+    Interface,
+    Function,
+    Variable,
+    Constant,
+    String,
+    Number,
+    Boolean,
+    Array,
+    Object,
+    Key,
+    Null,
+    EnumMember,
+    Struct,
+    Event,
+    Operator,
+    TypeParameter,
+}
+
+impl SymbolKind {
+    fn from_lsp(kind: u32) -> Option<Self> {
+        match kind {
+            1 => Some(Self::File),
+            2 => Some(Self::Module),
+            3 => Some(Self::Namespace),
+            4 => Some(Self::Package),
+            5 => Some(Self::Class),
+            6 => Some(Self::Method),
+            7 => Some(Self::Property),
+            8 => Some(Self::Field),
+            9 => Some(Self::Constructor),
+            10 => Some(Self::Enum),
+            11 => Some(Self::Interface),
+            12 => Some(Self::Function),
+            13 => Some(Self::Variable),
+            14 => Some(Self::Constant),
+            15 => Some(Self::String),
+            16 => Some(Self::Number),
+            17 => Some(Self::Boolean),
+            18 => Some(Self::Array),
+            19 => Some(Self::Object),
+            20 => Some(Self::Key),
+            21 => Some(Self::Null),
+            22 => Some(Self::EnumMember),
+            23 => Some(Self::Struct),
+            24 => Some(Self::Event),
+            25 => Some(Self::Operator),
+            26 => Some(Self::TypeParameter),
+            _ => None,
+        }
+    }
+
+    fn callable(self) -> bool {
+        matches!(
+            self,
+            Self::Class | Self::Method | Self::Constructor | Self::Function
+        )
+    }
+}
+
+#[derive(Debug)]
+struct Usage {
+    target: String,
+    path: String,
+    range: Range,
 }
 
 #[derive(Debug)]
@@ -109,6 +190,7 @@ struct Relationship {
 #[derive(Serialize)]
 struct Symbol {
     name: String,
+    kind: SymbolKind,
     file: String,
     line: u32,
     end_line: u32,
@@ -122,17 +204,30 @@ struct Call {
     line: u32,
 }
 
+#[derive(Eq, Ord, PartialEq, PartialOrd, Serialize)]
+struct Reference {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    from: Option<String>,
+    to: String,
+    file: String,
+    line: u32,
+    column: u32,
+    end_line: u32,
+    end_column: u32,
+}
+
 #[derive(Default)]
 struct Graph {
     nodes: BTreeMap<String, Node>,
     relationships: BTreeMap<String, Relationship>,
+    usages: Vec<Usage>,
     completed_files: BTreeSet<String>,
     issues: Vec<Value>,
     omitted_symbols: Vec<Value>,
     omitted_external: usize,
 }
 
-/// Refresh local call context for native hooks; never calls the prover or prints host output.
+/// Refresh local symbol context for native hooks; never calls the prover or prints host output.
 pub(crate) fn refresh(
     root: &Path,
     servers: &BTreeMap<String, ServerConfig>,
@@ -210,7 +305,7 @@ fn collect(
             }
         }
     }
-    let fingerprint = json!({"format_version":2,"sources":sources,"project_configs":project_configs,
+    let fingerprint = json!({"format_version":3,"sources":sources,"project_configs":project_configs,
         "lsp_config_sha256":storage::hash(serde_json::to_vec(servers)?)});
     let state_name = format!("{}.json", storage::hash(root.to_string_lossy().as_bytes()));
     let previous = fs::read(state.join(&state_name))
@@ -293,7 +388,8 @@ fn collect(
     Ok(
         json!({"status":if complete {"collected"} else {"partial"},"artifact":directory.join("graph.json"),
         "files":graph.completed_files.len(),"symbols":value["symbols"].as_object().map_or(0, |s| s.len()),
-        "calls":value["calls"].as_array().map_or(0, |c| c.len()),"issues":graph.issues,
+        "calls":value["calls"].as_array().map_or(0, |c| c.len()),
+        "references":value["references"].as_array().map_or(0, |r| r.len()),"issues":graph.issues,
         "analyzers":analyzers,"elapsed_seconds":started.elapsed().as_secs_f64(),
         "omitted_symbols":graph.omitted_symbols,"omitted_external_relationships":graph.omitted_external}),
     )
@@ -313,12 +409,21 @@ fn collect_server(
         client::Client::start(&executable, directory, config, interrupted)?;
     let info = initialized["serverInfo"].clone();
     let result = (|| {
-        for capability in ["documentSymbolProvider", "callHierarchyProvider"] {
+        let supports = |capability: &str| {
             let value = &initialized["capabilities"][capability];
-            ensure!(
-                value == true || value.is_object(),
-                "language server does not advertise {capability}"
-            );
+            value == true || value.is_object()
+        };
+        ensure!(
+            supports("documentSymbolProvider"),
+            "language server does not advertise documentSymbolProvider"
+        );
+        let references_supported = supports("referencesProvider");
+        let calls_supported = supports("callHierarchyProvider");
+        for capability in ["referencesProvider", "callHierarchyProvider"] {
+            if !supports(capability) {
+                graph.issues.push(json!({"root":relative(root, directory)?,
+                    "message":format!("language server does not advertise {capability}")}));
+            }
         }
         // Hold local documents open so incoming queries can see callers outside the selected seed files.
         for path in sources
@@ -338,16 +443,58 @@ fn collect_server(
                     json!({"textDocument":{"uri":file_uri}}),
                 )
                 .with_context(|| format!("documentSymbol for {}", file.display()))?;
-            let mut positions = Vec::new();
-            symbol_positions(&symbols, "", &relative(root, file)?, graph, &mut positions)?;
-            for position in positions {
-                let prepared = client.request(
+            symbol_positions(&symbols, "", &relative(root, file)?, false, graph)?;
+        }
+        for file in selected {
+            let file_uri = uri(file)?;
+            let path = relative(root, file)?;
+            let seeds: Vec<_> = graph
+                .nodes
+                .iter()
+                .filter(|(_, node)| node.path == path)
+                .map(|(id, node)| (id.clone(), node.position.clone(), node.kind))
+                .collect();
+            for (id, position, kind) in seeds {
+                if references_supported {
+                    let usages = graph.query(
+                        &mut client,
+                        "textDocument/references",
+                        json!({
+                            "textDocument":{"uri":file_uri},"position":position,
+                            "context":{"includeDeclaration":false}
+                        }),
+                        &path,
+                    )?;
+                    for usage in array(&usages)? {
+                        let Some(path) = local_path(
+                            root,
+                            sources,
+                            usage["uri"].as_str().context("reference has no URI")?,
+                        )?
+                        else {
+                            graph.omitted_external += 1;
+                            continue;
+                        };
+                        graph.usages.push(Usage {
+                            target: id.clone(),
+                            path,
+                            range: serde_json::from_value(usage["range"].clone())?,
+                        });
+                    }
+                }
+                if !calls_supported {
+                    continue;
+                }
+                // Constants and class members can also hold callables; use only server-reported calls.
+                let prepared = graph.query(
+                    &mut client,
                     "textDocument/prepareCallHierarchy",
                     json!({
                         "textDocument":{"uri":file_uri},"position":position
                     }),
+                    &path,
                 )?;
-                if array(&prepared)?.is_empty() {
+                if kind.callable() && array(&prepared)?.is_empty() {
                     graph
                         .omitted_symbols
                         .push(json!({"path":relative(root, file)?,
@@ -361,8 +508,12 @@ fn collect_server(
                     for (direction, endpoint) in
                         [("incomingCalls", "from"), ("outgoingCalls", "to")]
                     {
-                        let result = client
-                            .request(&format!("callHierarchy/{direction}"), json!({"item":raw}))?;
+                        let result = graph.query(
+                            &mut client,
+                            &format!("callHierarchy/{direction}"),
+                            json!({"item":raw}),
+                            &path,
+                        )?;
                         for call in array(&result)? {
                             let neighbor: Item = serde_json::from_value(call[endpoint].clone())?;
                             let Some(other) = graph.node(root, sources, &neighbor)? else {
@@ -403,29 +554,42 @@ fn collect_server(
 }
 
 impl Graph {
+    fn query(
+        &mut self,
+        client: &mut client::Client,
+        method: &str,
+        params: Value,
+        path: &str,
+    ) -> Result<Value> {
+        match client.request(method, params) {
+            Ok(result) => Ok(result),
+            Err(error) if error.is::<client::ResponseError>() => {
+                self.issues
+                    .push(json!({"path":path,"method":method,"message":format!("{error:#}")}));
+                Ok(Value::Null)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
     fn node(
         &mut self,
         root: &Path,
         sources: &BTreeMap<String, String>,
         item: &Item,
     ) -> Result<Option<String>> {
-        let Ok(path) = Url::parse(&item.uri)?.to_file_path() else {
+        let Some(path) = local_path(root, sources, &item.uri)? else {
             return Ok(None);
         };
-        let Ok(path) = path.canonicalize() else {
+        let Some(kind) = SymbolKind::from_lsp(item.kind) else {
             return Ok(None);
         };
-        let Ok(path) = relative(root, &path) else {
-            return Ok(None);
-        };
-        if !sources.contains_key(&path) {
-            return Ok(None);
-        }
         let position = &item.selection_range.start;
         let id = serde_json::to_string(&(&path, position.line, position.character))?;
         self.nodes.entry(id.clone()).or_insert_with(|| Node {
             path,
             name: item.name.clone(),
+            kind,
             range: item.range.clone(),
             position: position.clone(),
         });
@@ -462,6 +626,7 @@ impl Graph {
                 reference.clone(),
                 Symbol {
                     name: node.name.clone(),
+                    kind: node.kind,
                     file: node.path.clone(),
                     line: range.start.line + 1,
                     end_line,
@@ -479,7 +644,33 @@ impl Graph {
                 line: call.range.start.line + 1,
             })
             .collect();
-        json!({"symbols":symbols,"calls":calls})
+        let usages: BTreeSet<_> = self
+            .usages
+            .iter()
+            .map(|usage| {
+                let enclosing = self
+                    .nodes
+                    .iter()
+                    .filter(|(_, node)| {
+                        node.path == usage.path
+                            && node.range.start <= usage.range.start
+                            && usage.range.end <= node.range.end
+                    })
+                    .min_by_key(|(_, node)| {
+                        (std::cmp::Reverse(&node.range.start), &node.range.end)
+                    });
+                Reference {
+                    from: enclosing.map(|(id, _)| references[id].clone()),
+                    to: references[&usage.target].clone(),
+                    file: usage.path.clone(),
+                    line: usage.range.start.line + 1,
+                    column: usage.range.start.character + 1,
+                    end_line: usage.range.end.line + 1,
+                    end_column: usage.range.end.character + 1,
+                }
+            })
+            .collect();
+        json!({"symbols":symbols,"calls":calls,"references":usages})
     }
 }
 
@@ -487,8 +678,8 @@ fn symbol_positions(
     symbols: &Value,
     parent: &str,
     file: &str,
+    inside_callable: bool,
     graph: &mut Graph,
-    positions: &mut Vec<Value>,
 ) -> Result<()> {
     for symbol in array(symbols)? {
         let name = symbol["name"]
@@ -500,8 +691,14 @@ fn symbol_positions(
         } else {
             format!("{container}.{name}")
         };
-        // Class, method, constructor and function. Query the analyzer instead of parsing source ourselves.
-        if matches!(symbol["kind"].as_u64(), Some(5 | 6 | 9 | 12)) {
+        let kind = symbol["kind"]
+            .as_u64()
+            .and_then(|kind| u32::try_from(kind).ok())
+            .and_then(SymbolKind::from_lsp);
+        // Keep shared state, not every function-local variable reported by an analyzer.
+        if let Some(kind) = kind.filter(|kind| {
+            !inside_callable || !matches!(kind, SymbolKind::Variable | SymbolKind::Constant)
+        }) {
             let position = symbol
                 .get("selectionRange")
                 .or_else(|| symbol.get("range"))
@@ -517,18 +714,42 @@ fn symbol_positions(
                 serde_json::to_string(&(file, parsed.line, parsed.character))?,
                 Node {
                     name: name.clone(),
+                    kind,
                     path: file.to_owned(),
                     position: parsed,
                     range: serde_json::from_value(range.clone())?,
                 },
             );
-            positions.push(position);
         }
         if let Some(children) = symbol.get("children") {
-            symbol_positions(children, &name, file, graph, positions)?;
+            let inside_callable = inside_callable
+                || kind.is_some_and(|kind| {
+                    matches!(
+                        kind,
+                        SymbolKind::Method | SymbolKind::Constructor | SymbolKind::Function
+                    )
+                });
+            symbol_positions(children, &name, file, inside_callable, graph)?;
         }
     }
     Ok(())
+}
+
+fn local_path(
+    root: &Path,
+    sources: &BTreeMap<String, String>,
+    uri: &str,
+) -> Result<Option<String>> {
+    let Ok(path) = Url::parse(uri)?.to_file_path() else {
+        return Ok(None);
+    };
+    let Ok(path) = path.canonicalize() else {
+        return Ok(None);
+    };
+    let Ok(path) = relative(root, &path) else {
+        return Ok(None);
+    };
+    Ok(sources.contains_key(&path).then_some(path))
 }
 
 fn array(value: &Value) -> Result<&[Value]> {

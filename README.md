@@ -150,7 +150,7 @@ The viewer preserves the typed server proof outcome without inferring per-claim 
 
 ## The `intent-check` command
 
-### Local LSP call context
+### Local LSP symbol graph
 
 Configure already-installed language servers in the global `intent-check/config.toml`:
 
@@ -168,7 +168,7 @@ diagnosticMode = "workspace"
 Once configured, no graph command is needed. While Intent Check is enabled, its native
 SessionStart and Stop hooks schedule local background collection. The worker discovers
 matching source files, reuses an unchanged successful snapshot, or starts each relevant
-server/project root to discover symbols and query incoming/outgoing relationships.
+server/project root to discover symbols, incoming/outgoing calls and symbol references.
 Servers stop after collection. There is no public LSP command, watcher or persistent daemon.
 
 Commands in configuration are executable/argument arrays, not shell expressions;
@@ -176,16 +176,21 @@ servers run with your permissions. Missing executables are reported in the priva
 `intent.log`, never installed automatically. Optional `env`, `initialization` and `settings`
 tables customize each server; `disabled = true` disables it. See `intent-check config --help`.
 
-Results replace `.intent/graph.json` with a readable symbol map and call list:
+Results replace `.intent/graph.json` with readable symbols, calls and references:
 
 ```json
 {
   "symbols": {
-    "checkout.py:checkout": {"name": "checkout", "file": "checkout.py", "line": 3, "end_line": 5},
-    "pricing.py:discount": {"name": "discount", "file": "pricing.py", "line": 1, "end_line": 2}
+    "checkout.py:checkout": {"name": "checkout", "kind": "function", "file": "checkout.py", "line": 3, "end_line": 5},
+    "pricing.py:discount": {"name": "discount", "kind": "function", "file": "pricing.py", "line": 1, "end_line": 2},
+    "pricing.py:TAX_RATE": {"name": "TAX_RATE", "kind": "constant", "file": "pricing.py", "line": 4, "end_line": 4}
   },
   "calls": [
     {"caller": "checkout.py:checkout", "callee": "pricing.py:discount", "file": "checkout.py", "line": 4}
+  ],
+  "references": [
+    {"from": "checkout.py:checkout", "to": "pricing.py:discount", "file": "checkout.py", "line": 4, "column": 12, "end_line": 4, "end_column": 20},
+    {"from": "checkout.py:checkout", "to": "pricing.py:TAX_RATE", "file": "checkout.py", "line": 5, "column": 12, "end_line": 5, "end_column": 20}
   ]
 }
 ```
@@ -193,18 +198,31 @@ Results replace `.intent/graph.json` with a readable symbol map and call list:
 Lines are 1-based and implementation spans are inclusive. Methods use analyzer-reported
 containers, such as `checkout.py:Cart.total`; repeated names include an `@line:column`
 suffix (1-based UTF-16 column). Calls to the same target on the same source line are
-combined. Source/config hashes and snapshot identity stay in private global LSP state;
+combined. Symbols preserve all standard LSP kinds, including functions, classes,
+structs, interfaces, enums, properties, fields, variables and constants.
+Function-local variables/constants
+are excluded when the server reports their enclosing callable. References use `to` for
+the referenced symbol and optional `from` for the innermost enclosing symbol; module-level
+uses without an enclosing symbol retain their file/location. Reference ranges use 1-based
+UTF-16 columns and an exclusive end position, preserving separate uses on the same line.
+Declarations are excluded by the reference query. A function use can appear in both calls
+and references; an ordinary variable reference is not a call. Function-valued variables
+have call edges only when the server reports call hierarchy. References do not classify
+reads versus writes. Source/config hashes and snapshot identity stay in private global LSP state;
 analyzer details, timings and omitted symbols stay in the private plugin log, not the graph.
-Unsupported/failed queries are not successful empty traces.
+The collector uses advertised capabilities independently. Unsupported relationship
+capabilities and rejected relationship queries produce explicit partial results;
+they are not cached as successful empty traces.
 Partial collections add `status: "partial"` and `issues`; successful graphs contain only
-`symbols` and `calls`. Collections with no completed files or changing
+`symbols`, `calls` and `references`. Collections with no completed files or changing
 sources preserve the previous graph. Failures do not block hooks or source reviews;
 inspect `lsp.finished`/`lsp.failed` in the private plugin log. Concurrent refreshes are
 skipped; later hooks can retry. Relationships are analyzer-reported static context, not
 proof or guaranteed runtime calls. External targets are omitted; external environment
 and analyzer-binary changes are not freshness-verified. LSP collection needs no sign-in
 and its graph is not uploaded or attached to reviews/DeepScan. Python/Pyright is the initial
-integration; other servers need document-symbol and call-hierarchy capabilities.
+integration; other servers need document-symbol support. Call-hierarchy and references
+capabilities provide their respective edges; absent capabilities are reported as partial context.
 
 ### CLI installation
 
