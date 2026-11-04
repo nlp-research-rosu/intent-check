@@ -151,7 +151,103 @@ The viewer preserves the typed server proof outcome without inferring per-claim 
 
 ## The `intent-check` command
 
-Install the global CLI once for both skills and terminal use. The plugin package contains skills and JavaScript review hooks, not a native executable or private binary cache. Each release has the Rust binary for macOS, Linux and Windows (x64 and arm64), with checksums, and an installer:
+### Local LSP symbol graph
+
+Configure already-installed language servers in the global `intent-check/config.toml`:
+
+```toml
+[lsp.pyright]
+command = ["pyright-langserver", "--stdio"]
+extensions = [".py", ".pyi"]
+language_id = "python"
+root_markers = ["pyrightconfig.json", "pyproject.toml"]
+
+[lsp.pyright.settings.python.analysis]
+diagnosticMode = "workspace"
+```
+
+Once configured, no graph command is needed. While Intent Check is enabled, its native
+SessionStart and Stop hooks schedule local background collection. The worker discovers
+matching source files, reuses an unchanged successful snapshot, or starts each relevant
+server/project root to discover symbols, incoming/outgoing calls and symbol references.
+Servers stop after collection. There is no public LSP command, watcher or persistent daemon.
+
+Commands in configuration are executable/argument arrays, not shell expressions;
+servers run with your permissions. Missing executables are reported in the private plugin
+`intent.log`, never installed automatically. Optional `env`, `initialization` and `settings`
+tables customize each server; `disabled = true` disables it. See `intent-check config --help`.
+
+The native Intent CLI does not require Node, but optional analyzers have their own
+runtime and project requirements:
+
+| Analyzer | Local requirements |
+| --- | --- |
+| Python / Pyright | Node and Pyright; a project Python environment helps resolve imports. |
+| JavaScript/TypeScript / typescript-language-server | Node, the language server and a compatible TypeScript package. |
+| Go / gopls | The Go toolchain as well as gopls; the server invokes `go` to load projects. |
+| Rust / rust-analyzer | For normal Cargo projects, Rust/Cargo and standard-library sources; build scripts and procedural macros may require compilation. |
+
+Reuse installed tools where possible. Analyzer setup and project loading can download
+dependencies, toolchains or standard-library sources. Restricted networks may require
+mirrors, a proxy or a VPN; preinstalled tools and populated dependency caches can reduce
+that need. Collection is optional and other Intent operations continue without it.
+
+Results replace `.intent/graph.json` with readable symbols, calls and references:
+
+```json
+{
+  "symbols": {
+    "checkout.py:checkout": {"name": "checkout", "kind": "function", "file": "checkout.py", "line": 3, "end_line": 5},
+    "pricing.py:discount": {"name": "discount", "kind": "function", "file": "pricing.py", "line": 1, "end_line": 2},
+    "pricing.py:TAX_RATE": {"name": "TAX_RATE", "kind": "constant", "file": "pricing.py", "line": 4, "end_line": 4}
+  },
+  "calls": [
+    {"caller": "checkout.py:checkout", "callee": "pricing.py:discount", "file": "checkout.py", "line": 4}
+  ],
+  "references": [
+    {"from": "checkout.py:checkout", "to": "pricing.py:TAX_RATE", "file": "checkout.py", "line": 5, "column": 12, "end_line": 5, "end_column": 20}
+  ]
+}
+```
+
+Lines are 1-based and implementation spans are inclusive. Methods use analyzer-reported
+containers, such as `checkout.py:Cart.total`; repeated names include an `@line:column`
+suffix (1-based UTF-16 column). Calls to the same target on the same source line are
+combined. Symbols preserve all standard LSP kinds, including functions, classes,
+structs, interfaces, enums, properties, fields, variables and constants.
+Function-local variables/constants
+are excluded when the server reports their enclosing callable. References use `to` for
+the referenced symbol and optional `from` for the innermost enclosing symbol; module-level
+uses without an enclosing symbol retain their file/location. Reference ranges use 1-based
+UTF-16 columns and an exclusive end position, preserving separate uses on the same line.
+Declarations are excluded by the reference query. Call-hierarchy queries target only
+functions, methods and constructors; reference queries target variables, constants,
+fields and properties. References do not classify
+reads versus writes. Source/config hashes and snapshot identity stay in private global LSP state;
+analyzer details, timings and omitted symbols stay in the private plugin log, not the graph.
+The collector uses advertised capabilities independently. Unsupported relationship
+capabilities and rejected relationship queries produce explicit partial results;
+they are not cached as successful empty traces.
+Standard work-done progress delays queries while reported work is active, waiting up to
+30 seconds for work to settle with a 200 ms quiet interval. The wait is interruptible.
+If work starts during collection, the worker discards that server's results and retries
+once on the same connection after work settles. Continued work or a timeout prevents
+successful caching. Progress is optional; its absence or completion does not establish
+universal workspace readiness.
+Partial collections add `status: "partial"` and `issues`; successful graphs contain only
+`symbols`, `calls` and `references`. Collections with no completed files or changing
+sources preserve the previous graph. Failures do not block hooks or source reviews;
+inspect `lsp.finished`/`lsp.failed` in the private plugin log. Concurrent refreshes are
+skipped; later hooks can retry. Relationships are analyzer-reported static context, not
+proof or guaranteed runtime calls. External targets are omitted; external environment
+and analyzer-binary changes are not freshness-verified. LSP collection needs no sign-in
+and its graph is not uploaded or attached to reviews/DeepScan. Python/Pyright is the initial
+integration; other servers need document-symbol support. Call-hierarchy and references
+capabilities provide their respective edges; absent capabilities are reported as partial context.
+
+### CLI installation
+
+Install the global CLI once for both skills and terminal use. The plugin package contains skills and native hook registrations, not a native executable or private binary cache. Each release has the Rust binary for macOS, Linux and Windows (x64 and arm64), with checksums, and an installer:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/nlp-research-rosu/intent-check/releases/latest/download/install-intent-check.sh | sh
