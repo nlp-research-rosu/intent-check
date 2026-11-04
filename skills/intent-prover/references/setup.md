@@ -20,13 +20,10 @@ Required runtime capabilities are `hooks-v1`, `requirements-context-v1`, `review
 and `scan-v1`. A version alone does not establish capability support. If the published
 release lacks what is needed, report the limitation rather than reinstalling repeatedly.
 
-## Install or migrate
+## Install or update
 
 Explain the installation/update needed and obtain authorization unless already
-requested. For migration, identify the exact old executable and its ownership marker
-without reading credentials into context. Let running old CLI workers finish or stop
-them with authorization before moving their state; do not interrupt accepted remote
-tasks blindly. Keep their task IDs for recovery.
+requested.
 
 Unix installer:
 
@@ -42,28 +39,16 @@ Invoke-WebRequest https://github.com/nlp-research-rosu/intent-check/releases/lat
 & ./install-intent-prover.ps1
 ```
 
-The installers verify release checksums and CLI entry points, install the replacement,
-run `intent-prover migrate`, check configuration and configure PATH. Migration moves
-configuration, credentials, sessions and cached state from the sibling `intent-check`
-configuration directory to `intent-prover`, preserving file permissions. It refuses
-conflicting top-level entries instead of overwriting or merging them. Legacy PATH-only
-`env` files remain so existing shell profiles keep working. Host plugin data stays
-under the unchanged `intent` identity; repository `.intent` data is not moved or removed.
+The installers verify release checksums, install the CLI and configure PATH.
+Follow their PATH instructions and repeat the installation checks above.
 
-Complete migration by removing the identified old binary after replacement verification.
-When removal is authorized, rerun the Unix installer with
-`INTENT_PROVER_REMOVE_LEGACY=1` in its environment, or the PowerShell installer with
-`-RemoveLegacy`. Only a regular old executable matching its adjacent
-`.intent-check.sha256` ownership marker is removed, together with that marker.
-For an unrecognized or package-managed installation, use its original uninstall
-method after identifying the exact target and obtaining any needed approval.
-Do not delete config directories or create an old-command alias.
-
-For an already installed replacement, `intent-prover migrate` performs the same
-offline state migration and validation. On conflict or failure, preserve both
-locations and resolve the reported entry; do not reset credentials or budgets.
-Follow the installer's PATH instructions, repeat the checks above and confirm
-the old command no longer resolves. Then continue the original task.
+When replacing `intent-check`, identify the old installation and any settings,
+credentials or local state that need to be retained. Let old workers finish before
+moving their state; keep accepted task IDs for recovery. Migrate only what is needed,
+preserving permissions and resolving conflicts with the user rather than overwriting
+data. Verify the replacement before removing the identified old installation through
+its original uninstall method. Keep `.intent` project data and host plugin data under
+the unchanged `intent` identity, then continue the original task.
 
 ## Connect
 

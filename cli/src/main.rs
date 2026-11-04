@@ -55,8 +55,6 @@ enum Command {
     /// Show the effective configuration and its file location.
     #[command(after_help = help::CONFIG)]
     Config,
-    /// Migrate local Intent Check configuration, credentials and session state without network access.
-    Migrate,
     /// Check whether the configured Intent Prover service is healthy.
     #[command(after_help = help::HEALTH)]
     Health,
@@ -288,7 +286,6 @@ fn dispatch(cli: Cli) -> CommandResult {
         Command::View(args) => viewer::view(args),
         Command::Login => auth::login(),
         Command::Config => Ok((0, config::view()?)),
-        Command::Migrate => Ok((0, config::migrate()?)),
         Command::Health => {
             let config = config::load()?;
             Ok((0, api::Api::new(&config)?.health()?))

@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, env, fs, path::PathBuf};
@@ -62,77 +62,19 @@ pub fn view() -> Result<Value> {
 }
 
 pub fn directory() -> Result<PathBuf> {
-    let (old, new) = directories()?;
-    ensure!(
-        legacy_entries(&old)?.is_empty(),
-        "Existing Intent Check state at {}; run intent-prover migrate before continuing",
-        old.display()
-    );
-    Ok(new)
+    Ok(path()?.parent().unwrap().to_path_buf())
 }
 
 fn path() -> Result<PathBuf> {
-    Ok(directory()?.join("config.toml"))
-}
-
-fn directories() -> Result<(PathBuf, PathBuf)> {
-    let base = if let Some(path) = env::var_os("XDG_CONFIG_HOME") {
-        PathBuf::from(path)
-    } else {
-        default_directory()?
-    };
-    Ok((base.join("intent-check"), base.join("intent-prover")))
-}
-
-fn default_directory() -> Result<PathBuf> {
+    if let Some(path) = env::var_os("XDG_CONFIG_HOME") {
+        return Ok(PathBuf::from(path).join("intent-prover/config.toml"));
+    }
     #[cfg(windows)]
     if let Some(path) = env::var_os("APPDATA") {
-        return Ok(PathBuf::from(path));
+        return Ok(PathBuf::from(path).join("intent-prover/config.toml"));
     }
     let home = env::var_os("HOME").ok_or_else(|| anyhow::anyhow!("HOME is not set"))?;
-    Ok(PathBuf::from(home).join(".config"))
-}
-
-fn legacy_entries(directory: &std::path::Path) -> Result<Vec<fs::DirEntry>> {
-    if !directory.exists() {
-        return Ok(Vec::new());
-    }
-    // Existing shell profiles can still source these PATH-only files.
-    Ok(fs::read_dir(directory)?
-        .collect::<std::io::Result<Vec<_>>>()?
-        .into_iter()
-        .filter(|entry| entry.file_name() != "env" && entry.file_name() != "env.fish")
-        .collect())
-}
-
-pub fn migrate() -> Result<Value> {
-    let (old, new) = directories()?;
-    let entries = legacy_entries(&old)?;
-    for entry in &entries {
-        let target = new.join(entry.file_name());
-        ensure!(
-            !target.try_exists()?,
-            "Migration conflict at {}; no files were moved. Resolve the two installations before retrying",
-            target.display()
-        );
-    }
-    if !entries.is_empty() {
-        let mut builder = fs::DirBuilder::new();
-        builder.recursive(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::DirBuilderExt;
-            builder.mode(0o700);
-        }
-        builder.create(&new)?;
-        for entry in &entries {
-            fs::rename(entry.path(), new.join(entry.file_name()))
-                .context("Migration stopped; existing files are preserved. Run intent-prover migrate to continue")?;
-        }
-    }
-    load()?;
-    crate::auth::validate_saved_credentials()?;
-    Ok(json!({"status":"ready", "configPath":path()?, "migratedEntries":entries.len()}))
+    Ok(PathBuf::from(home).join(".config/intent-prover/config.toml"))
 }
 
 fn validate(config: &Config) -> Result<()> {

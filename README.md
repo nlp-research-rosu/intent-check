@@ -261,12 +261,6 @@ curl --proto '=https' --tlsv1.2 -LsSf https://github.com/nlp-research-rosu/inten
 
 On Windows, download `install-intent-prover.ps1` from the same release and run it in PowerShell. Then run `intent-prover login`, `intent-prover health` and `intent-prover semantics`.
 
-### Migrating from Intent Check
-
-The executable is now `intent-prover`, with no `intent-check` alias. Stop or finish old CLI workers before migration. The installer verifies the replacement and runs `intent-prover migrate` offline, moving configuration, credentials, sessions and cached state to the sibling `intent-prover` directory. Conflicting entries stop migration without overwriting them. File permissions are retained. Legacy PATH-only environment files stay in place; `.intent` project data and `intent` host plugin data are unchanged.
-
-After verifying the new CLI, remove the identified old installation. For a binary installed by the old checksum-verifying installer, authorize cleanup with `INTENT_PROVER_REMOVE_LEGACY=1` in the Unix installer's environment or `-RemoveLegacy` in PowerShell. Cleanup requires the adjacent `.intent-check.sha256` marker to match the old executable; other installations use their original uninstall method. Do not remove configuration or project data. See [setup](skills/intent-prover/references/setup.md).
-
 ## Environment variables
 
 | Variable | Effect |

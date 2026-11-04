@@ -37,19 +37,6 @@ if [ -e "$destination/intent-prover" ]; then
   fi
 fi
 
-legacy=$(command -v intent-check 2>/dev/null || true)
-if [ -z "$legacy" ] && [ -e "$destination/intent-check" ]; then
-  legacy="$destination/intent-check"
-fi
-if [ "${INTENT_PROVER_REMOVE_LEGACY:-0}" = 1 ] && [ -n "$legacy" ]; then
-  legacy_marker="$(dirname "$legacy")/.intent-check.sha256"
-  if [ -L "$legacy" ] || [ ! -f "$legacy" ] || [ ! -f "$legacy_marker" ] ||
-     [ "$(cat "$legacy_marker")" != "$(hash_file "$legacy")" ]; then
-    echo "intent-prover: cannot identify a managed old binary at $legacy; remove it through its original installer" >&2
-    exit 1
-  fi
-fi
-
 work=$(mktemp -d "${TMPDIR:-/tmp}/intent-prover-install.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 curl --proto '=https' --tlsv1.2 -LsSf "$base/$asset" -o "$work/$asset"
@@ -59,21 +46,9 @@ actual=$(hash_file "$work/$asset")
 test "$actual" = "$expected" || { echo "intent-prover: checksum mismatch" >&2; exit 1; }
 
 tar -xzf "$work/$asset" -C "$work"
-"$work/intent-prover" --version
-"$work/intent-prover" runtime
-"$work/intent-prover" requirements --help >/dev/null
 install -m 0755 "$work/intent-prover" "$destination/intent-prover"
 hash_file "$destination/intent-prover" > "$marker"
-"$destination/intent-prover" migrate
-"$destination/intent-prover" config >/dev/null
-if [ -n "$legacy" ]; then
-  if [ "${INTENT_PROVER_REMOVE_LEGACY:-0}" = 1 ]; then
-    rm "$legacy" "$legacy_marker"
-    echo "Removed the verified old binary: $legacy"
-  else
-    echo "Deprecated binary found at $legacy. After authorizing removal, rerun with INTENT_PROVER_REMOVE_LEGACY=1."
-  fi
-fi
+"$destination/intent-prover" --version
 
 quote() {
   quoted=$1

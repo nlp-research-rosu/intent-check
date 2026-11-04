@@ -59,11 +59,6 @@ first applicable path:
   %APPDATA%/intent-prover/config.toml (Windows)
   ~/.config/intent-prover/config.toml
 
-Run `intent-prover migrate` to move configuration, credentials, cached semantics
-and session state from the old intent-check directory. It does not merge conflicting
-entries or change project .intent data or host plugin data. Stop old CLI workers first.
-Legacy PATH-only env files remain in place for existing shell profiles.
-
 The plugin reads this same file through the global intent-prover CLI for API
 and console endpoints. INTENT_API_URL and INTENT_CONSOLE_URL override it;
 blank variables count as unset. Plugin preferences such as disabled and live

@@ -8,7 +8,7 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ### Changed
 
-- Rename the client to Intent Prover and the executable to `intent-prover`, with no old-command alias. Checksum-verifying installers migrate local settings, credentials, sessions and caches; opt-in cleanup removes only an identified managed old binary after verification. Project `.intent` data and the `intent` plugin identity are unchanged.
+- Rename the client to Intent Prover and the executable to `intent-prover`, with no old-command alias. Project `.intent` data and the `intent` plugin identity are unchanged.
 - Replace the multi-skill tree with one compact `intent-prover` skill for Formalize, Review, Scan and Prove, an ongoing What's new section and task-loaded references. Remove callable semantics-maintenance and EVM guidance.
 - Expose `scan` and `/intent:scan`; retain On/Live/Off and add `/intent:formalize` and `/intent:review` shortcuts. Keep Claude Code and Codex hooks, with host-specific result-delivery guidance.
 
