@@ -346,7 +346,7 @@ fn snapshot(root: &Path, name: &str, data_dirs: &[PathBuf]) -> Result<Snapshot> 
                             .files
                             .get(&result_path)
                             .and_then(|text| serde_json::from_str::<Value>(text).ok());
-                        if let (Some(request), Some(result)) = (request, result) {
+                        if let (Some(request), Some(_result)) = (request, result) {
                             let bound = request["properties"]
                                 .as_array()
                                 .into_iter()
@@ -365,20 +365,26 @@ fn snapshot(root: &Path, name: &str, data_dirs: &[PathBuf]) -> Result<Snapshot> 
                                     })
                                     .collect();
                                 let specs =
-                                    result["properties"][id.to_string()]["specs"].as_array();
-                                let specs_match = specs.is_some_and(|specs| {
-                                    specs.len() == selection.specs.len()
-                                        && selection.specs.iter().all(|path| {
-                                            specs.iter().any(|spec| {
-                                                spec["path"] == *path
-                                                    && crate::storage::spec_path(root, path)
-                                                        .ok()
-                                                        .and_then(|p| fs::read(p).ok())
-                                                        .map(crate::storage::hash)
-                                                        .as_deref()
-                                                        == spec["sha256"].as_str()
-                                            })
+                                    crate::storage::submitted_specs(&request, bound, &run).ok();
+                                let specs_complete = !selection.specs.is_empty()
+                                    && specs.as_ref().is_some_and(|specs| {
+                                        selection.specs.iter().all(|path| {
+                                            specs.iter().any(|spec| spec["path"] == *path)
                                         })
+                                    });
+                                let specs_changed = specs.as_ref().is_some_and(|specs| {
+                                    selection.specs.iter().any(|path| {
+                                        specs.iter().find(|spec| spec["path"] == *path).is_some_and(
+                                            |spec| {
+                                                crate::storage::spec_path(root, path)
+                                                    .ok()
+                                                    .and_then(|p| fs::read(p).ok())
+                                                    .map(crate::storage::hash)
+                                                    .as_deref()
+                                                    != spec["sha256"].as_str()
+                                            },
+                                        )
+                                    })
                                 });
                                 let requirement_matches = current_hashes
                                     .as_ref()
@@ -386,12 +392,13 @@ fn snapshot(root: &Path, name: &str, data_dirs: &[PathBuf]) -> Result<Snapshot> 
                                     .map(String::as_str)
                                     == bound["record_sha256"].as_str();
                                 freshness = if sources.iter().any(|s| s == "stale")
-                                    || !specs_match
+                                    || specs_changed
                                     || !requirement_matches
                                 {
                                     "stale"
                                 } else if !sources.is_empty()
                                     && sources.iter().all(|s| s == "current")
+                                    && specs_complete
                                 {
                                     "current"
                                 } else {

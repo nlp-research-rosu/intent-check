@@ -316,11 +316,11 @@ pub fn lock(root: &Path) -> Result<fs::File> {
     Ok(file)
 }
 
-pub fn place_property(
+pub fn property_placement(
     root: &Path,
     id: &str,
     targets: &[crate::requirements::Target],
-) -> Result<()> {
+) -> Result<Vec<(String, Index)>> {
     ensure!(valid_id(id), "Invalid property ID");
     let mut selection = Selection::default();
     let mut owner = None;
@@ -334,24 +334,27 @@ pub fn place_property(
         }
     }
     let owner = owner.unwrap_or_else(|| targets[0].path.clone());
+    let mut changes = Vec::new();
     for (source, mut index) in indexes {
         if source != owner && index.properties.remove(id).is_some() {
-            write_index(root, &source, &index)?;
+            changes.push((source, index));
         }
     }
     let mut index = read_index(root, &owner)?;
     index.properties.insert(id.into(), selection);
-    write_index(root, &owner, &index)
+    changes.push((owner, index));
+    Ok(changes)
 }
 
-pub fn remove_property(root: &Path, id: &str) -> Result<()> {
+pub fn property_removal(root: &Path, id: &str) -> Result<Vec<(String, Index)>> {
     ensure!(valid_id(id), "Invalid property ID");
+    let mut changes = Vec::new();
     for (source, mut index) in indexes(root)? {
         if index.properties.remove(id).is_some() {
-            write_index(root, &source, &index)?;
+            changes.push((source, index));
         }
     }
-    Ok(())
+    Ok(changes)
 }
 
 /// Internal collection for request construction; agents read project files directly.
@@ -443,6 +446,34 @@ pub fn property_snapshot(
         properties.push(json!({"id":id,"owner":owner,"selection":selection,"record_sha256":bound["record_sha256"],"sources":sources,"specs":specs,"outputs":outputs}));
     }
     Ok(json!(properties))
+}
+
+/// Map current destinations to the formal versions actually submitted for this operation.
+pub fn submitted_specs(request: &Value, property: &Value, run: &str) -> Result<Vec<Value>> {
+    let inputs = request["inputs"]
+        .as_array()
+        .context("Missing submitted inputs")?;
+    property["outputs"]
+        .as_array()
+        .context("Missing formal input mapping")?
+        .iter()
+        .map(|output| {
+            let name = output["input"].as_str().context("Missing formal input")?;
+            crate::requirements::relative_path(name)?;
+            let frozen = format!("logs/{run}/inputs/{name}");
+            let input = inputs
+                .iter()
+                .find(|input| input["path"] == frozen)
+                .context("Formal input is absent from the submission manifest")?;
+            let sha256 = input["sha256"]
+                .as_str()
+                .context("Missing submitted input hash")?;
+            let path = output["path"]
+                .as_str()
+                .context("Missing specification destination")?;
+            Ok(json!({"path":path,"sha256":sha256}))
+        })
+        .collect()
 }
 
 /// Promote explicit property-associated formal inputs after a terminal operation.
@@ -547,17 +578,11 @@ pub fn finish_properties(root: &Path, evidence: &Path, successful: bool) -> Resu
             selection.specs.sort();
         }
         selection.last_run = Some(run.into());
-        let current: Vec<_> = selection
-            .specs
-            .iter()
-            .map(|path| {
-                Ok(json!({"path":path,"sha256":fs::read(spec_path(root, path)?).ok().map(hash)}))
-            })
-            .collect::<Result<_>>()?;
+        let submitted = submitted_specs(&request, property, run)?;
         if !result["properties"].is_object() {
             result["properties"] = json!({});
         }
-        result["properties"][id.to_string()] = json!({"specs":current});
+        result["properties"][id.to_string()] = json!({"specs":submitted});
         crate::api::write_json(evidence, "result.json", &result)?;
         write_index(root, owner, &index)?;
     }

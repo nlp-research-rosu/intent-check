@@ -200,16 +200,20 @@ pub fn read_document(path: &Path, local: Option<&str>) -> Result<Document> {
     Ok(doc)
 }
 
-fn write_document(path: &Path, doc: &Document) -> Result<()> {
+fn document_value(doc: &Document) -> Result<serde_json::Value> {
     let value = serde_json::to_value(doc)?;
     ensure!(
         serde_json::to_vec_pretty(&value)?.len() <= 1024 * 1024,
         "Requirements file exceeds 1 MiB"
     );
+    Ok(value)
+}
+
+fn write_document(path: &Path, doc: &Document) -> Result<()> {
     api::write_json(
         path.parent().context("Requirements path has no parent")?,
         "requirements.json",
-        &value,
+        &document_value(doc)?,
     )
 }
 
@@ -218,6 +222,7 @@ fn store_record(
     docs: &mut Vec<(PathBuf, Option<String>, Document)>,
     record: Requirement,
 ) -> Result<()> {
+    let indexes = crate::storage::property_placement(root, &record.id, &record.targets)?;
     let local = source_scope(&record.targets).map(str::to_owned);
     let target = local.as_ref().map_or_else(
         || root.join(".intent/source/requirements.json"),
@@ -247,16 +252,25 @@ fn store_record(
     let doc = &mut docs[destination].2;
     doc.requirements.retain(|r| r.id != record.id);
     doc.requirements.push(record.clone());
-    crate::storage::intent(root, true)?;
-    crate::storage::safe_parent(root, &target)?;
-    fs::create_dir_all(target.parent().context("Requirements path has no parent")?)?;
-    write_document(&target, doc)?;
-    if let Some(index) = previous.filter(|index| *index != destination) {
-        let (path, _, doc) = &mut docs[index];
+    let previous = previous.filter(|index| *index != destination);
+    if let Some(index) = previous {
+        let (_, _, doc) = &mut docs[index];
         doc.requirements.retain(|r| r.id != record.id);
-        write_document(path, doc)?;
     }
-    crate::storage::place_property(root, &record.id, &record.targets)?;
+    let mut writes = Vec::new();
+    for index in std::iter::once(destination).chain(previous) {
+        let (path, _, doc) = &docs[index];
+        crate::storage::safe_parent(root, path)?;
+        writes.push((path, document_value(doc)?));
+    }
+    for (path, value) in writes {
+        let parent = path.parent().context("Requirements path has no parent")?;
+        fs::create_dir_all(parent)?;
+        api::write_json(parent, "requirements.json", &value)?;
+    }
+    for (source, index) in indexes {
+        crate::storage::write_index(root, &source, &index)?;
+    }
     Ok(())
 }
 
@@ -397,13 +411,16 @@ pub fn dispatch(command: Command) -> CommandResult {
             Ok((0, json!({"requirement":record})))
         }
         Command::Remove { id } => {
+            let indexes = crate::storage::property_removal(&root, &id)?;
             let (path, _, doc) = docs
                 .iter_mut()
                 .find(|(_, _, doc)| doc.requirements.iter().any(|r| r.id == id))
                 .context("Unknown requirement ID")?;
             doc.requirements.retain(|r| r.id != id);
             write_document(path, doc)?;
-            crate::storage::remove_property(&root, &id)?;
+            for (source, index) in indexes {
+                crate::storage::write_index(&root, &source, &index)?;
+            }
             Ok((0, json!({"removed":id})))
         }
     }

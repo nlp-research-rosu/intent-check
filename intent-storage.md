@@ -35,4 +35,6 @@ Explicit proof `--requirement <id>` associations bind the submitted formal files
 
 Agents may maintain `REQUIREMENTS.md` and read the whole folder. Use the requirements CLI for structured requirement mutations. Keep current formal files and their index links consistent; do not edit historical results or frozen inputs. Merge source, properties and current formal files together; use operation logs to resolve conflicts. Internal hook and worker entry points are host lifecycle interfaces, not supported agent-facing CLI commands.
 
+Requirement mutations validate affected documents and indexes before writing. Property freshness compares current files with the formal versions in the referenced operation's submitted-input manifest, independently of success or failure. Different submitted contents are stale; retained specs absent from that submission have unknown freshness for that attempt.
+
 `.queue/` is transient scheduling and `.sent.log` is an upload audit without contents. These and `.storage.lock` are ignored by Git. `.ignore` excludes generated evidence from ordinary searches. Durable requirements, current specifications and evidence may be committed. Viewer/export excludes private conversations, authoring scratch and frozen input copies. To disable automatic reviews, use the plugin's off control or `INTENT_DISABLED=1` / `DO_NOT_TRACK=1`.
