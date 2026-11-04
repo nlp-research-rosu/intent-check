@@ -1,6 +1,6 @@
 ---
 name: intent-prover
-description: Clarify and record requirements, review code changes, investigate repositories, and construct or assess formal proofs with Intent Prover. Use for Formalize, Review, Scan or Prove requests; Intent Prover findings; automatic review controls; and CLI setup or migration.
+description: Clarify and record requirements, review code changes, investigate repositories, and construct or assess formal proofs with Intent Prover. Use for Formalize, Review, Scan or Prove requests; Intent Prover findings; automatic review controls; CLI setup or migration; and language-server setup for local graph collection.
 ---
 
 # Intent Prover
@@ -12,6 +12,8 @@ description: Clarify and record requirements, review code changes, investigate r
   credentials and local state, verify it, and remove the identified old installation.
 - One skill coordinates **Formalize, Review, Scan and Prove**.
 - **On, Live and Off** remain automatic Review controls and Claude Code commands.
+- Local symbol, call and reference graphs use configured language servers. Follow
+  [setup](references/setup.md#language-servers-and-graph-collection) to prepare collection.
 
 ## Choose the work
 
@@ -32,7 +34,7 @@ is not by itself a formal proof.
 ## Work within the task
 
 - Use the global CLI and its command help. Read [setup.md](references/setup.md)
-  only when installation, migration, connection or host identity needs attention.
+  when installation, migration, connection, language servers or host identity need attention.
 - Respect On/Live/Off, upload authorization, scope and resource limits. Consume
   available results and avoid duplicate Review submissions. Never invoke internal
   `__hook` or `__worker` commands as an agent workflow.
