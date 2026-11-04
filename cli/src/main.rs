@@ -134,9 +134,12 @@ pub struct ProofArgs {
     /// Declared source coverage, path or path::symbol. Dependencies are not targets.
     #[arg(long)]
     pub target: Vec<String>,
-    /// Existing local requirement UUID associated with this attempt; not proof evidence.
+    /// Existing six-character local requirement ID; not proof evidence.
     #[arg(long)]
     pub requirement: Vec<String>,
+    /// Existing specification bundle to update; omit to create an independent bundle.
+    #[arg(long, requires = "requirement")]
+    pub spec_id: Option<String>,
     /// Session ID; resolves the project and pinned semantics.
     #[arg(long)]
     pub session: Uuid,

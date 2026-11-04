@@ -57,12 +57,12 @@ Session authoring scratch lives under the project's
 `.intent/prove/sessions/<id>/` at the automatically detected repository root;
 it is not meant to be committed. Outside a repository, use the session's
 project directory.
-Canonical manifests and results live in `.intent/logs/<run-uuid>/`.
+Canonical manifests and results live in `.intent/logs/<run-id>/`.
 Frozen submitted inputs live in that operation's `inputs/`; use the returned
-`proofDir` (`logs/<run-uuid>/artifacts/`) for `SCOPE.md`, `PROOF.md` and `prove.sh`.
+`proofDir` (`logs/<run-id>/artifacts/`) for `SCOPE.md`, `PROOF.md` and `prove.sh`.
 `--target path[::symbol]` declares source scope; supporting inputs are not targets,
 trusted claims are assumptions, and `--requirement <id>` is a declared association,
-not evidence that a requirement was proved. Use existing CLI-generated UUIDs;
+not evidence that a requirement was proved. Use existing CLI-generated six-character IDs;
 their exact record hashes bind the declared association independently of source freshness.
 `intent-check session show <ID>` reports a session's paths and counters.
 
@@ -81,13 +81,13 @@ as `requirement-input.json`:
 
 ```sh
 intent-check requirements add --input requirement-input.json
-intent-check requirements show <uuid>
+intent-check requirements show <id>
 # Edit the input as needed, then retain the assigned ID:
-intent-check requirements update <uuid> --input requirement-input.json
+intent-check requirements update <id> --input requirement-input.json
 ```
 
-An add stores a generated UUID under
-`.intent/source/src/pricing.py/requirements.json`. UUIDs are stable on update.
+An add stores a generated six-character lowercase letter/digit ID under
+`.intent/source/src/pricing.py/requirements.json`. IDs are stable on update.
 All targets in one exact source file use
 that file's managed folder, even for multiple methods; targets in multiple files
 use `.intent/source/requirements.json`. Update relocates the record when necessary
@@ -99,7 +99,7 @@ records require `id`, `statement`, and nonempty `targets`, with optional `reason
 Targets require exact repository-relative `path` and may include a function/method
 qualified name `symbol`; omit it for a whole file. No variable targets or symbol
 analysis, no `kind`/provenance/assumptions/references fields, and no writable proof
-status. Input omits `id`. Use `list`/`show` to inspect and `remove <uuid>` to remove;
+status. Input omits `id`. Use `list`/`show` to inspect and `remove <id>` to remove;
 do not write canonical JSON or create a competing `properties.json` store.
 
 The one directly editable `.intent/REQUIREMENTS.md` starts with
@@ -109,7 +109,9 @@ or JSON synchronization. Read `.intent` directly with normal file tools.
 Per-source indexes select current specification paths and last_run for each property;
 cross-file requirements have one owning per-file index, not a global index/spec folder.
 Internal hook/worker entry points are reserved for the host, not agent CLI usage.
-`--requirement <uuid>` on a proof records only a versioned
+Formal files use independent `specs/<spec-id>/` bundles. Use proof `--spec-id <id>`
+to update or intentionally share an existing bundle; omit it for a new bundle.
+`--requirement <id>` on a proof records only a versioned
 local association, not uploaded context or per-requirement certification. Requirement
 and source/input freshness are separate; aggregate `proved`, trusted claims and
 tool exits do not establish per-claim coverage or an audit.

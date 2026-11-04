@@ -18,12 +18,14 @@ what is proved, what depends on assumptions, and what remains unresolved.
 
 Prepare inputs in the session's returned `workspaceDir/inputs/` (ignored authoring scratch).
 Each prove submission freezes its exact uploaded inputs in the repository-root
-`.intent/logs/<run-uuid>/inputs/`. Use the returned `proofDir` (the operation's
+`.intent/logs/<run-id>/inputs/`. Use the returned `proofDir` (the operation's
 `artifacts/`) for `SCOPE.md`, `prove.sh` and `PROOF.md`. Canonical request/result/log/metrics
-evidence lives in the returned `evidenceDir`, under `.intent/logs/<run-uuid>/`.
-Current formal files live under per-source `specs/`, selected by `index.json`.
+evidence lives in the returned `evidenceDir`, under `.intent/logs/<run-id>/`.
+Current formal files live under per-source `specs/<spec-id>/`, selected by `index.json`.
+Use `--spec-id <id>` to update or intentionally share an existing bundle;
+omit it to create an independent bundle, even when filenames match.
 Use `--target <source-path>[::symbol]` for declared source coverage and
-`--requirement <uuid>` for an existing CLI-assigned structured requirement when applicable.
+`--requirement <id>` for an existing CLI-assigned structured requirement when applicable.
 These associations are declarations, not automatic proof of those requirements.
 Uploaded dependencies and trusted claims are not additional verified targets.
 The CLI detects `projectRoot` automatically. Scratch `.intent/prove/sessions/`
@@ -44,14 +46,14 @@ as `requirement-input.json`:
 
 ```sh
 intent-check requirements add --input requirement-input.json
-intent-check requirements show <uuid>
+intent-check requirements show <id>
 # If the statement or targets change, edit the input and retain the ID:
-intent-check requirements update <uuid> --input requirement-input.json
+intent-check requirements update <id> --input requirement-input.json
 ```
 
-The CLI assigns opaque UUIDs and derives placement: one exact source file (even multiple
+The CLI assigns six-character lowercase letter/digit IDs and derives placement: one exact source file (even multiple
 methods) uses `.intent/source/<source-path>/requirements.json`; multiple source
-files use `.intent/source/requirements.json`. Update relocates the same UUID without a
+files use `.intent/source/requirements.json`. Update relocates the same ID without a
 duplicate. Add/update have no `--file` flag and `--input` is not a store destination.
 Documents contain only `schema_version: 1` and `requirements`; records contain
 `id`, `statement`, nonempty `targets`, and optional `reason`. Target `path` is

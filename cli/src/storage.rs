@@ -2,7 +2,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
 };
@@ -13,6 +13,134 @@ pub fn hash(bytes: impl AsRef<[u8]>) -> String {
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect()
+}
+
+pub fn valid_id(id: &str) -> bool {
+    id.len() == 6
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+}
+
+/// Allocate a project-local identity; callers hold the storage lock until it is recorded.
+pub fn new_id(root: &Path) -> Result<String> {
+    let mut used = BTreeSet::new();
+    for (_, _, doc) in crate::requirements::documents(root)? {
+        used.extend(doc.requirements.into_iter().map(|r| r.id));
+    }
+    for (_, index) in indexes(root)? {
+        for (id, selection) in index.properties {
+            used.insert(id);
+            used.extend(selection.last_run);
+        }
+    }
+    used.extend(specifications(root)?.into_keys());
+    let logs = root.join(".intent/logs");
+    if logs.exists() {
+        safe_parent(root, &logs)?;
+        for entry in fs::read_dir(logs)? {
+            let entry = entry?;
+            used.insert(entry.file_name().to_string_lossy().into_owned());
+            let request = entry.path().join("request.json");
+            safe_parent(root, &request)?;
+            if request.is_file() {
+                let request: Value = serde_json::from_slice(&fs::read(request)?)?;
+                if let Some(id) = request["specification"]["id"].as_str() {
+                    used.insert(id.into());
+                }
+                for requirement in request["requirements"].as_array().into_iter().flatten() {
+                    if let Some(id) = requirement["id"].as_str() {
+                        used.insert(id.into());
+                    }
+                }
+            }
+        }
+    }
+    const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
+    loop {
+        let random = uuid::Uuid::new_v4();
+        let bytes = random.as_bytes();
+        let mut value = u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+        if value >= 36_u32.pow(6) {
+            continue;
+        }
+        let mut characters = [b'a'; 6];
+        for character in characters.iter_mut().rev() {
+            *character = ALPHABET[(value % 36) as usize];
+            value /= 36;
+        }
+        let id: String = characters.into_iter().map(char::from).collect();
+        if !used.contains(&id) {
+            return Ok(id);
+        }
+    }
+}
+
+fn specifications(root: &Path) -> Result<BTreeMap<String, String>> {
+    fn visit(root: &Path, dir: &Path, out: &mut BTreeMap<String, String>) -> Result<()> {
+        if !dir.exists() {
+            return Ok(());
+        }
+        safe_parent(root, dir)?;
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            if !entry.file_type()?.is_dir() {
+                continue;
+            }
+            let folder = entry.path();
+            if folder.join("index.json").exists() || folder.join("requirements.json").exists() {
+                let specs = folder.join("specs");
+                if specs.exists() {
+                    safe_parent(root, &specs)?;
+                    for bundle in fs::read_dir(specs)? {
+                        let bundle = bundle?;
+                        if !bundle.file_type()?.is_dir() {
+                            continue;
+                        }
+                        let id = bundle.file_name().to_string_lossy().into_owned();
+                        ensure!(valid_id(&id), "Invalid specification ID: {id}");
+                        let relative = bundle
+                            .path()
+                            .strip_prefix(root.join(".intent"))?
+                            .to_string_lossy()
+                            .replace('\\', "/");
+                        ensure!(
+                            out.insert(id.clone(), relative).is_none(),
+                            "Duplicate specification ID: {id}"
+                        );
+                    }
+                }
+            } else {
+                visit(root, &folder, out)?;
+            }
+        }
+        Ok(())
+    }
+    let mut out = BTreeMap::new();
+    visit(root, &root.join(".intent/source"), &mut out)?;
+    Ok(out)
+}
+
+/// New bundles are independent; an explicit ID selects an existing bundle for update.
+pub fn specification(root: &Path, ids: &[Value], existing: Option<&str>) -> Result<Value> {
+    if ids.is_empty() {
+        ensure!(existing.is_none(), "--spec-id requires --requirement");
+        return Ok(Value::Null);
+    }
+    if let Some(id) = existing {
+        ensure!(valid_id(id), "Expected a six-character specification ID");
+        let path = specifications(root)?
+            .remove(id)
+            .context("Unknown specification ID")?;
+        return Ok(json!({"id":id,"path":path}));
+    }
+    let id = new_id(root)?;
+    let property = ids[0]["id"].as_str().context("Missing property ID")?;
+    let owner = indexes(root)?
+        .into_iter()
+        .find_map(|(owner, index)| index.properties.contains_key(property).then_some(owner))
+        .context("Property has no owning index")?;
+    Ok(json!({"id":id,"path":format!("source/{owner}/specs/{id}")}))
 }
 
 pub fn safe_parent(root: &Path, file: &Path) -> Result<()> {
@@ -62,14 +190,14 @@ pub fn intent(root: &Path, create: bool) -> Result<PathBuf> {
 #[serde(deny_unknown_fields)]
 pub struct Selection {
     pub specs: Vec<String>,
-    pub last_run: Option<uuid::Uuid>,
+    pub last_run: Option<String>,
 }
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Index {
     pub schema_version: u32,
-    pub properties: BTreeMap<uuid::Uuid, Selection>,
+    pub properties: BTreeMap<String, Selection>,
 }
 
 impl Default for Index {
@@ -99,7 +227,12 @@ pub fn read_index(root: &Path, source: &str) -> Result<Index> {
         index.schema_version == 1,
         "Unsupported index schema version"
     );
-    for selection in index.properties.values() {
+    for (id, selection) in &index.properties {
+        ensure!(valid_id(id), "Invalid property ID: {id}");
+        ensure!(
+            selection.last_run.as_deref().is_none_or(valid_id),
+            "Invalid operation ID"
+        );
         for spec in &selection.specs {
             spec_path(root, spec)?;
         }
@@ -121,6 +254,10 @@ pub fn spec_path(root: &Path, relative: &str) -> Result<PathBuf> {
         .context("Expected a per-source specification path")?;
     crate::requirements::relative_path(source)?;
     crate::requirements::relative_path(name)?;
+    ensure!(
+        name.split_once('/').is_some_and(|(id, _)| valid_id(id)),
+        "Expected specs/<six-character-id>/<file>"
+    );
     let file = root.join(".intent").join(relative);
     safe_parent(root, &file)?;
     Ok(file)
@@ -184,12 +321,12 @@ pub fn place_property(
     id: &str,
     targets: &[crate::requirements::Target],
 ) -> Result<()> {
-    let id = uuid::Uuid::parse_str(id)?;
+    ensure!(valid_id(id), "Invalid property ID");
     let mut selection = Selection::default();
     let mut owner = None;
     let indexes = indexes(root)?;
     for (source, index) in &indexes {
-        if let Some(saved) = index.properties.get(&id) {
+        if let Some(saved) = index.properties.get(id) {
             selection = saved.clone();
             if targets.iter().any(|target| target.path == *source) {
                 owner = Some(source.clone());
@@ -198,19 +335,19 @@ pub fn place_property(
     }
     let owner = owner.unwrap_or_else(|| targets[0].path.clone());
     for (source, mut index) in indexes {
-        if source != owner && index.properties.remove(&id).is_some() {
+        if source != owner && index.properties.remove(id).is_some() {
             write_index(root, &source, &index)?;
         }
     }
     let mut index = read_index(root, &owner)?;
-    index.properties.insert(id, selection);
+    index.properties.insert(id.into(), selection);
     write_index(root, &owner, &index)
 }
 
 pub fn remove_property(root: &Path, id: &str) -> Result<()> {
-    let id = uuid::Uuid::parse_str(id)?;
+    ensure!(valid_id(id), "Invalid property ID");
     for (source, mut index) in indexes(root)? {
-        if index.properties.remove(&id).is_some() {
+        if index.properties.remove(id).is_some() {
             write_index(root, &source, &index)?;
         }
     }
@@ -228,7 +365,7 @@ pub fn collect(root: &Path, paths: &[String]) -> Result<Value> {
     let mut properties = BTreeMap::new();
     for (source, index) in indexes(root)? {
         for (id, selection) in index.properties {
-            if requirements.iter().any(|r| r.id == id.to_string()) {
+            if requirements.iter().any(|r| r.id == id) {
                 let specs: Vec<_> = selection
                     .specs
                     .iter()
@@ -255,11 +392,12 @@ pub fn property_snapshot(
     root: &Path,
     ids: &[Value],
     inputs: &[(String, Vec<u8>)],
+    specification: &Value,
 ) -> Result<Value> {
     let context = collect(root, &[])?;
     let mut properties = Vec::new();
     for bound in ids {
-        let id = bound["id"].as_str().context("Missing property UUID")?;
+        let id = bound["id"].as_str().context("Missing property ID")?;
         let record = context["requirements"]
             .as_array()
             .context("Missing requirements")?
@@ -269,7 +407,11 @@ pub fn property_snapshot(
         let owner = context["properties"][id]["owner"]
             .as_str()
             .context("Property has no owning index")?;
-        let selection = &read_index(root, owner)?.properties[&uuid::Uuid::parse_str(id)?];
+        let index = read_index(root, owner)?;
+        let selection = index
+            .properties
+            .get(id)
+            .context("Property has no owning index")?;
         let sources: Vec<_> = record["targets"]
             .as_array()
             .context("Missing targets")?
@@ -288,7 +430,10 @@ pub fn property_snapshot(
         }
         let mut outputs = Vec::new();
         for (name, _) in inputs.iter().filter(|(name, _)| name.ends_with(".k")) {
-            let path = format!("source/{owner}/specs/{name}");
+            let directory = specification["path"]
+                .as_str()
+                .context("Missing specification identity")?;
+            let path = format!("{directory}/{name}");
             let file = spec_path(root, &path)?;
             specs
                 .entry(path.clone())
@@ -304,23 +449,22 @@ pub fn property_snapshot(
 pub fn finish_properties(root: &Path, evidence: &Path, successful: bool) -> Result<()> {
     let _lock = lock(root)?;
     let request: Value = serde_json::from_slice(&fs::read(evidence.join("request.json"))?)?;
-    let run = uuid::Uuid::parse_str(
-        evidence
-            .file_name()
-            .and_then(|s| s.to_str())
-            .context("Missing run UUID")?,
-    )?;
+    let run = evidence
+        .file_name()
+        .and_then(|s| s.to_str())
+        .context("Missing operation ID")?;
+    ensure!(valid_id(run), "Invalid operation ID");
     let docs = crate::requirements::documents(root)?;
     let mut result: Value = serde_json::from_slice(&fs::read(evidence.join("result.json"))?)?;
     let mut written = BTreeMap::<String, String>::new();
     for property in request["properties"].as_array().into_iter().flatten() {
-        let id = uuid::Uuid::parse_str(property["id"].as_str().context("Missing property UUID")?)?;
+        let id = property["id"].as_str().context("Missing property ID")?;
         let owner = property["owner"].as_str().context("Missing owner")?;
         let mut index = read_index(root, owner)?;
-        let Some(selection) = index.properties.get_mut(&id) else {
+        let Some(selection) = index.properties.get_mut(id) else {
             continue;
         };
-        if selection.last_run == Some(run) {
+        if selection.last_run.as_deref() == Some(run) {
             continue;
         }
         if serde_json::to_value(&*selection)? != property["selection"] {
@@ -329,7 +473,7 @@ pub fn finish_properties(root: &Path, evidence: &Path, successful: bool) -> Resu
         let record = docs
             .iter()
             .flat_map(|(_, _, doc)| &doc.requirements)
-            .find(|r| r.id == id.to_string());
+            .find(|r| r.id == id);
         if record
             .map(crate::requirements::record_hash)
             .transpose()?
@@ -402,7 +546,7 @@ pub fn finish_properties(root: &Path, evidence: &Path, successful: bool) -> Resu
             }
             selection.specs.sort();
         }
-        selection.last_run = Some(run);
+        selection.last_run = Some(run.into());
         let current: Vec<_> = selection
             .specs
             .iter()

@@ -89,7 +89,7 @@ The plugin and CLI share endpoint settings in `~/.config/intent-check/config.tom
 
 `/intent:prove [what to prove]` proves a program correct with K: partial correctness (if it terminates and the precondition holds, the postcondition holds). The agent follows the proof skills (`using-prove` and the skills it points to), calling the global `intent-check` CLI directly. If setup is missing, it uses `onboarding`. On Codex, ask the agent to prove something.
 
-Each operation freezes its uploaded inputs under `.intent/logs/<run-uuid>/inputs/` and saves `request.json` and `result.json` beside that folder. Use the returned `proofDir` (`logs/<run-uuid>/artifacts/`) for `SCOPE.md`, `PROOF.md` and `prove.sh`. There is no separate proof store. The session's `.intent/prove/sessions/` is ignored authoring scratch, not proof evidence. `--target path[::symbol]` declares covered source; supporting inputs and `--trusted` claims are not additional verified targets. `--requirement <uuid>` explicitly associates the submitted formal files with an existing property, not an automatic proof of it. All `.intent/` paths resolve from the detected repository root; outside Git, the CLI uses the project directory.
+Each operation freezes its uploaded inputs under `.intent/logs/<run-id>/inputs/` and saves `request.json` and `result.json` beside that folder. Use the returned `proofDir` (`logs/<run-id>/artifacts/`) for `SCOPE.md`, `PROOF.md` and `prove.sh`. There is no separate proof store. The session's `.intent/prove/sessions/` is ignored authoring scratch, not proof evidence. `--target path[::symbol]` declares covered source; supporting inputs and `--trusted` claims are not additional verified targets. `--requirement <id>` explicitly associates the submitted formal files with an existing property, not an automatic proof of it. All `.intent/` paths resolve from the detected repository root; outside Git, the CLI uses the project directory.
 
 ## Local requirements and evidence
 
@@ -112,21 +112,21 @@ For example, write this transport payload as `requirement-input.json` (outside t
 
 ```sh
 intent-check requirements add --input requirement-input.json
-intent-check requirements show <uuid>
+intent-check requirements show <id>
 # Edit the transport payload, then replace the record while retaining its ID:
-intent-check requirements update <uuid> --input requirement-input.json
+intent-check requirements update <id> --input requirement-input.json
 intent-check requirements list
-intent-check requirements remove <uuid>
+intent-check requirements remove <id>
 ```
 
-An add stores `.intent/source/src/pricing.py/requirements.json` with a generated UUID, for example:
+An add stores `.intent/source/src/pricing.py/requirements.json` with a generated ID, for example:
 
 ```json
 {
   "schema_version": 1,
   "requirements": [
     {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "id": "k7m2qx",
       "statement": "Reject negative input prices.",
       "targets": [{"path": "src/pricing.py", "symbol": "calculate_total"}],
       "reason": "Negative prices are invalid."
@@ -135,13 +135,13 @@ An add stores `.intent/source/src/pricing.py/requirements.json` with a generated
 }
 ```
 
-Documents require exactly `schema_version` and `requirements`. Records require `id`, `statement` and nonempty `targets`; `reason` is optional. Targets contain an exact repository-relative `path` and optional function/method qualified name `symbol`; omit `symbol` for the whole file. IDs are generated UUIDs and remain stable on update. If targets change, the CLI relocates the record without duplication and maintains its owning index. Removal detaches its index entry without deleting historical evidence or formal files. `--input` reads a transport payload, not a store destination; add/update have no `--file` scope flag. Requirement commands do not create proof outcomes.
+Documents require exactly `schema_version` and `requirements`. Records require `id`, `statement` and nonempty `targets`; `reason` is optional. Targets contain an exact repository-relative `path` and optional function/method qualified name `symbol`; omit `symbol` for the whole file. Local requirement, specification bundle and operation IDs contain six lowercase letters/digits, with project-local collision checking; requirement and bundle IDs remain stable on update. Backend task and auth/session IDs are unchanged. If targets change, the CLI relocates the record without duplication and maintains its owning index. Removal detaches its index entry without deleting historical evidence or formal files. `--input` reads a transport payload, not a store destination; add/update have no `--file` scope flag. Requirement commands do not create proof outcomes.
 
 Agents read requirements, specifications, indexes and logs directly with their normal file tools. Request construction collects applicable requirements internally; there is no public context command. Use the CLI for structured requirement mutations and edit `REQUIREMENTS.md` directly. Editing conventions are instructions, not filesystem access restrictions. Internal hook and worker entry points are host lifecycle interfaces, not supported agent-facing commands.
 
-Each source has `source/<source-path>/index.json` and `specs/` for actual current formal files. The index contains `schema_version: 1` and a `properties` map keyed by requirement UUID; each entry has only `specs` (paths relative to `.intent`) and `last_run` (UUID or null). A property can have no specs yet; several properties can share files or runs. A cross-file requirement has one owning per-file index, initially its first target; that owner is retained while it remains a target. There is no global index/spec folder.
+Each source has `source/<source-path>/index.json` and `specs/<spec-id>/` for actual current formal files. The index contains `schema_version: 1` and a `properties` map keyed by requirement ID; each entry has only `specs` (paths relative to `.intent`) and `last_run` (local operation ID or null). A property can have no specs yet; several properties can share files or runs. A cross-file requirement has one owning per-file index, initially its first target; that owner is retained while it remains a target. There is no global index/spec folder.
 
-Operation outputs remain in `logs/<run-uuid>/artifacts/`. File reviews retain their per-source artifacts there without guessing property associations. Explicit proof associations copy applicable submitted formal files into the owner's current specs area and select them in the index. Copies are not symlinks. Source, requirement, specification and selection versions must still match; late results cannot overwrite newer work. Partial/no-spec output does not delete existing specifications. See [the folder contract](intent-storage.md) for the complete structure. Renamed/deleted source does not rewrite history.
+Operation outputs remain in `logs/<run-id>/artifacts/`. File reviews retain their per-source artifacts there without guessing property associations. Explicit proof associations copy applicable submitted formal files into a new independent bundle and select them in the index. Use `--spec-id <id>` to update or intentionally share an existing bundle, never a matching filename. Relative paths are preserved within each bundle. Copies are not symlinks. Source, requirement, specification and selection versions must still match; late results cannot overwrite newer work. Partial/no-spec output does not delete existing specifications. See [the folder contract](intent-storage.md) for the complete structure. Renamed/deleted source does not rewrite history.
 
 Check/DeepScan outcomes are LLM-reviewed, not formal proof. Successful concrete execution or validation is not proof either. Formal results apply only to selected non-trusted claims under recorded semantics, inputs, controls and assumptions; review soundness and scope separately. Source/input freshness is independent of confidence. Request manifests record exact input hashes and controls, but omit captured prompts/transcripts. Frozen input copies are not included in offline exports.
 

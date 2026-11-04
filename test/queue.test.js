@@ -8,6 +8,7 @@ import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
 import { reviewPath, symlink, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT, xdgDir } from "./helpers/env.js";
 import { validateDef } from "./helpers/schema.js";
 import { writeUnit } from "../lib/intentdir.js";
+import { runDir } from "../lib/store.js";
 
 let fp;
 before(async () => { fp = createFakeProver(); await fp.listen(); });
@@ -115,19 +116,19 @@ test("renames and deletions retain original-path history and foreign files", asy
   for (const f of ["old.py", "gone.py", "keep.py"]) fs.writeFileSync(path.join(ctx.repo, f), `V = "${f}"\n`);
   ctx.git("add", "-A"); ctx.git("commit", "-qm", "files");
   for (const f of ["old.py", "gone.py", "keep.py"]) writeUnit(ctx.repo, { ...example.result.units[0], path: f }, { job_id: "j", url: "u" }, example.result);
-  fs.writeFileSync(path.join(ctx.repo, ".intent/logs/j/artifacts/keep.py/NOTES.txt"), "mine\n");
+  fs.writeFileSync(path.join(runDir(ctx.repo, "j"), "artifacts/keep.py/NOTES.txt"), "mine\n");
   ctx.git("add", "-A"); ctx.git("commit", "-qm", "intent");
   await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
   ctx.git("mv", "old.py", "new.py");
   fs.unlinkSync(path.join(ctx.repo, "gone.py"));
   fs.unlinkSync(path.join(ctx.repo, "keep.py"));
   await runHook("stop", fixture("stop", ctx.repo), ctx.env);
-  const d = path.join(ctx.repo, ".intent");
-  assert.ok(fs.existsSync(path.join(d, "logs/j/artifacts/old.py/SPEC.k")));
-  assert.ok(fs.existsSync(path.join(d, "logs/j/artifacts/gone.py/SPEC.k")));
-  assert.ok(fs.existsSync(path.join(d, "logs/j/artifacts/keep.py/SPEC.k")));
-  assert.equal(fs.existsSync(path.join(d, "logs/j/artifacts/new.py")), false, "historical evidence is not rebound to a new source path");
-  assert.ok(fs.existsSync(path.join(d, "logs/j/artifacts/keep.py/NOTES.txt")), "foreign files are not touched");
+  const d = runDir(ctx.repo, "j");
+  assert.ok(fs.existsSync(path.join(d, "artifacts/old.py/SPEC.k")));
+  assert.ok(fs.existsSync(path.join(d, "artifacts/gone.py/SPEC.k")));
+  assert.ok(fs.existsSync(path.join(d, "artifacts/keep.py/SPEC.k")));
+  assert.equal(fs.existsSync(path.join(d, "artifacts/new.py")), false, "historical evidence is not rebound to a new source path");
+  assert.ok(fs.existsSync(path.join(d, "artifacts/keep.py/NOTES.txt")), "foreign files are not touched");
 });
 
 test("intent deepscan <files> inside a worktree-isolated subagent is queued in the main repo and reviewed under the repo path", async () => {

@@ -386,7 +386,7 @@ class Tests(unittest.TestCase):
             evidence = Path(result["evidenceDir"])
             self.assertEqual({p.name for p in evidence.iterdir()},
                              {"request.json", "result.json", "inputs"} | ({"artifacts"} if command == "prove" else set()))
-            self.assertEqual(str(uuid.UUID(evidence.name)), evidence.name)
+            self.assertRegex(evidence.name, r"^[a-z0-9]{6}$")
             self.assertEqual(evidence.parent, self.root / ".intent/logs")
             snapshot = json.loads((evidence / "result.json").read_text())
             self.assertEqual(set(snapshot), {"task", "stdout", "stderr", "metrics"})

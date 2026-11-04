@@ -7,6 +7,7 @@ import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
 import { reviewPath, symlink, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, readSessionFiles, waitFor, BIN, ROOT, xdgDir } from "./helpers/env.js";
 import { writeUnit } from "../lib/intentdir.js";
+import { runDir } from "../lib/store.js";
 import { redact } from "../lib/redact.js";
 import { sanitize } from "../lib/render.js";
 import { dataDirFromRoot } from "../lib/config.js";
@@ -66,9 +67,9 @@ test("2. history stays when git reports deletion or rename but the old file exis
   ctx.git("mv", "back.py", "moved.py");
   fs.writeFileSync(path.join(repo, "back.py"), "X = 1\n");
   await runHook("stop", fixture("stop", repo), ctx.env);
-  assert.ok(fs.existsSync(path.join(repo, ".intent/logs/j/artifacts/kept.py/SPEC.k")));
-  assert.ok(fs.existsSync(path.join(repo, ".intent/logs/j/artifacts/back.py/SPEC.k")));
-  assert.equal(fs.existsSync(path.join(repo, ".intent/logs/j/artifacts/moved.py")), false);
+  assert.ok(fs.existsSync(path.join(runDir(repo, "j"), "artifacts/kept.py/SPEC.k")));
+  assert.ok(fs.existsSync(path.join(runDir(repo, "j"), "artifacts/back.py/SPEC.k")));
+  assert.equal(fs.existsSync(path.join(runDir(repo, "j"), "artifacts/moved.py")), false);
 });
 
 test("3. queued reviews survive a transient submit failure and go out at the next Stop", async () => {

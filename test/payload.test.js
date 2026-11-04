@@ -69,10 +69,10 @@ test("prior artifacts come from the selected current specification", () => {
   const ex = JSON.parse(fs.readFileSync(path.join(ROOT, "test", "fixtures", "api", "examples", "status-done-concerns.json"), "utf8"));
   writeUnit(root, ex.result.units[0], { job_id: ex.job_id, url: ex.url }, ex.result);
   const dir = path.join(root, ".intent/source/pricing.py");
-  fs.mkdirSync(path.join(dir, "specs"), { recursive: true });
-  fs.writeFileSync(path.join(dir, "requirements.json"), JSON.stringify({schema_version:1,requirements:[{id:'550e8400-e29b-41d4-a716-446655440000',statement:'Prices remain nonnegative',targets:[{path:'pricing.py'}]}]}));
-  fs.writeFileSync(path.join(dir, "index.json"), JSON.stringify({schema_version:1,properties:{'550e8400-e29b-41d4-a716-446655440000':{specs:['source/pricing.py/specs/SPEC.k'],last_run:ex.job_id}}}));
-  fs.writeFileSync(path.join(dir, "specs/SPEC.k"), ex.result.units[0].artifacts['SPEC.k']);
+  fs.mkdirSync(path.join(dir, "specs/def456"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "requirements.json"), JSON.stringify({schema_version:1,requirements:[{id:'abc123',statement:'Prices remain nonnegative',targets:[{path:'pricing.py'}]}]}));
+  fs.writeFileSync(path.join(dir, "index.json"), JSON.stringify({schema_version:1,properties:{abc123:{specs:['source/pricing.py/specs/def456/SPEC.k'],last_run:'ghi789'}}}));
+  fs.writeFileSync(path.join(dir, "specs/def456/SPEC.k"), ex.result.units[0].artifacts['SPEC.k']);
   const p = readPrior(root, "pricing.py");
   assert.equal(p.source_sha256, null);
   assert.match(p.spec_k, /PRICING-SPEC/);
@@ -86,10 +86,10 @@ test("prior artifacts: VERIFICATION.k comes back too, redacted and schema-valid,
   const ex = JSON.parse(fs.readFileSync(path.join(ROOT, "test", "fixtures", "api", "examples", "status-done-no-concerns.json"), "utf8"));
   writeUnit(root, ex.result.units[0], { job_id: ex.job_id, url: ex.url }, ex.result);
   const dir = path.join(root, ".intent/source/pricing.py");
-  fs.mkdirSync(path.join(dir, "specs"), { recursive: true });
-  fs.writeFileSync(path.join(dir, "requirements.json"), JSON.stringify({schema_version:1,requirements:[{id:'550e8400-e29b-41d4-a716-446655440000',statement:'Prices remain nonnegative',targets:[{path:'pricing.py'}]}]}));
-  fs.writeFileSync(path.join(dir, "index.json"), JSON.stringify({schema_version:1,properties:{'550e8400-e29b-41d4-a716-446655440000':{specs:['source/pricing.py/specs/SPEC.k','source/pricing.py/specs/VERIFICATION.k'],last_run:ex.job_id}}}));
-  for (const name of ['SPEC.k','VERIFICATION.k']) fs.writeFileSync(path.join(dir, 'specs', name), ex.result.units[0].artifacts[name]);
+  fs.mkdirSync(path.join(dir, "specs/def456"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "requirements.json"), JSON.stringify({schema_version:1,requirements:[{id:'abc123',statement:'Prices remain nonnegative',targets:[{path:'pricing.py'}]}]}));
+  fs.writeFileSync(path.join(dir, "index.json"), JSON.stringify({schema_version:1,properties:{abc123:{specs:['source/pricing.py/specs/def456/SPEC.k','source/pricing.py/specs/def456/VERIFICATION.k'],last_run:'ghi789'}}}));
+  for (const name of ['SPEC.k','VERIFICATION.k']) fs.writeFileSync(path.join(dir, 'specs/def456', name), ex.result.units[0].artifacts[name]);
   const p = readPrior(root, "pricing.py");
   assert.match(p.verification_k, /PRICING-VERIFICATION/);
   assert.match(p.verification_k, /floordiv/);
@@ -114,13 +114,13 @@ test("intent.notes: read from the brief, redacted, clipped and bound only to con
   fs.mkdirSync(path.join(long, ".intent", "source", "pricing.py"), { recursive: true });
   fs.writeFileSync(path.join(long, "pricing.py"), f.buf);
   fs.writeFileSync(path.join(long, ".intent", "REQUIREMENTS.md"), "x".repeat(5000));
-  fs.writeFileSync(path.join(long, ".intent", "source", "pricing.py", "requirements.json"), JSON.stringify({ schema_version: 1, requirements: [{ id: '550e8400-e29b-41d4-a716-446655440000', statement: 'Prices remain nonnegative', targets: [{path:'pricing.py',symbol:'apply_discount'}] }] }));
+  fs.writeFileSync(path.join(long, ".intent", "source", "pricing.py", "requirements.json"), JSON.stringify({ schema_version: 1, requirements: [{ id: 'abc123', statement: 'Prices remain nonnegative', targets: [{path:'pricing.py',symbol:'apply_discount'}] }] }));
   const b2 = buildRequest({ files: [f], root: long, snap, stop, sessionHash: "s", turnId: "t", host: "claude-code" });
   assert.equal(b2.request.intent.notes.length, 4000);
   assert.equal(b2.requirements.brief.partial, true);
   assert.equal(b2.request.truncated, true);
   assert.deepEqual(b2.requirements.records, []);
-  assert.deepEqual(b2.requirements.excluded, [{id:'550e8400-e29b-41d4-a716-446655440000', reason:'context_limit'}]);
+  assert.deepEqual(b2.requirements.excluded, [{id:'abc123', reason:'context_limit'}]);
   assert.deepEqual(validateDef(b2.request, "JobRequest"), []);
 });
 

@@ -186,7 +186,10 @@ pub fn read_document(path: &Path, local: Option<&str>) -> Result<Document> {
     );
     let mut ids = BTreeSet::new();
     for record in &doc.requirements {
-        uuid::Uuid::parse_str(&record.id).context("Invalid requirement UUID")?;
+        ensure!(
+            crate::storage::valid_id(&record.id),
+            "Invalid requirement ID; expected six lowercase letters/digits"
+        );
         ensure!(ids.insert(&record.id), "Duplicate requirement ID");
         validate(&record.content())?;
         ensure!(
@@ -375,7 +378,7 @@ pub fn dispatch(command: Command) -> CommandResult {
             let content: Content = serde_json::from_slice(&fs::read(input)?)?;
             validate(&content)?;
             validate_sources(&root, &content)?;
-            let id = uuid::Uuid::new_v4().to_string();
+            let id = crate::storage::new_id(&root)?;
             let record = Requirement::new(id, content);
             store_record(&root, &mut docs, record.clone())?;
             Ok((0, json!({"requirement":record})))

@@ -351,7 +351,7 @@ fn snapshot(root: &Path, name: &str, data_dirs: &[PathBuf]) -> Result<Snapshot> 
                                 .as_array()
                                 .into_iter()
                                 .flatten()
-                                .find(|p| p["id"] == id.to_string());
+                                .find(|p| p["id"] == id);
                             if let Some(bound) = bound {
                                 let sources: Vec<_> = bound["sources"]
                                     .as_array()

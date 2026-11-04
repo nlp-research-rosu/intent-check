@@ -11,11 +11,11 @@ This stage states the theorem. It produces three artifacts: `spec.k`
 `SCOPE.md` (the scope record the spec audit reads). Author the K sources in
 the session's `workspaceDir/inputs/` and keep the scope record outside `inputs/`.
 Prove submissions freeze exact inputs under repository-root
-`.intent/logs/<run-uuid>/inputs/`; use the returned `proofDir` (the operation's artifacts/) for durable
+`.intent/logs/<run-id>/inputs/`; use the returned `proofDir` (the operation's artifacts/) for durable
 `SCOPE.md`, reports and scripts.
 
 Read applicable local intent and selected current specifications directly from `.intent`
-with normal file tools; inspect a record with `intent-check requirements show <uuid>` if useful.
+with normal file tools; inspect a record with `intent-check requirements show <id>` if useful.
 Use the exact CLI-managed schema and add/update inputs in
 [local requirements](../proof-help/SKILL.md#local-requirements); do not write JSON
 directly or choose its destination. One source file's targets use its managed

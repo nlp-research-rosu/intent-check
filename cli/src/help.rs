@@ -89,7 +89,7 @@ Session counters live in sessions/<ID>/session.json beside config.toml; shared
 language sources live in semantics/<id>/<commit>/ there too.
 The same XDG_CONFIG_HOME / APPDATA / home-directory rules apply to all three.
 Authoring scratch lives in <project>/.intent/prove/sessions/<ID>/.
-Canonical request/result records live in <project>/.intent/logs/<run-uuid>/.
+Canonical request/result records live in <project>/.intent/logs/<run-id>/.
 Every operation freezes uploads under its inputs/ and keeps artifacts under artifacts/.
 Inside a repository, <project> is always its root, not the working directory.
 Existing project-local descriptors are left untouched and are not imported.
@@ -112,18 +112,18 @@ Cancellation:
 
 pub const REQUIREMENTS: &str = r#"Local requirements (no service calls):
   intent-check requirements list [--file src/pricing.py]
-  intent-check requirements show <uuid>
+  intent-check requirements show <id>
   intent-check requirements add --input requirement-input.json
-  intent-check requirements update <uuid> --input requirement-input.json
-  intent-check requirements remove <uuid>
+  intent-check requirements update <id> --input requirement-input.json
+  intent-check requirements remove <id>
 
 requirement-input.json (add/update input omits the assigned ID):
   {"statement":"Reject negative input prices.",
    "targets":[{"path":"src/pricing.py","symbol":"calculate_total"}],
    "reason":"Negative prices are invalid."}
 
-An add stores .intent/source/src/pricing.py/requirements.json with a generated UUID:
-  {"schema_version":1,"requirements":[{"id":"550e8400-e29b-41d4-a716-446655440000",
+An add stores .intent/source/src/pricing.py/requirements.json with a generated ID:
+  {"schema_version":1,"requirements":[{"id":"k7m2qx",
    "statement":"Reject negative input prices.",
    "targets":[{"path":"src/pricing.py","symbol":"calculate_total"}],
    "reason":"Negative prices are invalid."}]}
@@ -134,7 +134,9 @@ exact repository-relative source path. Optional symbol is a function/method
 qualified name; omit it for the whole file. No variable targets or symbol analysis.
 Unknown fields and invalid IDs/paths are rejected on reads and writes.
 
-The CLI assigns opaque UUIDs. Retain returned IDs on update.
+The CLI assigns six-character lowercase letter/digit IDs, unique within the project.
+Requirements, specification bundles and local operations use these IDs; backend task
+and auth/session IDs stay unchanged. Retain requirement and bundle IDs on update.
 Placement is derived from targets, not an output flag: all targets in one source
 file use .intent/source/<source-path>/requirements.json, even for multiple methods;
 targets in multiple files use .intent/source/requirements.json. Update retains the ID
@@ -146,9 +148,11 @@ behavior, Constraints, Out of scope and Open questions sections. It is one direc
 editable project brief, not synchronized with JSON; no per-file Markdown is made.
 Read .intent files directly with normal tools. Request collection is internal code,
 not a public context command. Per-source index.json selects current specs paths and
-last_run for each property. Paths are relative to .intent; last_run is a UUID or null.
+last_run for each property. Paths are relative to .intent; last_run is a local ID or null.
 Cross-file properties have one owning per-file index. There is no global index/specs.
-Requirements are not evidence. prove --requirement <uuid> records a versioned
+Associated proofs create independent specs/<spec-id>/ bundles. Use --spec-id <id>
+to update or intentionally share an existing bundle, not a matching filename.
+Requirements are not evidence. prove --requirement <id> records a versioned
 local association, not uploaded requirement context or proof of that requirement.
 "#;
 
@@ -222,7 +226,7 @@ Run, validation, and proof limits are independent. At the limit, the next run
 is refused with local status exhausted and exit 20; the last run's backend
 result and exit code are not overwritten.
 task.result is success or error; the configuration is in saved stdout.
-Evidence is stored under <projectRoot>/.intent/logs/<run-uuid>/result.json, with inline
+Evidence is stored under <projectRoot>/.intent/logs/<run-id>/result.json, with inline
 stdout and stderr. The snapshot is updated from acceptance to completion.
 See `intent-check config --help` for timeout and cancellation behavior."#;
 
@@ -357,7 +361,7 @@ Validation results:
   task.result (valid or invalid), task.toolRuns, and task.error for evidence.
   Neither compilation nor a valid result establishes proof or non-vacuity.
   Accepted submissions increment validationsUsed and are retained under
-  <projectRoot>/.intent/logs/<run-uuid>/, including failed tasks. The response includes
+  <projectRoot>/.intent/logs/<run-id>/, including failed tasks. The response includes
   budget (used, limit, remaining) and evidenceDir. At the limit, the next
   validation is refused with local status exhausted and exit 20; the last
   validation's backend result and exit code are not overwritten.\n\n{EVIDENCE}"
@@ -370,7 +374,7 @@ pub fn prove() -> String {
 Proof results and attempts:
   Each server-accepted proof consumes one attempt, including interruption,
   timeout, replay, and audit mutation. Evidence is stored under
-  <projectRoot>/.intent/logs/<run-uuid>/. The response includes the backend task unchanged,
+  <projectRoot>/.intent/logs/<run-id>/. The response includes the backend task unchanged,
   sessionId, budget (used, limit, remaining), evidenceDir, and proofDir.
   Exit code: the last task.toolRuns entry's exitCode when a tool ran. A completed
   reused result with no tool runs exits 0, whether proved or notProved.
