@@ -21,7 +21,7 @@ test("SessionStart: consent notice once per machine, shown to the user", async (
   const { data, repo, env } = setup();
   const r1 = await runHook("session-start", fixture("session-start", repo), env);
   assert.equal(r1.code, 0);
-  assert.match(r1.json.systemMessage, /^Intent Check is on\./);
+  assert.match(r1.json.systemMessage, /^Intent Prover is on\./);
   assert.match(r1.json.systemMessage, /\.intent\/\.sent\.log/);
   assert.match(r1.json.systemMessage, /\/intent:off/);
   assert.equal(r1.json.hookSpecificOutput.hookEventName, "SessionStart");
@@ -34,7 +34,7 @@ test("UserPromptSubmit: consent also on the first prompt (install session has no
   const { repo, env } = setup();
   const r = await runHook("prompt", fixture("prompt", repo), env);
   assert.equal(r.code, 0);
-  assert.match(r.json.systemMessage, /^Intent Check is on\./);
+  assert.match(r.json.systemMessage, /^Intent Prover is on\./);
   const r2 = await runHook("prompt", fixture("prompt", repo), env);
   assert.equal(r2.stdout, "");
 });

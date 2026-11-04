@@ -63,7 +63,7 @@ class LoginTests(unittest.TestCase):
         shared.mkdir(exist_ok=True)
         self.tmp = tempfile.TemporaryDirectory(prefix="codex-cli-login-", dir=shared)
         self.root = Path(self.tmp.name)
-        self.data = self.root / "config/intent-check"
+        self.data = self.root / "config/intent-prover"
         self.data.mkdir(parents=True)
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.server.origin = f"http://127.0.0.1:{self.server.server_port}"

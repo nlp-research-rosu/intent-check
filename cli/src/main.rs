@@ -18,7 +18,7 @@ use std::{path::PathBuf, process};
 use uuid::Uuid;
 
 #[derive(Parser)]
-#[command(name = "intent-check", version, about = "intent-check CLI for the remote Intent Check service", after_help = help::ROOT)]
+#[command(name = "intent-prover", version, about = "Intent Prover: Formalize, Review, Scan and Prove", after_help = help::ROOT)]
 struct Cli {
     /// Project directory; automatically uses its repository root when inside a repo.
     #[arg(long, global = true)]
@@ -40,7 +40,7 @@ enum Command {
     /// Queue an explicit review of named files for the next turn end.
     Review(runtime::ReviewArgs),
     /// Scan the repository or one folder; named files queue a review instead.
-    Deepscan(runtime::ReviewArgs),
+    Scan(runtime::ReviewArgs),
     /// Show installed plugin-runtime capabilities without network access.
     Runtime,
     /// Manage schema-validated local requirements. REQUIREMENTS.md remains directly editable.
@@ -55,7 +55,7 @@ enum Command {
     /// Show the effective configuration and its file location.
     #[command(after_help = help::CONFIG)]
     Config,
-    /// Check whether the configured Intent Check service is healthy.
+    /// Check whether the configured Intent Prover service is healthy.
     #[command(after_help = help::HEALTH)]
     Health,
     /// List supported language definitions and their versions.
@@ -86,7 +86,7 @@ enum SemanticsCommand {
     /// Download reference sources for a supported language definition.
     #[command(after_help = help::SEMANTICS_FETCH)]
     Fetch {
-        /// Stable semantics ID returned by intent-check semantics.
+        /// Stable semantics ID returned by intent-prover semantics.
         id: String,
     },
 }
@@ -207,7 +207,7 @@ pub struct ProveArgs {
     /// Stop symbolic execution at this diagnostic depth.
     ///
     /// Bounds rewrite steps along each execution path, not time: one step can
-    /// still diverge. The Intent Check service's execution limits apply. Compare stdout residuals
+    /// still diverge. The Intent Prover service's execution limits apply. Compare stdout residuals
     /// at increasing depths to diagnose progress; remove this bound before
     /// claiming proof success.
     #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
@@ -229,7 +229,7 @@ fn main() {
         Command::Live(args) => Some(runtime::public("live", args, cli.project.as_deref(), &[])),
         Command::Doctor(args) => Some(runtime::public("doctor", args, cli.project.as_deref(), &[])),
         Command::Review(args) => Some(runtime::review("review", args, cli.project.as_deref())),
-        Command::Deepscan(args) => Some(runtime::review("deepscan", args, cli.project.as_deref())),
+        Command::Scan(args) => Some(runtime::review("scan", args, cli.project.as_deref())),
         _ => None,
     };
     if let Some(result) = public {
@@ -239,7 +239,7 @@ fn main() {
                 process::exit(0);
             }
             Err(error) => {
-                eprintln!("Intent Check: {error}");
+                eprintln!("Intent Prover: {error}");
                 process::exit(1);
             }
         }
@@ -279,7 +279,7 @@ fn dispatch(cli: Cli) -> CommandResult {
         | Command::Live(_)
         | Command::Doctor(_)
         | Command::Review(_)
-        | Command::Deepscan(_) => {
+        | Command::Scan(_) => {
             unreachable!("Public runtime commands dispatched before JSON output")
         }
         Command::Requirements(command) => requirements::dispatch(command),

@@ -1,8 +1,8 @@
 ---
-description: Check Intent Check and repair it (status, account connection, updates)
-allowed-tools: Bash(intent-check:*)
+description: Inspect Intent Prover status and repair connection or plugin updates
+allowed-tools: Bash(intent-prover:*)
 ---
 
-!`intent-check doctor --plugin-root "${CLAUDE_PLUGIN_ROOT}" --data "${CLAUDE_PLUGIN_DATA}"`
+!`intent-prover doctor --plugin-root "${CLAUDE_PLUGIN_ROOT}" --data "${CLAUDE_PLUGIN_DATA}"`
 
 Tell the user the lines above, word for word, and nothing else.

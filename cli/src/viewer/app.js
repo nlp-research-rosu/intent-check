@@ -128,7 +128,7 @@ function records() {
   const targets = paths.filter(p => /^logs\/[^/]+\/request.json$/.test(p) && json(p)?.operation === 'prove').map(p => p.replace('request.json', 'artifacts/'));
   const active = [...data.active];
   for (const s of scans) {
-    if (!terminal.has(s.progress.status)) active.push({ id: s.meta.task_id, kind: 'DeepScan', status: s.progress.status, paths: [s.meta.scope || 'Whole repository'], url: s.meta.url, submittedAt: s.meta.created_at });
+    if (!terminal.has(s.progress.status)) active.push({ id: s.meta.task_id, kind: 'Scan', status: s.progress.status, paths: [s.meta.scope || 'Whole repository'], url: s.meta.url, submittedAt: s.meta.created_at });
   }
   for (const o of operations) {
     const task = o.evidence.task;
@@ -138,7 +138,7 @@ function records() {
   return { paths, artifacts, reviews, fileReviews, scans, operations, targets, active };
 }
 function navigation(r) {
-  const tabs = [['overview', 'Overview', ''], ['reviews', 'Properties', r.reviews.length], ['scans', 'DeepScan', r.scans.length], ['proofs', 'Proofs', r.targets.length], ['artifacts', 'All artifacts', r.artifacts.length]];
+  const tabs = [['overview', 'Overview', ''], ['reviews', 'Properties', r.reviews.length], ['scans', 'Scan', r.scans.length], ['proofs', 'Proofs', r.targets.length], ['artifacts', 'All artifacts', r.artifacts.length]];
   document.getElementById('nav').innerHTML = tabs.map(([id, label, count]) => `<button data-view="${id}" class="${state.view === id ? 'active' : ''}" ${state.view === id ? 'aria-current="page"' : ''}><span>${label}</span><span class="count">${count}</span></button>`).join('');
 }
 function activeChecks(r) {
@@ -152,12 +152,12 @@ function scanOutcome(s) {
 function overview(r) {
   const rows = r.reviews.map(p => `<tr><td><button class="link-button" data-review="${escape(p.path)}">${escape(p.requirement.statement)}</button><span class="subline mono">${p.requirement.targets.map(t => escape(t.path + (t.symbol ? '::' + t.symbol : ''))).join(', ')}</span></td><td>${status(p.freshness)} · ${p.selection.specs.length} current specs</td><td class="mono small muted">${escape(p.selection.last_run || 'Not checked')}</td><td>—</td></tr>`);
   rows.push(...r.fileReviews.map(r => `<tr><td>${fileButton(r.path.replace(/meta.json$/, 'VERDICT.md'), r.meta.path)}<span class="subline">File review · ${status(data.freshness[r.path])}</span></td><td>${status(r.meta.verdict)}</td><td class="mono small muted">${escape(r.path.split('/')[1])}</td><td class="small muted">${date(r.meta.submitted_at)}</td></tr>`));
-  rows.push(...r.scans.map(s => `<tr><td><button class="link-button" data-scan="${escape(s.path)}">${escape(s.meta.scope || 'Whole repository')}</button><span class="subline">DeepScan · ${escape(s.meta.depth)}</span></td><td>${scanOutcome(s)}</td><td class="mono small muted">${escape(s.meta.task_id?.slice(0, 8))}</td><td class="small muted">${date(s.meta.created_at)}</td></tr>`));
+  rows.push(...r.scans.map(s => `<tr><td><button class="link-button" data-scan="${escape(s.path)}">${escape(s.meta.scope || 'Whole repository')}</button><span class="subline">Scan · ${escape(s.meta.depth)}</span></td><td>${scanOutcome(s)}</td><td class="mono small muted">${escape(s.meta.task_id?.slice(0, 8))}</td><td class="small muted">${date(s.meta.created_at)}</td></tr>`));
   rows.push(...r.operations.filter(o => o.evidence.task.kind === 'proof').map(o => `<tr><td><button class="link-button" data-file="${escape(o.path)}">Proof attempt</button><span class="subline">${escape(o.path.split('/').at(-2))}</span></td><td>${status(o.evidence.task.result || o.evidence.task.status)}</td><td class="mono small muted">${escape(o.evidence.task.id.slice(0, 8))}</td><td class="small muted">${date(o.evidence.task.finishedAt || o.evidence.task.createdAt)}</td></tr>`));
   return heading(data.name, 'Current properties and formal specifications, with linked operation evidence. Source freshness and proof outcome are separate.')
-    + `<div class="stack"><div class="metrics">${[[r.active.length, 'Active checks'], [r.reviews.length, 'Properties'], [r.scans.length, 'DeepScans'], [r.paths.length, 'Local artifacts']].map(([n, label]) => `<div class="card metric"><div class="label">${label}</div><div class="value">${n}</div></div>`).join('')}</div>`
+    + `<div class="stack"><div class="metrics">${[[r.active.length, 'Active checks'], [r.reviews.length, 'Properties'], [r.scans.length, 'Scans'], [r.paths.length, 'Local artifacts']].map(([n, label]) => `<div class="card metric"><div class="label">${label}</div><div class="value">${n}</div></div>`).join('')}</div>`
     + activeChecks(r)
-    + (rows.length ? `<section><div class="section-heading"><h2>Saved results</h2></div><div class="card table-wrap"><table><thead><tr><th>Target</th><th>Result</th><th>Task</th><th>Recorded</th></tr></thead><tbody>${rows.join('')}</tbody></table></div></section>` : empty('No saved results yet', 'Run Intent Check in this repository.'))
+    + (rows.length ? `<section><div class="section-heading"><h2>Saved results</h2></div><div class="card table-wrap"><table><thead><tr><th>Target</th><th>Result</th><th>Task</th><th>Recorded</th></tr></thead><tbody>${rows.join('')}</tbody></table></div></section>` : empty('No saved results yet', 'Run Intent Prover in this repository.'))
     + '</div>';
 }
 function reviewsPage(r) {
@@ -176,7 +176,7 @@ function finding(card) {
 }
 function scansPage(r) {
   const scan = r.scans.find(s => s.path === state.scan) || r.scans.at(-1);
-  if (!scan) return heading('DeepScan', 'Whole-repository and scoped scan reports.') + empty('No local scans', 'Start a DeepScan with the installed plugin.');
+  if (!scan) return heading('Scan', 'Whole-repository and scoped scan reports.') + empty('No local scans', 'Start a Scan with the installed plugin.');
   state.scan = scan.path;
   const { meta, report } = scan, source = meta.source || {};
   const select = r.scans.length > 1 ? `<div class="select-row"><label class="small muted">Scan <select id="scan-select">${r.scans.map(s => `<option value="${escape(s.path)}" ${s.path === scan.path ? 'selected' : ''}>${escape(s.meta.task_id)}</option>`).join('')}</select></label></div>` : '';
@@ -192,7 +192,7 @@ function scansPage(r) {
       + ((report.excluded_findings || []).length ? `<div class="card card-body"><h2>Excluded findings</h2>${report.excluded_findings.map(c => `<p style="margin-top:12px"><strong>${escape(c.title)}</strong> — ${escape(c.reason)}</p>`).join('')}</div>` : '')
       + `<div class="card card-body"><h2>Coverage</h2><dl class="kv"><dt>Files / bytes</dt><dd>${escape(coverage.file_count)} files · ${escape(coverage.bytes)} bytes</dd><dt>Checked</dt><dd>${list(coverage.checked)}</dd><dt>Not checked</dt><dd>${list(coverage.not_checked)}</dd><dt>Limitations</dt><dd>${list(coverage.notes)}</dd></dl></div>`;
   }
-  return heading('DeepScan', `${human(meta.depth)} LLM review · ${meta.scope || 'whole repository'} · findings are not reproduced or formally proved · ${requirementState(scan.path.replace('result.json', 'request.json'))}`, scanOutcome(scan) + status(data.freshness[scan.path.replace('result.json', 'request.json')]) + serviceLink(meta.url)) + select
+  return heading('Scan', `${human(meta.depth)} LLM review · ${meta.scope || 'whole repository'} · findings are not reproduced or formally proved · ${requirementState(scan.path.replace('result.json', 'request.json'))}`, scanOutcome(scan) + status(data.freshness[scan.path.replace('result.json', 'request.json')]) + serviceLink(meta.url)) + select
     + `<div class="row small mono muted" style="margin-bottom:15px">${escape(meta.task_id)} ${status(meta.report?.status)}</div><div class="tabs"><button data-scan-tab="report" class="${state.scanTab === 'report' ? 'active' : ''}">Report</button><button data-scan-tab="metadata" class="${state.scanTab === 'metadata' ? 'active' : ''}">Scan metadata</button></div><div class="stack">${body}</div>`;
 }
 function operationsView(r) {
@@ -219,7 +219,7 @@ function proofsPage(r) {
     + (target ? `<div class="row" style="margin-top:16px">${r.paths.filter(p => p.startsWith(target) && !p.slice(target.length).includes('/') && !['PROOF.md', 'SCOPE.md'].includes(p.slice(target.length))).map(p => fileButton(p, p.slice(target.length))).join('')}</div>` : '');
 }
 function artifactsPage(r) {
-  if (!r.artifacts.length) return heading('All artifacts', 'Local evidence files.') + empty('No artifacts saved yet', 'Run Intent Check in this repository.');
+  if (!r.artifacts.length) return heading('All artifacts', 'Local evidence files.') + empty('No artifacts saved yet', 'Run Intent Prover in this repository.');
   if (!r.artifacts.includes(state.file)) state.file = r.artifacts[0];
   const groups = new Map();
   for (const path of r.artifacts) {
@@ -245,7 +245,7 @@ function render() {
   const r = records();
   document.getElementById('repo-name').textContent = data.name;
   document.getElementById('breadcrumb').textContent = data.name;
-  document.title = `${data.name} · Intent Check`;
+  document.title = `${data.name} · Intent Prover`;
   navigation(r);
   document.getElementById('warnings').innerHTML = data.warnings.length ? `<div class="callout"><strong>Some artifacts could not be included</strong>${data.warnings.map(escape).join('<br>')}</div>` : '';
   page.innerHTML = ({ overview, reviews: reviewsPage, scans: scansPage, proofs: proofsPage, artifacts: artifactsPage })[state.view](r);

@@ -1,4 +1,4 @@
-// M2b: `intent check` queue (S5) and renames/deletes of unit folders.
+// Explicit Review queue (S5) and renames/deletes of unit folders.
 import { test, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -24,12 +24,12 @@ function setup() {
 }
 
 // Run the CLI the way an agent's shell would: no plugin env vars, cwd in the repo.
-// data: the plugin data dir, passed as --data like the /intent:deepscan command does.
+// data: the plugin data dir, passed as --data like the /intent:review command does.
 function cli(args, cwd, data) {
   return new Promise((resolve) => {
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("CLAUDE_") && !k.startsWith("INTENT_")));
     // HOME points at a throwaway dir so a failing run cannot log into the real plugin data dir.
-    const c = spawn(BIN, ["deepscan", ...args, ...(data ? ["--data", data] : [])], { cwd, env: { ...env, HOME: tmpdir("intent-home-"), XDG_CONFIG_HOME: data ? xdgDir(data) : undefined, INTENT_API_URL: fp.url } });
+    const c = spawn(BIN, ["scan", ...args, ...(data ? ["--data", data] : [])], { cwd, env: { ...env, HOME: tmpdir("intent-home-"), XDG_CONFIG_HOME: data ? xdgDir(data) : undefined, INTENT_API_URL: fp.url } });
     let out = "";
     c.stdout.on("data", (d) => { out += d; });
     c.stderr.on("data", (d) => { out += d; });
@@ -41,7 +41,7 @@ const queueFiles = (repo) => {
   try { return fs.readdirSync(path.join(repo, ".intent", ".queue")); } catch { return []; }
 };
 
-test("intent deepscan <files> queues validated repo-relative paths, offline, and says so in one line", async () => {
+test("intent scan <files> queues validated repo-relative paths, offline, and says so in one line", async () => {
   const { repo, data } = setup();
   fs.mkdirSync(path.join(repo, "src", "auth"), { recursive: true });
   fs.writeFileSync(path.join(repo, "src", "auth", "login.py"), "def login(u, p):\n    return check(u, p)\n");
@@ -51,7 +51,7 @@ test("intent deepscan <files> queues validated repo-relative paths, offline, and
   fs.writeFileSync(outside, "root:x:0:0\n");
   const r = await cli(["login.py", "../../.env", "missing.py", outside], path.join(repo, "src", "auth"), data);
   assert.equal(r.code, 0);
-  assert.match(r.out, /^Intent Check: queued a review of 1 file; it runs in the background/);
+  assert.match(r.out, /^Intent Prover: queued a review of 1 file; it runs in the background/);
   assert.match(r.out, /secrets file/);
   assert.match(r.out, /not found/);
   assert.match(r.out, /outside the repo/);
@@ -133,7 +133,7 @@ test("renames and deletions retain original-path history and foreign files", asy
   assert.ok(fs.existsSync(path.join(d, "artifacts/keep.py/NOTES.txt")), "foreign files are not touched");
 });
 
-test("intent deepscan <files> inside a worktree-isolated subagent is queued in the main repo and reviewed under the repo path", async () => {
+test("intent scan <files> inside a worktree-isolated subagent is queued in the main repo and reviewed under the repo path", async () => {
   const ctx = setup();
   fs.writeFileSync(path.join(ctx.repo, "pricing.py"), "# todo\n");
   ctx.git("add", "-A"); ctx.git("commit", "-qm", "pricing");

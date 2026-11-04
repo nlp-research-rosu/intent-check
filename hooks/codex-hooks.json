@@ -1,17 +1,17 @@
 {
   "hooks": {
     "SessionStart": [
-      { "hooks": [ { "type": "command", "command": "intent-check __hook --host codex --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" session-start", "timeout": 10 } ] }
+      { "hooks": [ { "type": "command", "command": "intent-prover __hook --host codex --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" session-start", "timeout": 10 } ] }
     ],
     "UserPromptSubmit": [
-      { "hooks": [ { "type": "command", "command": "intent-check __hook --host codex --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" prompt", "timeout": 10 } ] }
+      { "hooks": [ { "type": "command", "command": "intent-prover __hook --host codex --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" prompt", "timeout": 10 } ] }
     ],
     "PostToolUse": [
       { "matcher": "^(apply_patch|Edit|Write|Bash)$",
-        "hooks": [ { "type": "command", "command": "intent-check __hook --host codex --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" post-tool", "timeout": 10 } ] }
+        "hooks": [ { "type": "command", "command": "intent-prover __hook --host codex --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" post-tool", "timeout": 10 } ] }
     ],
     "Stop": [
-      { "hooks": [ { "type": "command", "command": "intent-check __hook --host codex --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" stop", "timeout": 30 } ] }
+      { "hooks": [ { "type": "command", "command": "intent-prover __hook --host codex --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" stop", "timeout": 30 } ] }
     ]
   }
 }

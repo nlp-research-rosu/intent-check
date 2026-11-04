@@ -2,7 +2,7 @@ name: release
 # Run from the Actions tab and pick a branch. On main this cuts a release (vX.Y.Z), whose notes are the Unreleased
 # section of CHANGELOG.md; on any other branch it cuts a
 # prerelease (vX.Y.Z-<branch>.N) and commits the bump to that branch, because users install from the branch head.
-# The release carries the intent-check CLI builds for six targets and the two standalone installers; it is created as a
+# The release carries the intent-prover CLI builds for six targets and the two standalone installers; it is created as a
 # draft and published only after every asset is uploaded. The branch advances only after publication.
 # Pushes made with GITHUB_TOKEN do not trigger ci.yml; the Linux smoke below runs first.
 on:
@@ -101,12 +101,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { runner: macos-14, asset: intent-check-darwin-arm64, windows: false }
-          - { runner: macos-15-intel, asset: intent-check-darwin-x64, windows: false }
-          - { runner: ubuntu-latest, asset: intent-check-linux-x64, windows: false }
-          - { runner: ubuntu-24.04-arm, asset: intent-check-linux-arm64, windows: false }
-          - { runner: windows-latest, asset: intent-check-windows-x64, windows: true }
-          - { runner: windows-11-arm, asset: intent-check-windows-arm64, windows: true }
+          - { runner: macos-14, asset: intent-prover-darwin-arm64, windows: false }
+          - { runner: macos-15-intel, asset: intent-prover-darwin-x64, windows: false }
+          - { runner: ubuntu-latest, asset: intent-prover-linux-x64, windows: false }
+          - { runner: ubuntu-24.04-arm, asset: intent-prover-linux-arm64, windows: false }
+          - { runner: windows-latest, asset: intent-prover-windows-x64, windows: true }
+          - { runner: windows-11-arm, asset: intent-prover-windows-arm64, windows: true }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     defaults:
@@ -135,8 +135,8 @@ jobs:
       - if: ${{ !matrix.windows }}
         shell: bash
         run: |
-          test "$(target/release/intent-check --version)" = "intent-check ${{ needs.bump.outputs.v }}"
-          tar -C target/release -czf "${{ matrix.asset }}.tar.gz" intent-check
+          test "$(target/release/intent-prover --version)" = "intent-prover ${{ needs.bump.outputs.v }}"
+          tar -C target/release -czf "${{ matrix.asset }}.tar.gz" intent-prover
           if command -v sha256sum >/dev/null; then
             sha256sum "${{ matrix.asset }}.tar.gz" > "${{ matrix.asset }}.tar.gz.sha256"
           else
@@ -145,8 +145,8 @@ jobs:
       - if: ${{ matrix.windows }}
         shell: pwsh
         run: |
-          if ((& target/release/intent-check.exe --version) -ne "intent-check ${{ needs.bump.outputs.v }}") { throw "CLI version mismatch" }
-          Compress-Archive target/release/intent-check.exe "${{ matrix.asset }}.zip"
+          if ((& target/release/intent-prover.exe --version) -ne "intent-prover ${{ needs.bump.outputs.v }}") { throw "CLI version mismatch" }
+          Compress-Archive target/release/intent-prover.exe "${{ matrix.asset }}.zip"
           $hash = (Get-FileHash "${{ matrix.asset }}.zip" -Algorithm SHA256).Hash.ToLower()
           "$hash  ${{ matrix.asset }}.zip" | Set-Content "${{ matrix.asset }}.zip.sha256"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -180,7 +180,7 @@ jobs:
           node-version: 22
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          pattern: intent-check-*
+          pattern: intent-prover-*
           path: dist
           merge-multiple: true
       - name: GitHub release
@@ -195,11 +195,11 @@ jobs:
             echo "release v$V already published"
             exit 0
           fi
-          for e in sh ps1; do sed "s/__INTENT_CHECK_RELEASE_TAG__/v$V/" "scripts/install-intent-check.$e" > "dist/install-intent-check.$e"; done
-          ! grep -l __INTENT_CHECK_RELEASE_TAG__ dist/install-intent-check.* || { echo "release tag placeholder left in an installer" >&2; exit 1; }
+          for e in sh ps1; do sed "s/__INTENT_PROVER_RELEASE_TAG__/v$V/" "scripts/install-intent-prover.$e" > "dist/install-intent-prover.$e"; done
+          ! grep -l __INTENT_PROVER_RELEASE_TAG__ dist/install-intent-prover.* || { echo "release tag placeholder left in an installer" >&2; exit 1; }
           assets=(dist/*)
-          printf '%s\n' intent-check-{darwin,linux}-{x64,arm64}.tar.gz{,.sha256} \
-            intent-check-windows-{x64,arm64}.zip{,.sha256} install-intent-check.sh install-intent-check.ps1 |
+          printf '%s\n' intent-prover-{darwin,linux}-{x64,arm64}.tar.gz{,.sha256} \
+            intent-prover-windows-{x64,arm64}.zip{,.sha256} install-intent-prover.sh install-intent-prover.ps1 |
             sort > "$RUNNER_TEMP/expected.txt"
           printf '%s\n' "${assets[@]#dist/}" | sort > "$RUNNER_TEMP/local-assets.txt"
           diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/local-assets.txt"

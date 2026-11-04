@@ -67,14 +67,14 @@ pub fn directory() -> Result<PathBuf> {
 
 fn path() -> Result<PathBuf> {
     if let Some(path) = env::var_os("XDG_CONFIG_HOME") {
-        return Ok(PathBuf::from(path).join("intent-check/config.toml"));
+        return Ok(PathBuf::from(path).join("intent-prover/config.toml"));
     }
     #[cfg(windows)]
     if let Some(path) = env::var_os("APPDATA") {
-        return Ok(PathBuf::from(path).join("intent-check/config.toml"));
+        return Ok(PathBuf::from(path).join("intent-prover/config.toml"));
     }
     let home = env::var_os("HOME").ok_or_else(|| anyhow::anyhow!("HOME is not set"))?;
-    Ok(PathBuf::from(home).join(".config/intent-check/config.toml"))
+    Ok(PathBuf::from(home).join(".config/intent-prover/config.toml"))
 }
 
 fn validate(config: &Config) -> Result<()> {
@@ -86,7 +86,7 @@ fn validate(config: &Config) -> Result<()> {
         || config.max_validation_attempts == 0
         || config.max_proof_attempts == 0
     {
-        bail!("intent-check configuration contains an invalid value");
+        bail!("intent-prover configuration contains an invalid value");
     }
     Ok(())
 }

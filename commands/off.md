@@ -1,8 +1,8 @@
 ---
-description: Turn Intent Check off (nothing is sent until /intent:on or /intent:live)
-allowed-tools: Bash(intent-check:*)
+description: Disable automatic Review and uploads until /intent:on or /intent:live
+allowed-tools: Bash(intent-prover:*)
 ---
 
-!`intent-check off --plugin-root "${CLAUDE_PLUGIN_ROOT}" --data "${CLAUDE_PLUGIN_DATA}"`
+!`intent-prover off --plugin-root "${CLAUDE_PLUGIN_ROOT}" --data "${CLAUDE_PLUGIN_DATA}"`
 
 Tell the user the line above, word for word, and nothing else.

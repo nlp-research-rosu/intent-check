@@ -142,10 +142,10 @@ pub(super) fn baseline(rt: &Runtime, cwd: &Path) -> Value {
         let _ = state::private_dir(temp.parent().expect("Index parent"));
         let vars = vec![
             ("GIT_INDEX_FILE", temp.to_string_lossy().into_owned()),
-            ("GIT_AUTHOR_NAME", "intent-check".into()),
-            ("GIT_AUTHOR_EMAIL", "intent-check@localhost".into()),
-            ("GIT_COMMITTER_NAME", "intent-check".into()),
-            ("GIT_COMMITTER_EMAIL", "intent-check@localhost".into()),
+            ("GIT_AUTHOR_NAME", "intent-prover".into()),
+            ("GIT_AUTHOR_EMAIL", "intent-prover@localhost".into()),
+            ("GIT_COMMITTER_NAME", "intent-prover".into()),
+            ("GIT_COMMITTER_EMAIL", "intent-prover@localhost".into()),
         ];
         let sha = (|| -> Option<String> {
             let index = git(&root, &["rev-parse", "--git-path", "index"])?;
@@ -168,7 +168,7 @@ pub(super) fn baseline(rt: &Runtime, cwd: &Path) -> Value {
                         "-p",
                         &head,
                         "-m",
-                        "intent-check baseline",
+                        "intent-prover baseline",
                     ],
                     &vars,
                     None,

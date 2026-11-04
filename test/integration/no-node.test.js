@@ -96,8 +96,8 @@ test("claude -p with no node on PATH: native hooks succeed once without looping 
     }
   }
   assert.equal(count(out[0].started, "SessionStart"), 1);
-  assert.equal(out[0].responses.filter((e) => /Intent Check is on\./.test(String(e.stdout))).length, 1, "consent is shown without node");
-  assert.equal(out[1].responses.filter((e) => /Intent Check is on\./.test(String(e.stdout))).length, 0, "consent is not repeated");
+  assert.equal(out[0].responses.filter((e) => /Intent Prover is on\./.test(String(e.stdout))).length, 1, "consent is shown without node");
+  assert.equal(out[1].responses.filter((e) => /Intent Prover is on\./.test(String(e.stdout))).length, 0, "consent is not repeated");
   assert.ok(fs.existsSync(path.join(repo, "src", "a.js")), "the model's edit still happened");
   assert.equal(fp.jobRequests().length, 0, "nothing is sent without an API key");
 });
@@ -116,7 +116,7 @@ test("claude -p with Node 16 on PATH: native hooks succeed and consent shows onc
       assertNativeOutput(e);
     }
   }
-  const consent = (t) => t.responses.filter((e) => /Intent Check is on\./.test(String(e.stdout)));
+  const consent = (t) => t.responses.filter((e) => /Intent Prover is on\./.test(String(e.stdout)));
   const said = (t) => consent(t).length;
   assert.equal(said(out[0]), 1, "the first turn says it once");
   assert.equal(said(out[1]), 0, "the second turn in the same data dir stays quiet");
@@ -124,7 +124,7 @@ test("claude -p with Node 16 on PATH: native hooks succeed and consent shows onc
   const msgs = out.flatMap(consent);
   assert.equal(msgs.length, 1, "the consent systemMessage appears exactly once");
   const message = JSON.parse(String(msgs[0].stdout).trim()).systemMessage;
-  assert.match(message, /^Intent Check is on\./);
+  assert.match(message, /^Intent Prover is on\./);
   assert.match(message, /\.intent\/\.sent\.log/);
   assert.match(message, /\/intent:off/);
   assert.equal(count(out[0].started, "SessionStart"), 1);

@@ -17,7 +17,7 @@ test("SessionStart with no global CLI finishes under the watchdog without contac
   const repo = makeRepo().dir;
   const r = await runHook("session-start", fixture("session-start", repo), baseEnv(data, url, { PATH: "" }));
   assert.ok(r.ms < 6500, `took ${r.ms}`);
-  assert.match(r.json.systemMessage, /Intent Check is on\./);
-  assert.match(r.json.systemMessage, /Intent Check v\S+ ready/);
+  assert.match(r.json.systemMessage, /Intent Prover is on\./);
+  assert.match(r.json.systemMessage, /Intent Prover v\S+ ready/);
   assert.equal(sockets.length, 0, "hooks do not contact the service to start sign-in");
 });

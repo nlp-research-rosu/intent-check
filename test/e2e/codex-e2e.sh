@@ -18,7 +18,7 @@
 # Env: INTENT_API_URL (required; 127.0.0.1 = fake prover),
 #      E2E_APPROVE_CMD (required for staging: approves $USER_CODE in the console; staging needs a Clerk account),
 #      MODEL (default gpt-5.6-luna), INTENT_PIPELINE (default canned), KEEP=1.
-# The global intent-check CLI must already be on PATH.
+# The global intent-prover CLI must already be on PATH.
 set -euo pipefail
 
 : "${INTENT_API_URL:?set INTENT_API_URL}"
@@ -29,7 +29,7 @@ export INTENT_PIPELINE="${INTENT_PIPELINE:-canned}"
 FAKE=0
 case "$INTENT_API_URL" in http://127.0.0.1:*|http://localhost:*) FAKE=1 ;; esac
 if [ "$FAKE" = 0 ]; then : "${E2E_APPROVE_CMD:?set E2E_APPROVE_CMD}"; fi
-intent-check --version >/dev/null
+intent-prover --version >/dev/null
 [ -f "$HOME/.codex/auth.json" ] || { echo "no ~/.codex/auth.json"; exit 1; }
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/intent-codex-e2e-XXXXXX")"
@@ -81,14 +81,14 @@ ok "plugin installed and hooks trusted (isolated home)"
 # What the plugin handed to Codex, from its own log (codex exec does not print hook context).
 emitted() { grep '"event":"hook.output"' "$DATA/intent.log" 2>/dev/null | grep -c "\"$1\"" || true; }
 
-# 1. Sign in explicitly with the global CLI, as the onboarding skill does.
-INTENT_API_URL="$INTENT_API_URL" INTENT_CONSOLE_URL="${INTENT_CONSOLE_URL:-$INTENT_API_URL}" intent-check login > "$WORK/login.jsonl" 2>&1 &
+# 1. Sign in explicitly with the global CLI, as the setup reference describes.
+INTENT_API_URL="$INTENT_API_URL" INTENT_CONSOLE_URL="${INTENT_CONSOLE_URL:-$INTENT_API_URL}" intent-prover login > "$WORK/login.jsonl" 2>&1 &
 LOGIN_PID=$!
 wait_for 20 grep -q 'verification_url' "$WORK/login.jsonl" || true
 USER_CODE="$(node -e 'try{console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8").split("\n")[0]).user_code||"")}catch{console.log("")}' "$WORK/login.jsonl")"
 [ -n "$USER_CODE" ] && ok "explicit CLI login started ($USER_CODE)" || bad "CLI login did not start"
 approve "$USER_CODE" || bad "approve failed"
-if wait_for 60 grep -q '"keys"' "$WORK/xdg/intent-check/credentials.json" 2>/dev/null; then
+if wait_for 60 grep -q '"keys"' "$WORK/xdg/intent-prover/credentials.json" 2>/dev/null; then
   wait "$LOGIN_PID" && ok "key saved" || bad "CLI login failed"
   LOGIN_PID=""
 else bad "key not saved"; exit 1; fi
@@ -101,15 +101,15 @@ if wait_for 180 test -f "$REPO/.intent/pricing.py/meta.json"; then ok ".intent/p
 grep -q '"host":"codex"\|"mode":"edit"' "$REPO/.intent/.sent.log" && ok "upload logged" || bad "no upload logged"
 
 # 3. The concern reaches the agent at the next prompt (or already at Stop, if it finished in time).
-if grep -q 'Intent Check: [0-9]* concern' "$WORK/turn1.log"; then
+if grep -q 'Intent Prover: [0-9]* concern' "$WORK/turn1.log"; then
   ok "concern handed over at Stop (exit 2)"
 else
   # Wait until the detached poller has settled the job, then open the next turn.
   wait_for 120 bash -c "grep -q '\"event\":\"job.done\"' '$DATA/intent.log'" || true
   sleep 2
-  OUT="$(cx resume --last "Quote verbatim every line in your context that starts with 'Intent Check:', or say NONE. Do not edit files.")"
+  OUT="$(cx resume --last "Quote verbatim every line in your context that starts with 'Intent Prover:', or say NONE. Do not edit files.")"
   if [ "$(emitted concerns)" -ge 1 ]; then ok "concern handed to Codex at the next prompt"; else bad "concern not emitted"; fi
-  if printf '%s' "$OUT" | grep -q 'Intent Check: [0-9]* concern'; then ok "model saw the concern"; else bad "model did not quote the concern"; fi
+  if printf '%s' "$OUT" | grep -q 'Intent Prover: [0-9]* concern'; then ok "model saw the concern"; else bad "model did not quote the concern"; fi
 fi
 
 # 4. No concerns stay silent: a clean file.
