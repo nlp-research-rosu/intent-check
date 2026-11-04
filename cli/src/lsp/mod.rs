@@ -165,10 +165,7 @@ impl SymbolKind {
     }
 
     fn callable(self) -> bool {
-        matches!(
-            self,
-            Self::Class | Self::Method | Self::Constructor | Self::Function
-        )
+        matches!(self, Self::Method | Self::Constructor | Self::Function)
     }
 }
 
@@ -305,7 +302,7 @@ fn collect(
             }
         }
     }
-    let fingerprint = json!({"format_version":3,"sources":sources,"project_configs":project_configs,
+    let fingerprint = json!({"format_version":4,"sources":sources,"project_configs":project_configs,
         "lsp_config_sha256":storage::hash(serde_json::to_vec(servers)?)});
     let state_name = format!("{}.json", storage::hash(root.to_string_lossy().as_bytes()));
     let previous = fs::read(state.join(&state_name))
@@ -455,7 +452,15 @@ fn collect_server(
                 .map(|(id, node)| (id.clone(), node.position.clone(), node.kind))
                 .collect();
             for (id, position, kind) in seeds {
-                if references_supported {
+                if references_supported
+                    && matches!(
+                        kind,
+                        SymbolKind::Variable
+                            | SymbolKind::Constant
+                            | SymbolKind::Field
+                            | SymbolKind::Property
+                    )
+                {
                     let usages = graph.query(
                         &mut client,
                         "textDocument/references",
@@ -482,10 +487,9 @@ fn collect_server(
                         });
                     }
                 }
-                if !calls_supported {
+                if !calls_supported || !kind.callable() {
                     continue;
                 }
-                // Constants and class members can also hold callables; use only server-reported calls.
                 let prepared = graph.query(
                     &mut client,
                     "textDocument/prepareCallHierarchy",
@@ -494,7 +498,7 @@ fn collect_server(
                     }),
                     &path,
                 )?;
-                if kind.callable() && array(&prepared)?.is_empty() {
+                if array(&prepared)?.is_empty() {
                     graph
                         .omitted_symbols
                         .push(json!({"path":relative(root, file)?,

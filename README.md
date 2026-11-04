@@ -189,7 +189,6 @@ Results replace `.intent/graph.json` with readable symbols, calls and references
     {"caller": "checkout.py:checkout", "callee": "pricing.py:discount", "file": "checkout.py", "line": 4}
   ],
   "references": [
-    {"from": "checkout.py:checkout", "to": "pricing.py:discount", "file": "checkout.py", "line": 4, "column": 12, "end_line": 4, "end_column": 20},
     {"from": "checkout.py:checkout", "to": "pricing.py:TAX_RATE", "file": "checkout.py", "line": 5, "column": 12, "end_line": 5, "end_column": 20}
   ]
 }
@@ -205,9 +204,9 @@ are excluded when the server reports their enclosing callable. References use `t
 the referenced symbol and optional `from` for the innermost enclosing symbol; module-level
 uses without an enclosing symbol retain their file/location. Reference ranges use 1-based
 UTF-16 columns and an exclusive end position, preserving separate uses on the same line.
-Declarations are excluded by the reference query. A function use can appear in both calls
-and references; an ordinary variable reference is not a call. Function-valued variables
-have call edges only when the server reports call hierarchy. References do not classify
+Declarations are excluded by the reference query. Call-hierarchy queries target only
+functions, methods and constructors; reference queries target variables, constants,
+fields and properties. References do not classify
 reads versus writes. Source/config hashes and snapshot identity stay in private global LSP state;
 analyzer details, timings and omitted symbols stay in the private plugin log, not the graph.
 The collector uses advertised capabilities independently. Unsupported relationship
