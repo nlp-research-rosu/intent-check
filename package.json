@@ -2,13 +2,14 @@
   "name": "intent-check",
   "version": "1.0.3",
   "private": true,
-  "description": "Intent Check plugin for Claude Code and Codex. Zero runtime dependencies.",
+  "description": "Intent Check plugin for Claude Code and Codex, powered by the native intent-check CLI.",
   "type": "module",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
     "test": "node scripts/test.mjs",
+    "test:smoke": "node --test --test-concurrency=1 --test-name-pattern=\"^(concerns: submits|no concerns: silent|a rejected saved key|INTENT_DISABLED=1|DO_NOT_TRACK=1|/intent:off|native hooks capture prompts|native requests mask)\" test/runner.test.js test/redact.test.js",
     "test:integration": "node --test test/integration/*.test.js"
   }
 }

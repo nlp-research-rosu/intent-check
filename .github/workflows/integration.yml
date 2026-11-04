@@ -1,8 +1,7 @@
 name: integration
 # The real `claude -p` and `codex exec` run the plugin's hooks against a mock model API and the fake
 # prover (test/integration). LLM-free: no Anthropic/OpenAI secrets, nothing here reads a secret.
-# Called from ci.yml (PRs that touch hooks/bin/lib/commands/.github, pushes to main, manual runs) and
-# from release.yml before it releases; also runnable by hand from the Actions tab.
+# Called from release.yml before it releases; also runnable by hand from the Actions tab.
 on:
   workflow_call:
   workflow_dispatch:
@@ -15,7 +14,7 @@ on:
 permissions:
   contents: read
 env:
-  # The versions the suite last passed with. PRs and releases use these; try newer by hand with cli=latest.
+  # The versions the suite last passed with. Releases use these; try newer by hand with cli=latest.
   CLAUDE_CODE_VERSION: 2.1.291
   CODEX_VERSION: 0.160.1
 jobs:
@@ -39,6 +38,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - name: Build matching CLI for plugin tests
+        run: cargo build --manifest-path cli/Cargo.toml --locked
+      - name: Add matching CLI to PATH
+        shell: bash
+        run: echo "$GITHUB_WORKSPACE/cli/target/debug" >> "$GITHUB_PATH"
       - name: Install the CLIs
         shell: bash
         env:

@@ -4,11 +4,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { reviewPath, QUIET_GLOBAL, rewriteProjectDir, tmpdir, makeRepo, baseEnv, saveKey, waitFor, ROOT, BIN } from "./helpers/env.js";
+import { reviewPath, QUIET_GLOBAL, rewriteProjectDir, tmpdir, makeRepo, baseEnv, runHook, saveKey, waitFor, ROOT, BIN } from "./helpers/env.js";
 import { spawn } from "node:child_process";
 import { validateDef } from "./helpers/schema.js";
-import { applyPatchPaths, readTurnContext, codexModes, fixModeFor } from "../lib/codex.js";
-import { hostVersion } from "../lib/config.js";
 
 const FX = path.join(ROOT, "test", "fixtures", "codex");
 const PRICING = "# pricing.py\ndef apply_discount(price_cents: int, percent: int) -> int:\n    return price_cents - price_cents * percent // 100\n";
@@ -35,11 +33,11 @@ function rollout(dir, { approval = "on-request", sandbox = "workspace-write", mo
 }
 
 // Run like Codex: shell form, PLUGIN_ROOT/PLUGIN_DATA set, and (under Claude Code) leaked CLAUDECODE.
-function run(event, payload, env, { hostFlag = true } = {}) {
+function run(event, payload, env) {
   return new Promise((resolve) => {
     const t0 = Date.now();
-    const args = [BIN, event, ...(hostFlag ? ["--host", "codex"] : [])];
-    const c = spawn(process.execPath, args, { env, cwd: payload.cwd });
+    const args = ["__hook", event, "--host", "codex"];
+    const c = spawn(BIN, args, { env, cwd: payload.cwd });
     let stdout = "";
     let stderr = "";
     c.stdout.on("data", (d) => { stdout += d; });
@@ -70,23 +68,6 @@ async function turn(ctx, files, stopPatch = {}) {
   return run("stop", cfx("stop", ctx.repo, ctx.transcript, stopPatch), ctx.env);
 }
 
-test("apply_patch paths: add, update and move targets, relative or absolute; not deleted or moved-from", () => {
-  const p = JSON.parse(fs.readFileSync(path.join(FX, "post-tool-apply-patch.json"), "utf8"));
-  // Relative paths are resolved with the platform's path rules (a drive letter and backslashes on Windows).
-  assert.deepEqual(applyPatchPaths(p.tool_input.command, "/work/proj"), [path.resolve("/work/proj", "calc.py"), "/work/proj/util.py", path.resolve("/work/proj", "new_name.py")]);
-  assert.deepEqual(applyPatchPaths(undefined, "/x"), []);
-});
-
-test("modes come from the transcript's latest turn_context; fix directly only without approvals", () => {
-  const tc = readTurnContext(path.join(FX, "rollout.jsonl"));
-  assert.deepEqual(codexModes(tc), { approval_policy: "on-request", sandbox: "workspace-write", collaboration_mode: "default" });
-  assert.equal(fixModeFor(codexModes(tc)), "default");
-  assert.equal(fixModeFor({ approval_policy: "never", sandbox: "workspace-write", collaboration_mode: "default" }), "bypassPermissions");
-  assert.equal(fixModeFor({ approval_policy: "never", sandbox: "read-only", collaboration_mode: "default" }), "default");
-  assert.equal(fixModeFor({ approval_policy: "never", sandbox: "danger-full-access", collaboration_mode: "plan" }), "default");
-  assert.equal(fixModeFor(codexModes(null)), "default");
-  assert.equal(hostVersion(path.join(FX, "rollout.jsonl")), "0.147.0");
-});
 
 test("Stop is sync and quick: submits a codex job, hands polling to a detached process, exits 0", async () => {
   fp.state.pollsBeforeDone = 1; // still queued when Stop looks, so the detached poller settles it
@@ -156,16 +137,17 @@ test("fix directly when Codex runs without approvals", async () => {
   assert.match(next.json.hookSpecificOutput.additionalContext, /fix it directly, editing only pricing\.py/);
 });
 
-test("without a global CLI: Codex receives setup guidance; PLUGIN_ROOT alone selects Codex", async () => {
+test("the native Codex hook can start sign-in without Node or another CLI on PATH", async () => {
   const ctx = setup({ key: false });
   ctx.env.PATH = "";
+  fp.state.connectStatus = "denied";
   const n = fp.state.requests.length;
-  const r = await run("prompt", cfx("prompt", ctx.repo, ctx.transcript), ctx.env, { hostFlag: false });
-  assert.match(r.json.hookSpecificOutput.additionalContext, /onboarding/);
+  const r = await run("session-start", cfx("session-start", ctx.repo, ctx.transcript), ctx.env);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.json.hookSpecificOutput.additionalContext, /sign-in|connect your account/);
   assert.equal(fs.existsSync(path.join(ctx.data, "connect.json")), false);
-  assert.equal(fp.state.requests.slice(n).some((x) => x.path === "/api/cli-connect"), false);
-  const r2 = await run("prompt", cfx("prompt", ctx.repo, ctx.transcript), ctx.env, { hostFlag: false });
-  assert.equal(r2.stdout, "", "setup guidance appears once per session");
+  assert.ok(fp.state.requests.slice(n).some((x) => x.path === "/api/cli-connect"));
+  delete fp.state.connectStatus;
 });
 
 test("the data dir is created on first use (Codex does not create it)", async () => {
@@ -198,8 +180,7 @@ test("C1: a slow service never holds the Codex Stop near its limit and queued re
   const env = { ...ctx.env, INTENT_API_URL: `http://127.0.0.1:${hang.address().port}` };
   // A queued review plus an edit: two submits would be 16 s at 8 s each.
   fs.writeFileSync(path.join(ctx.repo, "queued.py"), "Q = 1\n");
-  const { enqueue } = await import("../lib/queue.js");
-  enqueue(ctx.repo, "request", ["queued.py"]);
+  assert.match((await runHook("review", { cwd: ctx.repo }, ctx.env, { args: ["queued.py"] })).stdout, /queued/);
   await run("prompt", cfx("prompt", ctx.repo, ctx.transcript), env);
   fs.writeFileSync(path.join(ctx.repo, "edited.py"), "def e(x):\n    y = x\n    return y\n");
   const r = await run("stop", cfx("stop", ctx.repo, ctx.transcript), env);
@@ -220,8 +201,7 @@ test("Codex consent notice points at the ways Codex can turn it off", async () =
 test("r2-4: Codex Stop while off drops queued reviews", async () => {
   const ctx = setup();
   fs.writeFileSync(path.join(ctx.repo, "q.py"), "Q = 1\n");
-  const { enqueue } = await import("../lib/queue.js");
-  enqueue(ctx.repo, "request", ["q.py"]);
+  assert.match((await runHook("review", { cwd: ctx.repo }, ctx.env, { args: ["q.py"] })).stdout, /queued/);
   const n = fp.jobRequests().length;
   const r = await run("stop", cfx("stop", ctx.repo, ctx.transcript), { ...ctx.env, INTENT_DISABLED: "1" });
   assert.equal(r.code, 0);
@@ -233,8 +213,7 @@ test("r2-5: every job of a Codex Stop gets its result, even when the first settl
   fp.state.scenario = "no_concerns";
   const ctx = setup();
   fs.writeFileSync(path.join(ctx.repo, "q.py"), "Q = 1\n");
-  const { enqueue } = await import("../lib/queue.js");
-  enqueue(ctx.repo, "request", ["q.py"]);
+  assert.match((await runHook("review", { cwd: ctx.repo }, ctx.env, { args: ["q.py"] })).stdout, /queued/);
   await turn(ctx, { "pricing.py": PRICING });
   for (const f of ["pricing.py", "q.py"]) {
     assert.ok(await waitFor(() => fs.existsSync(reviewPath(ctx.repo, f, "meta.json")), { timeoutMs: 15000 }), f);
@@ -246,8 +225,7 @@ test("r2-1: a slow submit that the server did create is replayed at the next Sto
   fp.state.submitDelayMs = 9000; // longer than the Codex submit timeout (8 s)
   const ctx = setup();
   fs.writeFileSync(path.join(ctx.repo, "q.py"), "Q = 1\n");
-  const { enqueue } = await import("../lib/queue.js");
-  enqueue(ctx.repo, "request", ["q.py"]);
+  assert.match((await runHook("review", { cwd: ctx.repo }, ctx.env, { args: ["q.py"] })).stdout, /queued/);
   const jobsBefore = fp.state.jobs.size;
   await run("stop", cfx("stop", ctx.repo, ctx.transcript), ctx.env);
   assert.equal(fs.readdirSync(path.join(ctx.repo, ".intent", ".queue")).length, 1, "put back after the timeout");

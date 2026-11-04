@@ -9,7 +9,8 @@ selects another project, with the same root detection. Execution commands use
 --session <ID>; --project on them asserts the saved project matches.
 Configuration is shared.
 
-Commands print one JSON object to stdout; diagnostics may also go to stderr.
+Service, requirements and capability commands print JSON to stdout; diagnostics may
+also go to stderr. Review, DeepScan and on/off/live/doctor print human-readable text.
 View prints a listening URL when its local server starts and a final stopped
 object on Ctrl-C; --output exports HTML and returns immediately.
 Login first prints a pending JSON object, waits for browser approval, then

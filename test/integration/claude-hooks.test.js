@@ -19,7 +19,7 @@ let fp;
 let mock;
 before(async () => {
   if (skip) return;
-  fp = createFakeProver({ pollsBeforeDone: 0, scenario: "no_concerns" });
+  fp = createFakeProver({ pollsBeforeDone: 0, scenario: "no_concerns", connectStatus: "denied" });
   await fp.listen();
 });
 after(async () => {
@@ -30,6 +30,7 @@ after(async () => {
 async function session({ key = null, prompt = "write the file" } = {}) {
   const home = tmpdir("intent-it-home-");
   const config = path.join(home, ".claude");
+  const xdg = path.join(home, "xdg");
   fs.mkdirSync(config, { recursive: true });
   // realpath: on Windows the temp dir can be an 8.3 short name, which Claude Code resolves differently
   const repo = fs.realpathSync.native(makeRepo().dir);
@@ -38,6 +39,7 @@ async function session({ key = null, prompt = "write the file" } = {}) {
   const env = cleanEnv({
     HOME: home,
     USERPROFILE: home,
+    XDG_CONFIG_HOME: xdg,
     CLAUDE_CONFIG_DIR: config,
     ANTHROPIC_BASE_URL: mock.url,
     ANTHROPIC_API_KEY: "sk-ant-dummy-not-a-real-key",
@@ -51,7 +53,7 @@ async function session({ key = null, prompt = "write the file" } = {}) {
   const r = await runCli(CLAUDE, args, { env, cwd: repo, timeoutMs: 55000 });
   const events = r.stdout.split("\n").filter((l) => l.startsWith("{")).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
   const hooks = (kind) => events.filter((e) => e.type === "system" && e.subtype === kind);
-  const done = { mockBodies: mock.requests.map((q) => JSON.stringify(q.body || "")).join("\n"), repo, events, hooks, r };
+  const done = { mockBodies: mock.requests.map((q) => JSON.stringify(q.body || "")).join("\n"), repo, events, hooks, r, credentials: path.join(xdg, "intent-check", "credentials.json") };
   await mock.close();
   return done;
 }
@@ -72,13 +74,21 @@ function assertHooksRan(s) {
   assert.ok(!s.r.timedOut, note(s, "claude -p timed out"));
 }
 
-test("claude -p without a global CLI: hooks give setup guidance without sending a job", { skip, timeout: 60000 }, async () => {
+test("claude -p with the native CLI but no credentials: sign-in starts without blocking the task or uploading a review", { skip, timeout: 60000 }, async () => {
+  const before = fp.state.requests.length;
   const s = await session();
   assertHooksRan(s);
-  assert.match(s.mockBodies, /onboarding/, note(s, "setup guidance missing from the model request"));
+  assert.equal(s.r.code, 0, note(s, "claude -p did not exit 0"));
+  assert.ok(s.events.some((e) => e.type === "result" && !e.is_error), note(s, "the turn did not complete"));
+  assert.ok(fs.existsSync(path.join(s.repo, "src", "a.js")), "the model's edit still happened while disconnected");
+  // The denied fixture can settle before SessionStart finishes, or after a pending notice.
+  // Assert the context received by the model, not a host-version-specific hook_response field.
+  assert.match(s.mockBodies, /Intent Check(?: is starting sign-in through the global CLI\.|: connect your account| sign-in was denied\. Nothing is checked)/, note(s, "native sign-in guidance missing from the model request"));
   assert.doesNotMatch(s.mockBodies, /do not start on their request until they reply/, "headless gets the soft note, not the wait gate");
   assert.equal(fp.jobRequests().length, 0);
-  assert.equal(fp.state.requests.some((q) => q.method === "POST" && q.path === "/api/cli-connect"), false, "no sign-in is started without the global CLI");
+  assert.ok(fp.state.requests.slice(before).some((q) => q.method === "POST" && q.path === "/api/cli-connect" && q.body?.action === "start"), "native sign-in starts against the mock console");
+  assert.equal(fs.existsSync(s.credentials), false, "unapproved sign-in does not save credentials");
+  assert.equal(fp.state.connectKeyTaken, false, "the mock did not issue a credential");
 });
 
 test("claude -p with a seeded key: the edit is uploaded to the prover as a job", { skip, timeout: 60000 }, async () => {

@@ -268,6 +268,13 @@ fn snapshot(root: &Path, name: &str, data_dirs: &[PathBuf]) -> Result<Snapshot> 
                     continue;
                 }
                 observations.push(source_freshness(root, source));
+                for spec in source["specs"].as_array().into_iter().flatten() {
+                    let mut spec = spec.clone();
+                    spec["path"] =
+                        json!(format!(".intent/{}", spec["path"].as_str().unwrap_or("")));
+                    spec["role"] = json!("specification");
+                    observations.push(source_freshness(root, &spec));
+                }
             }
             let mut inputs_match = true;
             for input in request["inputs"].as_array().into_iter().flatten() {
@@ -312,9 +319,9 @@ fn snapshot(root: &Path, name: &str, data_dirs: &[PathBuf]) -> Result<Snapshot> 
                     // Task.result is aggregate and can include admitted/trusted claims or a
                     // cached result. Neither tool exits nor arbitrary logs certify coverage.
                     "server_reported_only; per-claim coverage unestablished; audit not recorded"
-                } else if matches!(request["operation"].as_str(), Some("check" | "deepscan"))
+                } else if matches!(request["operation"].as_str(), Some("review" | "scan"))
                     && result["status"] == "done"
-                    && (request["operation"] != "check" || result["bindings_valid"] == true)
+                    && (request["operation"] != "review" || result["bindings_valid"] == true)
                 {
                     "llm_reviewed"
                 } else {
@@ -553,10 +560,20 @@ fn source_freshness(root: &Path, source: &Value) -> String {
     let Some(path) = source["path"].as_str() else {
         return "unknown".into();
     };
-    if crate::requirements::relative_path(path).is_err() {
-        return "unknown".into();
-    }
-    let file = root.join(path);
+    let file = if source["role"] == "specification" {
+        let Some(relative) = path.strip_prefix(".intent/") else {
+            return "unknown".into();
+        };
+        let Ok(file) = crate::storage::spec_path(root, relative) else {
+            return "unknown".into();
+        };
+        file
+    } else {
+        if crate::requirements::relative_path(path).is_err() {
+            return "unknown".into();
+        }
+        root.join(path)
+    };
     let Ok(real) = file.canonicalize() else {
         return "missing".into();
     };

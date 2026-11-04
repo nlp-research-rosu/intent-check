@@ -23,7 +23,7 @@
         "macos": {
           "prereqs": [
             "Claude desktop app installed",
-            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in Terminal.",
+            "Node.js 18 or newer for the npx plugin-install commands below; plugin execution uses the global intent-check CLI, not Node.",
             "Git installed (git-scm.com)"
           ],
           "steps": [
@@ -38,7 +38,7 @@
         "windows": {
           "prereqs": [
             "Claude desktop app installed",
-            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in PowerShell.",
+            "Node.js 18 or newer for the npx plugin-install commands below; plugin execution uses the global intent-check CLI, not Node.",
             "Git installed (git-scm.com)"
           ],
           "steps": [
@@ -55,7 +55,7 @@
         "macos": {
           "prereqs": [
             "Claude Code installed",
-            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in Terminal."
+            "The global intent-check CLI on PATH with hooks-v1, requirements-context-v1, reviews-v1 and deepscan-v1 capabilities; use onboarding to check stable version and capabilities."
           ],
           "steps": [
             "Open Terminal in your project and run `claude`.",
@@ -70,7 +70,7 @@
         "windows": {
           "prereqs": [
             "Claude Code installed",
-            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in PowerShell."
+            "The global intent-check CLI on PATH with hooks-v1, requirements-context-v1, reviews-v1 and deepscan-v1 capabilities; use onboarding to check stable version and capabilities."
           ],
           "steps": [
             "Open PowerShell in your project and run `claude`.",
@@ -85,7 +85,7 @@
         "linux": {
           "prereqs": [
             "Claude Code installed",
-            "Node.js 18 or newer (free, from nodejs.org or your package manager). Check by typing `node -v` in a terminal."
+            "The global intent-check CLI on PATH with hooks-v1, requirements-context-v1, reviews-v1 and deepscan-v1 capabilities; use onboarding to check stable version and capabilities."
           ],
           "steps": [
             "Open a terminal in your project and run `claude`.",
@@ -102,7 +102,7 @@
         "macos": {
           "prereqs": [
             "Claude Code extension for VS Code installed",
-            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in Terminal.",
+            "Node.js 18 or newer for the npx plugin-install commands below; plugin execution uses the global intent-check CLI, not Node.",
             "Git installed (git-scm.com)"
           ],
           "steps": [
@@ -118,7 +118,7 @@
         "windows": {
           "prereqs": [
             "Claude Code extension for VS Code installed",
-            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in PowerShell.",
+            "Node.js 18 or newer for the npx plugin-install commands below; plugin execution uses the global intent-check CLI, not Node.",
             "Git installed (git-scm.com)"
           ],
           "steps": [
@@ -134,7 +134,7 @@
         "linux": {
           "prereqs": [
             "Claude Code extension for VS Code installed",
-            "Node.js 18 or newer (free, from nodejs.org or your package manager). Check by typing `node -v` in a terminal.",
+            "Node.js 18 or newer for the npx plugin-install commands below; plugin execution uses the global intent-check CLI, not Node.",
             "Git installed (git-scm.com)"
           ],
           "steps": [
@@ -170,7 +170,7 @@
         "macos": {
           "prereqs": [
             "Codex CLI 0.147 or newer",
-            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in Terminal."
+            "The global intent-check CLI on PATH with hooks-v1, requirements-context-v1, reviews-v1 and deepscan-v1 capabilities; use onboarding to check stable version and capabilities."
           ],
           "steps": [
             "Open Terminal and run `codex plugin marketplace add {marketplace}{codex_ref}`.",
@@ -184,7 +184,7 @@
         "windows": {
           "prereqs": [
             "Codex CLI 0.147 or newer",
-            "Node.js 18 or newer (free, from nodejs.org). Check by typing `node -v` in PowerShell."
+            "The global intent-check CLI on PATH with hooks-v1, requirements-context-v1, reviews-v1 and deepscan-v1 capabilities; use onboarding to check stable version and capabilities."
           ],
           "steps": [
             "Open PowerShell and run `codex plugin marketplace add {marketplace}{codex_ref}`.",
@@ -198,7 +198,7 @@
         "linux": {
           "prereqs": [
             "Codex CLI 0.147 or newer",
-            "Node.js 18 or newer (free, from nodejs.org or your package manager). Check by typing `node -v` in a terminal."
+            "The global intent-check CLI on PATH with hooks-v1, requirements-context-v1, reviews-v1 and deepscan-v1 capabilities; use onboarding to check stable version and capabilities."
           ],
           "steps": [
             "Open a terminal and run `codex plugin marketplace add {marketplace}{codex_ref}`.",

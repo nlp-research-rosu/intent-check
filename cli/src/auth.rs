@@ -105,6 +105,34 @@ pub fn api_key(server: &str) -> Result<Option<String>> {
     Ok(key)
 }
 
+pub(crate) fn stored_keys() -> Result<Vec<String>> {
+    let mut keys: Vec<_> = read(&file()?)
+        .unwrap_or_default()
+        .keys
+        .into_values()
+        .collect();
+    if let Ok(key) = std::env::var("INTENT_API_KEY") {
+        keys.push(key.trim().into());
+    }
+    keys.retain(|key| key.len() >= 8);
+    Ok(keys)
+}
+
+pub(crate) fn clear_key(server: &str, rejected: &str) -> Result<()> {
+    let path = file()?;
+    let mut credentials = read(&path)?;
+    let origin = origin(server)?;
+    if credentials
+        .keys
+        .get(&origin)
+        .is_some_and(|key| key == rejected)
+    {
+        credentials.keys.remove(&origin);
+        write(&path, &credentials)?;
+    }
+    Ok(())
+}
+
 // A 429 from the portal, with how long it asked us to wait.
 #[derive(Debug)]
 struct RateLimited(Option<u64>);

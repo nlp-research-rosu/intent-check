@@ -1,5 +1,5 @@
 // Per-edit mode on Codex (apply_patch, one child per path) and shell-written files (Bash scan),
-// plus the one-time hook notice. Payloads replayed through bin/hooks.js --host codex.
+// plus the one-time hook notice. Payloads replayed through the native Codex hook entrypoint.
 import { test, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -33,7 +33,7 @@ function rollout(dir) {
 function run(event, payload, env) {
   return new Promise((resolve) => {
     const t0 = Date.now();
-    const c = spawn(process.execPath, [BIN, event, "--host", "codex"], { env, cwd: payload.cwd });
+    const c = spawn(BIN, ["__hook", "--host", "codex", event], { env, cwd: payload.cwd });
     let stdout = "";
     let stderr = "";
     c.stdout.on("data", (d) => { stdout += d; });
@@ -313,19 +313,17 @@ test("a scan child with 'again' set makes another pass and then clears its flag"
   const ctx = setup();
   await prompt(ctx);
   seed(ctx, (s) => { s.flags.shell_scan = { at: Date.now(), again: true }; });
-  const file = path.join(ctx.data, "scan.json");
+  const file = path.join(ctx.data, "tmp", "scan.json");
+  fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify({ session_id: "01a0e925-b8c6-7ff3-ad68-a52ef7638565", cwd: ctx.repo, tool_use_id: "x", transcript_path: ctx.transcript, host: "codex" }));
-  await new Promise((resolve) => {
-    const c = spawn(process.execPath, [BIN, "shell-scan-detached", file], { env: ctx.env, cwd: ctx.repo });
-    c.on("close", resolve);
+  const result = await new Promise((resolve) => {
+    const c = spawn(BIN, ["__worker", "--host", "codex", "shell", file], { env: ctx.env, cwd: ctx.repo });
+    let stderr = "";
+    c.stderr.on("data", (d) => { stderr += d; });
+    c.on("close", (code) => resolve({ code, stderr }));
   });
+  assert.equal(result.code, 0, result.stderr);
   const passes = fs.readFileSync(path.join(ctx.data, "intent.log"), "utf8").split("\n").filter((l) => l.includes('"shell.scan"'));
   assert.equal(passes.length, 2);
   assert.equal(flags(ctx).shell_scan, undefined);
-});
-
-test("apply_patch with CRLF line endings: the moved-from path is dropped, targets are clean", async () => {
-  const { applyPatchPaths } = await import("../lib/codex.js");
-  const cmd = "*** Begin Patch\r\n*** Update File: old.py\r\n*** Move to: new.py\r\n@@\r\n-a\r\n+b\r\n*** Add File: x.py\r\n+1\r\n*** End Patch";
-  assert.deepEqual(applyPatchPaths(cmd, "/w"), [path.resolve("/w", "new.py"), path.resolve("/w", "x.py")]);
 });

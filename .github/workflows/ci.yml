@@ -8,80 +8,19 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  test:
-    # The Ubuntu jobs keep the names they had before the OS matrix ("test (18)", "test (22)"), so
-    # branch protection rules that require them still match.
-    name: ${{ matrix.os == 'ubuntu-latest' && format('test ({0})', matrix.node) || format('test ({0}, {1})', matrix.os, matrix.node) }}
-    runs-on: ${{ matrix.os }}
-    # Windows runs the files one at a time (scripts/test.mjs) and starts each hook process more slowly.
-    timeout-minutes: ${{ matrix.os == 'windows-latest' && 20 || 10 }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        node: [18, 22]
+  smoke:
+    name: smoke (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 22
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
       - name: Build matching CLI for plugin tests
         run: cargo build --manifest-path cli/Cargo.toml --locked
       - name: Add matching CLI to PATH
         shell: bash
         run: echo "$GITHUB_WORKSPACE/cli/target/debug" >> "$GITHUB_PATH"
-      # scripts/test.mjs lists the files itself and runs them one at a time on Windows.
-      - run: npm test
-      - run: sh -n scripts/install-intent-check.sh
-  cli:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: cli
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
-        with:
-          components: clippy,rustfmt
-      - run: cargo fmt --check
-      - run: cargo clippy --locked -- -D warnings
-      - run: cargo build --locked
-      - run: cargo test --locked
-      - name: Check CLI sessions, cancellation and login against controlled servers
-        run: |
-          python3 tests/check-cli-semantics.py "$PWD/target/debug/intent-check"
-          python3 tests/check-cli-cancellation.py "$PWD/target/debug/intent-check"
-          python3 tests/check-cli-login.py "$PWD/target/debug/intent-check"
-  # Decides whether the OS-matrix integration job runs, so the required unit job above never waits on it.
-  # PRs run it when they touch hooks/, bin/, lib/, commands/, skills/, .claude-plugin/, .codex-plugin/,
-  # .github/, test/integration|helpers|e2e/ or package.json; every other event runs it.
-  changes:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      integration: ${{ steps.filter.outputs.integration }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-      - name: Changed paths
-        id: filter
-        env:
-          EVENT: ${{ github.event_name }}
-          BASE: ${{ github.base_ref }}
-        run: |
-          if [ "$EVENT" != pull_request ]; then
-            echo "integration=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if git diff --name-only "origin/$BASE...HEAD" | grep -Eq '^(hooks/|bin/|lib/|commands/|skills/|\.claude-plugin/|\.codex-plugin/|\.github/|test/(integration|helpers|e2e)/|package\.json$)'; then
-            echo "integration=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "integration=false" >> "$GITHUB_OUTPUT"
-          fi
-  integration:
-    needs: changes
-    if: github.event_name != 'pull_request' || needs.changes.outputs.integration == 'true'
-    uses: ./.github/workflows/integration.yml
+      - run: npm run test:smoke

@@ -9,7 +9,7 @@ Intent Check compares code with what the user asked for. It runs in the backgrou
 
 ## Commands
 
-Claude Code has six slash commands. Review and control commands use the plugin's script; prove mode uses the global CLI:
+Claude Code has six slash commands. All use the global `intent-check` CLI. If it is missing or lacks the required capability, follow `onboarding`; hooks never install or update software:
 
 | Slash command | Subcommand | What it does |
 |---|---|---|
@@ -20,19 +20,19 @@ Claude Code has six slash commands. Review and control commands use the plugin's
 | `/intent:prove` | `intent-check` (global CLI) | Follow the `using-prove` skill for formal proofs with K; use `onboarding` if the CLI or sign-in is missing. |
 | `/intent:doctor` | `doctor` | Says what state the plugin is in and repairs what it can: gives setup guidance, clears a rejected saved key, updates the plugin on Claude Code. |
 
-Run a plugin script subcommand with:
+Run a review or control subcommand with:
 
-    node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" <subcommand> --data "${CLAUDE_PLUGIN_DATA}"
+    intent-check <subcommand> --plugin-root "${CLAUDE_PLUGIN_ROOT}" --data "${CLAUDE_PLUGIN_DATA}"
 
-Codex has no plugin slash commands. For formal proofs, follow `using-prove` and call the global `intent-check` CLI directly; there is no `hooks.js prove` subcommand. For review and control commands, run the same script by its path relative to this file: `node <folder of this SKILL.md>/../../bin/hooks.js <subcommand>`. Every script subcommand except `deepscan <files>` writes Codex's plugin data folder, and `doctor` and a whole-repo or folder `deepscan` need network access, so they may need approval to run outside the sandbox. Tell the user the output of `on`, `live`, `off` and `doctor` word for word.
+Codex has no plugin slash commands. For formal proofs, follow `using-prove`. For review and controls, run `intent-check <subcommand> --host codex --plugin-root "<folder of this SKILL.md>/../.."`. This identity selects the same private data folder as the hooks. These commands write Codex's plugin data folder; `doctor` and a whole-repo or folder `deepscan` also need network access, so they may need approval to run outside the sandbox. Tell the user the output of `on`, `live`, `off` and `doctor` word for word.
 
 ## Asking for a review
 
 Everything on demand is `deepscan`. Inside a repository, its root is detected automatically, even from a subdirectory. In a project without git, run it from the project root (the folder the session started in).
 
-    node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" deepscan --data "${CLAUDE_PLUGIN_DATA}" [files or a folder] [fast|balanced|full]
+    intent-check deepscan --plugin-root "${CLAUDE_PLUGIN_ROOT}" --data "${CLAUDE_PLUGIN_DATA}" [files or a folder] [fast|balanced|full]
 
-In Codex: `node <folder of this SKILL.md>/../../bin/hooks.js deepscan [files or a folder] [fast|balanced|full]`.
+In Codex: `intent-check deepscan --host codex --plugin-root "<folder of this SKILL.md>/../.." [files or a folder] [fast|balanced|full]`.
 
 - **Specific files** ("review auth.py", "is this function right?"): `deepscan <path> [<path> ...]`, at most 10 files. This is the fast review: the command only queues the request and returns at once, the review runs when your turn ends, and the result arrives as a note a few minutes later. Tell the user in one line that the review is queued.
 - **The whole repo** ("review my repo", "deep scan", "security review"): `deepscan` with no path.

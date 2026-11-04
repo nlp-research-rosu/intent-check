@@ -1,6 +1,5 @@
-// Integration: what a user sees when `node` is missing or too old on the PATH Claude Code runs hooks
-// with (hooks are exec form: "command": "node"). Claude Code is a native binary, so it runs without
-// node; the hooks are what need it. Linux/macOS only (the PATH is a directory of symlinks).
+// Integration: native hooks work when node is missing or old on Claude Code's PATH.
+// Linux/macOS only (the isolated PATH is a directory of symlinks).
 //   node --test test/integration/no-node.test.js
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -18,14 +17,14 @@ const CODE = Array.from({ length: 6 }, (_, i) => `export const v${i} = ${i} * 2;
 let fp;
 before(async () => {
   if (skip) return;
-  fp = createFakeProver({ pollsBeforeDone: 0, scenario: "no_concerns" });
+  fp = createFakeProver({ pollsBeforeDone: 0, scenario: "no_concerns", connectStatus: "denied" });
   await fp.listen();
 });
 after(async () => {
   if (fp) await fp.close();
 });
 
-// Two headless turns against one config dir (so the once-per-data-dir message can be told from a repeat).
+// Two headless turns against one config dir, without credentials, to check consent and upload protection.
 async function turns({ oldNode }) {
   const home = tmpdir("intent-it-home-");
   const config = path.join(home, ".claude");
@@ -35,6 +34,8 @@ async function turns({ oldNode }) {
   await mock.listen();
   const env = cleanEnv({
     HOME: home,
+    USERPROFILE: home,
+    XDG_CONFIG_HOME: path.join(home, "xdg"),
     CLAUDE_CONFIG_DIR: config,
     ANTHROPIC_BASE_URL: mock.url,
     ANTHROPIC_API_KEY: "sk-ant-dummy-not-a-real-key",
@@ -60,7 +61,25 @@ async function turns({ oldNode }) {
 
 const count = (list, ev) => list.filter((e) => e.hook_event === ev).length;
 
-test("claude -p with no node on PATH: the turn completes, each hook fails once and does not loop or block", { skip, timeout: 120000 }, async () => {
+function assertNativeOutput(response) {
+  if (!String(response.stdout || "").trim()) return;
+  const output = JSON.parse(String(response.stdout));
+  assert.ok(output && typeof output === "object" && !Array.isArray(output), "hook output is an object");
+  assert.ok("systemMessage" in output || "hookSpecificOutput" in output, "hook output contains a message or context");
+  if ("systemMessage" in output) {
+    assert.equal(typeof output.systemMessage, "string");
+    assert.ok(output.systemMessage.trim(), "systemMessage is not empty");
+  }
+  if ("hookSpecificOutput" in output) {
+    const context = output.hookSpecificOutput;
+    assert.ok(context && typeof context === "object" && !Array.isArray(context), "hookSpecificOutput is an object");
+    assert.equal(context.hookEventName, response.hook_event);
+    assert.equal(typeof context.additionalContext, "string");
+    assert.ok(context.additionalContext.trim(), "additionalContext is not empty");
+  }
+}
+
+test("claude -p with no node on PATH: native hooks succeed once without looping or uploading without a key", { skip, timeout: 120000 }, async () => {
   const { out, repo } = await turns({ oldNode: false });
   for (const t of out) {
     assert.ok(!t.r.timedOut, "the turn did not hang");
@@ -71,30 +90,44 @@ test("claude -p with no node on PATH: the turn completes, each hook fails once a
     assert.equal(count(t.started, "Stop"), 1);
     assert.equal(t.responses.length, t.started.length, "every started hook was answered");
     for (const e of t.responses) {
-      assert.notEqual(e.outcome, "success", `${e.hook_event} cannot succeed without node`);
-      assert.match(String(e.output || e.stderr), /not found|ENOENT/i, `${e.hook_event}: ${e.output}`);
+      assert.ok(e.outcome === "success" && e.exit_code === 0, `${e.hook_event} succeeds without node`);
+      assert.doesNotMatch(String(e.stdout || "") + String(e.stderr || ""), /needs Node(?:\.js)? 18/);
+      assertNativeOutput(e);
     }
   }
   assert.equal(count(out[0].started, "SessionStart"), 1);
+  assert.equal(out[0].responses.filter((e) => /Intent Check is on\./.test(String(e.stdout))).length, 1, "consent is shown without node");
+  assert.equal(out[1].responses.filter((e) => /Intent Check is on\./.test(String(e.stdout))).length, 0, "consent is not repeated");
   assert.ok(fs.existsSync(path.join(repo, "src", "a.js")), "the model's edit still happened");
-  assert.equal(fp.jobRequests().length, 0, "nothing is sent without node");
+  assert.equal(fp.jobRequests().length, 0, "nothing is sent without an API key");
 });
 
-test("claude -p with Node 16 on PATH: the 'needs Node 18' line shows once per data dir, hooks exit 0", { skip, timeout: 120000 }, async () => {
-  const { out } = await turns({ oldNode: true });
+test("claude -p with Node 16 on PATH: native hooks succeed and consent shows once per data dir", { skip, timeout: 120000 }, async () => {
+  const { out, repo } = await turns({ oldNode: true });
   for (const t of out) {
     assert.ok(!t.r.timedOut && t.result && !t.result.is_error, "the turn completed");
-    for (const e of t.responses) assert.ok(e.outcome === "success" && e.exit_code === 0, `${e.hook_event} exits 0 on old node`);
+    assert.equal(count(t.started, "UserPromptSubmit"), 1);
+    assert.equal(count(t.started, "PostToolUse"), 1);
     assert.equal(count(t.started, "Stop"), 1);
+    assert.equal(t.responses.length, t.started.length, "every started hook was answered");
+    for (const e of t.responses) {
+      assert.ok(e.outcome === "success" && e.exit_code === 0, `${e.hook_event} exits 0 on old node`);
+      assert.doesNotMatch(String(e.stdout || "") + String(e.stderr || ""), /needs Node(?:\.js)? 18/);
+      assertNativeOutput(e);
+    }
   }
-  const said = (t) => t.responses.filter((e) => /needs Node 18 or newer \(found 16\.1\.0\)/.test(String(e.stderr || e.output))).length;
+  const consent = (t) => t.responses.filter((e) => /Intent Check is on\./.test(String(e.stdout)));
+  const said = (t) => consent(t).length;
   assert.equal(said(out[0]), 1, "the first turn says it once");
   assert.equal(said(out[1]), 0, "the second turn in the same data dir stays quiet");
-  // The user-visible line is a systemMessage on stdout of SessionStart/UserPromptSubmit, shown once in total.
-  const msgs = out.flatMap((t) => t.responses.filter((e) => /"systemMessage"/.test(String(e.stdout))));
-  assert.equal(msgs.length, 1, "the systemMessage appears exactly once");
-  assert.match(JSON.parse(String(msgs[0].stdout).trim()).systemMessage, /^Intent Check needs Node\.js 18 or newer to run \(found 16\.1\.0\)\. Install it from nodejs\.org, then run \/reload-plugins\.$/);
-  for (const t of out) for (const e of t.responses) {
-    if (e !== msgs[0]) assert.equal(String(e.stdout || "").trim(), "", `${e.hook_event} prints nothing on stdout`);
-  }
+  // Consent is shown once; separate sign-in guidance may also appear while disconnected.
+  const msgs = out.flatMap(consent);
+  assert.equal(msgs.length, 1, "the consent systemMessage appears exactly once");
+  const message = JSON.parse(String(msgs[0].stdout).trim()).systemMessage;
+  assert.match(message, /^Intent Check is on\./);
+  assert.match(message, /\.intent\/\.sent\.log/);
+  assert.match(message, /\/intent:off/);
+  assert.equal(count(out[0].started, "SessionStart"), 1);
+  assert.ok(fs.existsSync(path.join(repo, "src", "a.js")), "the model's edit still happened");
+  assert.equal(fp.jobRequests().length, 0, "nothing is sent without an API key");
 });

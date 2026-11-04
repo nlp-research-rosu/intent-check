@@ -119,11 +119,12 @@ function records() {
       return { path: requirement.id, requirement, selection, index: owner?.path, freshness: data.freshness[`${owner?.path}#${requirement.id}`] || 'unknown' };
     }));
   const scans = paths.filter(p => /^logs\/[^/]+\/result.json$/.test(p))
-    .map(p => ({ path: p, meta: json(p), report: json(p.replace(/result.json$/, 'artifacts/report.json')) })).filter(s => s.meta?.operation === 'deepscan')
+    .map(p => ({ path: p, meta: json(p), report: json(p.replace(/result.json$/, 'artifacts/report.json')) })).filter(s => s.meta?.operation === 'scan')
     .sort((a, b) => String(a.meta.created_at).localeCompare(String(b.meta.created_at)));
   for (const scan of scans) scan.progress = data.scanStates[scan.meta.task_id] || { status: scan.meta.task?.status || scan.meta.status };
   const operations = paths.filter(p => /^logs\/[^/]+\/result.json$/.test(p))
-    .map(p => ({ path: p, evidence: json(p), request: json(p.replace(/result.json$/, 'request.json')) })).filter(o => o.evidence?.task && o.request?.operation !== 'deepscan');
+    .map(p => ({ path: p, evidence: json(p), request: json(p.replace(/result.json$/, 'request.json')) })).filter(o => o.evidence?.task && !['scan', 'review'].includes(o.request?.operation));
+  const fileReviews = paths.filter(p => /^logs\/[^/]+\/artifacts\/.+\/meta.json$/.test(p)).map(path => ({ path, meta: json(path) }));
   const targets = paths.filter(p => /^logs\/[^/]+\/request.json$/.test(p) && json(p)?.operation === 'prove').map(p => p.replace('request.json', 'artifacts/'));
   const active = [...data.active];
   for (const s of scans) {
@@ -134,7 +135,7 @@ function records() {
     if (!terminal.has(task.status)) active.push({ id: task.id, kind: human(task.kind), status: task.status, paths: [], submittedAt: task.createdAt });
   }
   const artifacts = paths;
-  return { paths, artifacts, reviews, scans, operations, targets, active };
+  return { paths, artifacts, reviews, fileReviews, scans, operations, targets, active };
 }
 function navigation(r) {
   const tabs = [['overview', 'Overview', ''], ['reviews', 'Properties', r.reviews.length], ['scans', 'DeepScan', r.scans.length], ['proofs', 'Proofs', r.targets.length], ['artifacts', 'All artifacts', r.artifacts.length]];
@@ -150,6 +151,7 @@ function scanOutcome(s) {
 }
 function overview(r) {
   const rows = r.reviews.map(p => `<tr><td><button class="link-button" data-review="${escape(p.path)}">${escape(p.requirement.statement)}</button><span class="subline mono">${p.requirement.targets.map(t => escape(t.path + (t.symbol ? '::' + t.symbol : ''))).join(', ')}</span></td><td>${status(p.freshness)} · ${p.selection.specs.length} current specs</td><td class="mono small muted">${escape(p.selection.last_run || 'Not checked')}</td><td>—</td></tr>`);
+  rows.push(...r.fileReviews.map(r => `<tr><td>${fileButton(r.path.replace(/meta.json$/, 'VERDICT.md'), r.meta.path)}<span class="subline">File review · ${status(data.freshness[r.path])}</span></td><td>${status(r.meta.verdict)}</td><td class="mono small muted">${escape(r.path.split('/')[1])}</td><td class="small muted">${date(r.meta.submitted_at)}</td></tr>`));
   rows.push(...r.scans.map(s => `<tr><td><button class="link-button" data-scan="${escape(s.path)}">${escape(s.meta.scope || 'Whole repository')}</button><span class="subline">DeepScan · ${escape(s.meta.depth)}</span></td><td>${scanOutcome(s)}</td><td class="mono small muted">${escape(s.meta.task_id?.slice(0, 8))}</td><td class="small muted">${date(s.meta.created_at)}</td></tr>`));
   rows.push(...r.operations.filter(o => o.evidence.task.kind === 'proof').map(o => `<tr><td><button class="link-button" data-file="${escape(o.path)}">Proof attempt</button><span class="subline">${escape(o.path.split('/').at(-2))}</span></td><td>${status(o.evidence.task.result || o.evidence.task.status)}</td><td class="mono small muted">${escape(o.evidence.task.id.slice(0, 8))}</td><td class="small muted">${date(o.evidence.task.finishedAt || o.evidence.task.createdAt)}</td></tr>`));
   return heading(data.name, 'Current properties and formal specifications, with linked operation evidence. Source freshness and proof outcome are separate.')
@@ -194,7 +196,7 @@ function scansPage(r) {
     + `<div class="row small mono muted" style="margin-bottom:15px">${escape(meta.task_id)} ${status(meta.report?.status)}</div><div class="tabs"><button data-scan-tab="report" class="${state.scanTab === 'report' ? 'active' : ''}">Report</button><button data-scan-tab="metadata" class="${state.scanTab === 'metadata' ? 'active' : ''}">Scan metadata</button></div><div class="stack">${body}</div>`;
 }
 function operationsView(r) {
-  const files = r.paths.filter(p => /^logs\/[^/]+\/request.json$/.test(p) && !r.scans.some(s => s.path.replace('result.json', 'request.json') === p));
+  const files = r.paths.filter(p => /^logs\/[^/]+\/request.json$/.test(p) && !['scan', 'review'].includes(json(p)?.operation));
   if (!r.operations.length && !files.length) return empty('No verification runs', 'Run, validation and proof results appear here.');
   return `<div class="stack">${r.operations.map(o => {
     const task = o.evidence.task;
@@ -292,7 +294,7 @@ document.addEventListener('click', async event => {
   if (d.proofTab) state.proofTab = d.proofTab;
   if (d.file) {
     state.file = d.file;
-    state.view = /^logs\/[^/]+\/result.json$/.test(d.file) && json(d.file)?.task && json(d.file)?.task?.kind !== 'deepscan' ? 'proofs' : 'artifacts';
+    state.view = /^logs\/[^/]+\/result.json$/.test(d.file) && json(d.file)?.task && !['scan', 'review'].includes(json(d.file)?.operation) ? 'proofs' : 'artifacts';
     if (state.view === 'proofs') state.proofTab = 'operations';
   }
   navigate();
