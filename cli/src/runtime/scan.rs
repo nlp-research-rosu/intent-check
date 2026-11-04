@@ -52,16 +52,17 @@ pub(super) fn queued(root: &Path) -> Result<Vec<(PathBuf, Value)>> {
     Ok(out)
 }
 pub(super) fn discard_queue(root: &Path) -> Result<()> {
+    if !root.join(".intent/.queue").try_exists()? {
+        return Ok(());
+    }
     for (path, _) in queued(root)? {
         fs::remove_file(path)?;
     }
     Ok(())
 }
 pub(super) fn checked_file(root: &Path, cwd: &Path, value: &str) -> Result<capture::FileChange> {
-    let abs = cwd
-        .join(value)
-        .canonicalize()
-        .with_context(|| format!("{value}: not found"))?;
+    let abs =
+        capture::canonical(&cwd.join(value)).with_context(|| format!("{value}: not found"))?;
     let rel =
         capture::relative(root, &abs).with_context(|| format!("{value}: outside the repo"))?;
     anyhow::ensure!(
@@ -242,10 +243,7 @@ fn snapshot(rt: &Runtime, scope: Option<&str>, depth: &str) -> Result<Snapshot> 
     );
     let root = capture::root(&cwd);
     let scope = if let Some(scope) = scope {
-        let path = cwd
-            .join(scope)
-            .canonicalize()
-            .context("Scan folder not found")?;
+        let path = capture::canonical(&cwd.join(scope)).context("Scan folder not found")?;
         let relative = path
             .strip_prefix(&root)
             .context("Scan folder is outside the repo")?
@@ -348,7 +346,7 @@ fn snapshot(rt: &Runtime, scope: Option<&str>, depth: &str) -> Result<Snapshot> 
         if !meta.is_file() {
             continue;
         }
-        if !abs.canonicalize().is_ok_and(|p| p.starts_with(&root)) {
+        if !capture::canonical(&abs).is_ok_and(|p| p.starts_with(&root)) {
             trim(&path, "symlink");
             continue;
         }
@@ -402,9 +400,9 @@ fn snapshot(rt: &Runtime, scope: Option<&str>, depth: &str) -> Result<Snapshot> 
             .iter()
             .all(|t| t["path"] == source)
         {
-            format!(".intent/files/{source}/requirements.json")
+            format!(".intent/source/{source}/requirements.json")
         } else {
-            ".intent/files/requirements.json".into()
+            ".intent/source/requirements.json".into()
         };
         docs.entry(location).or_default().push(record.clone());
     }
@@ -420,7 +418,36 @@ fn snapshot(rt: &Runtime, scope: Option<&str>, depth: &str) -> Result<Snapshot> 
     if let Some(brief) = context["brief"].as_str().filter(|s| !s.is_empty()) {
         contexts.insert(0, (".intent/REQUIREMENTS.md".into(), brief.into()));
     }
+    let ids: BTreeSet<_> = array(&context["requirements"])
+        .iter()
+        .filter_map(|r| r["id"].as_str())
+        .collect();
+    let mut specs = BTreeSet::new();
+    for (_, index) in crate::storage::indexes(&root)? {
+        for (id, selection) in index.properties {
+            if ids.contains(id.as_str()) {
+                specs.extend(selection.specs);
+            }
+        }
+    }
+    for path in specs {
+        let file = crate::storage::spec_path(&root, &path)?;
+        let Ok(meta) = fs::symlink_metadata(&file) else {
+            continue;
+        };
+        if !meta.is_file() || meta.len() > 524288 {
+            continue;
+        }
+        if let Ok(text) = fs::read_to_string(file) {
+            contexts.push((format!(".intent/{path}"), text));
+        }
+    }
     for (path, raw) in contexts {
+        let role = if path.contains("/specs/") {
+            "specification"
+        } else {
+            "requirements"
+        };
         let (text, n) = redactor.text(&raw);
         let file = json!({"path":path,"content":text});
         let cost = file.to_string().len() + 2;
@@ -429,9 +456,9 @@ fn snapshot(rt: &Runtime, scope: Option<&str>, depth: &str) -> Result<Snapshot> 
                 && bytes + text.len() <= 15728640
                 && json_bytes + cost <= 20971520 - 1048576
                 && files.len() < 3000,
-            "Requirements context exceeds the scan size limits"
+            "Requirements and specification context exceeds the scan size limits"
         );
-        sources.push(json!({"path":path,"source_sha256":hash(&raw),"submitted_sha256":hash(&text),"role":"requirements"}));
+        sources.push(json!({"path":path,"source_sha256":hash(&raw),"submitted_sha256":hash(&text),"role":role}));
         if path.ends_with("REQUIREMENTS.md") {
             binding["brief"]["submitted_sha256"] = json!(hash(&text));
         }
@@ -566,16 +593,26 @@ pub(super) fn command(rt: &Runtime, args: &[String]) -> Result<String> {
         );
     }
     if r.status == 0 {
-        r = api.request("POST", "/deepscans", Some(snap.gz), Some(&idem), timeout);
+        r = api.request(
+            "POST",
+            "/deepscans",
+            Some(snap.gz.clone()),
+            Some(&idem),
+            timeout,
+        );
     }
     if r.status != 202 {
         return Ok(format!("Intent Check: {}", submit_failure(&r)));
     }
     let id = string(&r.body["id"]);
     let path = scan_file(rt, id)?;
-    let scan = json!({"v":1,"job_id":id,"url":api.report(id),"repo_root":snap.root,"created_at":iso(now()),"host":rt.host,"scope":snap.scope,"depth":depth,"budget_s":if depth=="fast"{1800}else{3600},"status":"queued","waiter":{"pid":null,"token":null,"at":0},"delivered":false,"api_url":rt.config.server_url,"source":snap.source,"report_status":"pending"});
+    let storage_lock = crate::storage::lock(&snap.root)?;
+    let run = crate::storage::new_id(&snap.root)?;
+    let input = runner::freeze_input(&snap.root, &run, "snapshot.json.gz", &snap.gz)?;
+    let scan = json!({"v":1,"job_id":id,"run_id":run,"inputs":[input],"url":api.report(id),"repo_root":snap.root,"created_at":iso(now()),"host":rt.host,"scope":snap.scope,"depth":depth,"budget_s":if depth=="fast"{1800}else{3600},"status":"queued","waiter":{"pid":null,"token":null,"at":0},"delivered":false,"api_url":rt.config.server_url,"source":snap.source,"report_status":"pending"});
     state::write(&path, &scan, true)?;
     persist(&scan, None)?;
+    drop(storage_lock);
     runner::audit(
         &snap.root,
         json!({"at":iso(now()),"mode":"deepscan","job_id":id,"url":api.report(id),"files":snap.files,"bytes":snap.bytes,"redactions":snap.redactions}),
@@ -590,7 +627,7 @@ pub(super) fn command(rt: &Runtime, args: &[String]) -> Result<String> {
         },
         array(&scan["source"]["files"])
             .iter()
-            .filter(|f| f["role"] != "requirements")
+            .filter(|f| f["role"].is_null())
             .count(),
         snap.scope
             .as_ref()
@@ -650,19 +687,19 @@ fn poll_ms() -> u64 {
 fn persist(scan: &Value, task: Option<&Value>) -> Result<()> {
     let dir = runner::run_dir(
         Path::new(string(&scan["repo_root"])),
-        string(&scan["job_id"]),
+        string(&scan["run_id"]),
     )?;
     let previous = state::read(&dir.join("result.json"));
     if !dir.join("request.json").exists() {
         state::write(
             &dir.join("request.json"),
-            &json!({"version":1,"operation":"deepscan","trigger":"request","submitted_at":scan["created_at"],"scope":scan["scope"],"depth":scan["depth"],"source":scan["source"],"api_url":scan["api_url"],"requirement_binding":scan["source"]["requirement_binding"]}),
+            &json!({"version":1,"operation":"scan","task_id":scan["job_id"],"inputs":scan["inputs"],"trigger":"request","submitted_at":scan["created_at"],"scope":scan["scope"],"depth":scan["depth"],"source":scan["source"],"api_url":scan["api_url"],"requirement_binding":scan["source"]["requirement_binding"]}),
             false,
         )?;
     }
     state::write(
         &dir.join("result.json"),
-        &json!({"version":1,"operation":"deepscan","evidence_level":if scan["status"]=="done"{"llm_reviewed"}else{"unchecked"},"task_id":scan["job_id"],"url":scan["url"],"api_url":scan["api_url"],"created_at":scan["created_at"],"updated_at":iso(now()),"depth":scan["depth"],"scope":scan["scope"],"source":scan["source"],"task":task.map(|task|json!({"id":task["id"],"kind":task["kind"],"status":task["status"],"created_at":task["createdAt"],"started_at":task["startedAt"],"finished_at":task["finishedAt"],"files_expire_at":task["filesExpireAt"],"budget_s":task["result"]["budgetSeconds"],"report":task["result"]["report"],"error":task["error"]})).unwrap_or(previous["task"].clone()),"status":scan["status"],"report":if previous["report"]["status"]=="saved"{previous["report"].clone()}else{json!({"status":scan["report_status"].as_str().unwrap_or("pending"),"reason":scan["report_error"]})}}),
+        &json!({"version":1,"operation":"scan","evidence_level":if scan["status"]=="done"{"llm_reviewed"}else{"unchecked"},"task_id":scan["job_id"],"url":scan["url"],"api_url":scan["api_url"],"created_at":scan["created_at"],"updated_at":iso(now()),"depth":scan["depth"],"scope":scan["scope"],"source":scan["source"],"task":task.map(|task|json!({"id":task["id"],"kind":task["kind"],"status":task["status"],"created_at":task["createdAt"],"started_at":task["startedAt"],"finished_at":task["finishedAt"],"files_expire_at":task["filesExpireAt"],"budget_s":task["result"]["budgetSeconds"],"report":task["result"]["report"],"error":task["error"]})).unwrap_or(previous["task"].clone()),"status":scan["status"],"report":if previous["report"]["status"]=="saved"{previous["report"].clone()}else{json!({"status":scan["report_status"].as_str().unwrap_or("pending"),"reason":scan["report_error"]})}}),
         false,
     )
 }
@@ -713,7 +750,13 @@ fn probe(rt: &Runtime, api: &protocol::Api, id: &str, timeout: u64) -> Result<()
     let scan = read(rt, id);
     persist(&scan, Some(&task))?;
     if needs_report(&scan) {
-        let dir = runner::run_dir(Path::new(string(&scan["repo_root"])), id)?;
+        let operation = runner::run_dir(
+            Path::new(string(&scan["repo_root"])),
+            string(&scan["run_id"]),
+        )?;
+        let dir = operation.join("artifacts");
+        crate::storage::safe_parent(Path::new(string(&scan["repo_root"])), &dir)?;
+        fs::create_dir_all(&dir)?;
         let reference = &task["result"]["report"];
         let saved = fs::read(dir.join("report.json")).ok().filter(|bytes| {
             bytes.len() as u64 == number(&reference["size"])
@@ -759,9 +802,9 @@ fn probe(rt: &Runtime, api: &protocol::Api, id: &str, timeout: u64) -> Result<()
             s["report_error"] = report["reason"].clone();
             Ok(())
         })?;
-        let mut meta = state::read(&dir.join("result.json"));
+        let mut meta = state::read(&operation.join("result.json"));
         meta["report"] = report;
-        state::write(&dir.join("result.json"), &meta, false)?;
+        state::write(&operation.join("result.json"), &meta, false)?;
     }
     Ok(())
 }
@@ -1000,7 +1043,10 @@ pub(super) fn deliver(rt: &Runtime, root: &Path, out: &mut Output) -> Result<()>
             };
             if s["status"] == "done" {
                 let local = if s["report_status"] == "saved" {
-                    format!("Saved report: .intent/runs/{id}/report.json")
+                    format!(
+                        "Saved report: .intent/logs/{}/artifacts/report.json",
+                        string(&s["run_id"])
+                    )
                 } else if s["report_status"] == "pending" {
                     "The final report has not been saved locally yet; collection will retry on your next message.".into()
                 } else {

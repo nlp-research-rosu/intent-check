@@ -239,7 +239,7 @@ class Tests(unittest.TestCase):
 
     def evidence(self, operation, task_id=None):
         candidates = []
-        for request in (self.root / ".intent/runs").glob("*/request.json"):
+        for request in (self.root / ".intent/logs").glob("*/request.json"):
             manifest = json.loads(request.read_text())
             if manifest["operation"] != operation or manifest["session_id"] != self.session["sessionId"]:
                 continue
@@ -247,7 +247,7 @@ class Tests(unittest.TestCase):
             if task_id and (not result.exists() or json.loads(result.read_text())["task"]["id"] != task_id):
                 continue
             candidates.append((manifest["submitted_at"], request.parent))
-        return max(candidates)[1] if candidates else self.root / ".intent/runs/missing"
+        return max(candidates)[1] if candidates else self.root / ".intent/logs/missing"
 
     @contextmanager
     def pending_operations(self):
@@ -385,9 +385,9 @@ class Tests(unittest.TestCase):
             result = self.operation(command)
             evidence = Path(result["evidenceDir"])
             self.assertEqual({p.name for p in evidence.iterdir()},
-                             {"request.json", "result.json"} | ({"inputs"} if command != "prove" else set()))
-            self.assertEqual(str(uuid.UUID(evidence.name)), evidence.name)
-            self.assertEqual(evidence.parent, self.root / ".intent/runs")
+                             {"request.json", "result.json", "inputs"} | ({"artifacts"} if command == "prove" else set()))
+            self.assertRegex(evidence.name, r"^[a-z0-9]{6}$")
+            self.assertEqual(evidence.parent, self.root / ".intent/logs")
             snapshot = json.loads((evidence / "result.json").read_text())
             self.assertEqual(set(snapshot), {"task", "stdout", "stderr", "metrics"})
             self.assertEqual(snapshot["metrics"], {})
@@ -400,7 +400,7 @@ class Tests(unittest.TestCase):
             self.assertEqual(set(result), {"task", "sessionId", "budget", "evidenceDir"} | ({"proofDir"} if command == "prove" else set()))
             manifest = json.loads((evidence / "request.json").read_text())
             self.assertEqual(manifest["operation"], command)
-            self.assertEqual((evidence / "inputs").exists(), command != "prove")
+            self.assertTrue((evidence / "inputs").exists())
             for item in manifest["inputs"]:
                 self.assertTrue((self.root / ".intent" / item["path"]).is_file())
         self.assertEqual([p for p, _ in self.server.uploads], ["/runs", "/proof-dry-runs", "/proofs"])
@@ -585,7 +585,7 @@ class Tests(unittest.TestCase):
             first = Path(self.operation(command)["evidenceDir"])
             before = (first / "result.json").read_bytes()
             second = Path(self.operation(command)["evidenceDir"])
-            self.assertEqual(first.parent, self.root / ".intent/runs")
+            self.assertEqual(first.parent, self.root / ".intent/logs")
             self.assertEqual(second.parent, first.parent)
             self.assertNotEqual(first.name, second.name)
             self.assertEqual((first / "result.json").read_bytes(), before)
@@ -597,7 +597,7 @@ class Tests(unittest.TestCase):
         del stored["runsUsed"]
         path.write_text(json.dumps(stored))
         result = self.operation("run")
-        self.assertEqual(Path(result["evidenceDir"]).parent, self.root / ".intent/runs")
+        self.assertEqual(Path(result["evidenceDir"]).parent, self.root / ".intent/logs")
         self.assertEqual(self.show()["runsUsed"], 1)
 
     def test_rejected_submission_does_not_consume_attempt(self):

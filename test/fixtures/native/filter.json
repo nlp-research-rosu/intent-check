@@ -1,0 +1,1227 @@
+[
+  {
+    "label": "includes source files in the language allowlist",
+    "op": "include",
+    "args": [
+      "pricing.py",
+      ""
+    ],
+    "expected": true,
+    "detail": "pricing.py"
+  },
+  {
+    "label": "includes source files in the language allowlist",
+    "op": "include",
+    "args": [
+      "src/auth/login.py",
+      ""
+    ],
+    "expected": true,
+    "detail": "src/auth/login.py"
+  },
+  {
+    "label": "includes source files in the language allowlist",
+    "op": "include",
+    "args": [
+      "server/index.ts",
+      ""
+    ],
+    "expected": true,
+    "detail": "server/index.ts"
+  },
+  {
+    "label": "includes source files in the language allowlist",
+    "op": "include",
+    "args": [
+      "lib/util.mjs",
+      ""
+    ],
+    "expected": true,
+    "detail": "lib/util.mjs"
+  },
+  {
+    "label": "includes source files in the language allowlist",
+    "op": "include",
+    "args": [
+      "cmd/main.go",
+      ""
+    ],
+    "expected": true,
+    "detail": "cmd/main.go"
+  },
+  {
+    "label": "includes source files in the language allowlist",
+    "op": "include",
+    "args": [
+      "src/lib.rs",
+      ""
+    ],
+    "expected": true,
+    "detail": "src/lib.rs"
+  },
+  {
+    "label": "includes source files in the language allowlist",
+    "op": "include",
+    "args": [
+      "App.java",
+      ""
+    ],
+    "expected": true,
+    "detail": "App.java"
+  },
+  {
+    "label": "includes source files in the language allowlist",
+    "op": "include",
+    "args": [
+      "Main.kt",
+      ""
+    ],
+    "expected": true,
+    "detail": "Main.kt"
+  },
+  {
+    "label": "includes source files in the language allowlist",
+    "op": "include",
+    "args": [
+      "a.c",
+      ""
+    ],
+    "expected": true,
+    "detail": "a.c"
+  },
+  {
+    "label": "includes source files in the language allowlist",
+    "op": "include",
+    "args": [
+      "a.cpp",
+      ""
+    ],
+    "expected": true,
+    "detail": "a.cpp"
+  },
+  {
+    "label": "includes source files in the language allowlist",
+    "op": "include",
+    "args": [
+      "a.cs",
+      ""
+    ],
+    "expected": true,
+    "detail": "a.cs"
+  },
+  {
+    "label": "includes source files in the language allowlist",
+    "op": "include",
+    "args": [
+      "a.swift",
+      ""
+    ],
+    "expected": true,
+    "detail": "a.swift"
+  },
+  {
+    "label": "includes source files in the language allowlist",
+    "op": "include",
+    "args": [
+      "a.rb",
+      ""
+    ],
+    "expected": true,
+    "detail": "a.rb"
+  },
+  {
+    "label": "includes source files in the language allowlist",
+    "op": "include",
+    "args": [
+      "a.php",
+      ""
+    ],
+    "expected": true,
+    "detail": "a.php"
+  },
+  {
+    "label": "includes source files in the language allowlist",
+    "op": "include",
+    "args": [
+      "Token.sol",
+      ""
+    ],
+    "expected": true,
+    "detail": "Token.sol"
+  },
+  {
+    "label": "includes source files in the language allowlist",
+    "op": "include",
+    "args": [
+      "a.scala",
+      ""
+    ],
+    "expected": true,
+    "detail": "a.scala"
+  },
+  {
+    "label": "includes source files in the language allowlist",
+    "op": "include",
+    "args": [
+      "scripts/deploy.sh",
+      ""
+    ],
+    "expected": true,
+    "detail": "scripts/deploy.sh"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "styles/site.css",
+      ""
+    ],
+    "expected": false,
+    "detail": "styles/site.css"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "index.html",
+      ""
+    ],
+    "expected": false,
+    "detail": "index.html"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "src/App.tsx",
+      ""
+    ],
+    "expected": false,
+    "detail": "src/App.tsx"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "src/Button.jsx",
+      ""
+    ],
+    "expected": false,
+    "detail": "src/Button.jsx"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "src/App.vue",
+      ""
+    ],
+    "expected": false,
+    "detail": "src/App.vue"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "src/Card.svelte",
+      ""
+    ],
+    "expected": false,
+    "detail": "src/Card.svelte"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "src/components/price.ts",
+      ""
+    ],
+    "expected": false,
+    "detail": "src/components/price.ts"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "ui/format.js",
+      ""
+    ],
+    "expected": false,
+    "detail": "ui/format.js"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "views/home.py",
+      ""
+    ],
+    "expected": false,
+    "detail": "views/home.py"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "layouts/base.ts",
+      ""
+    ],
+    "expected": false,
+    "detail": "layouts/base.ts"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "pages/about.ts",
+      ""
+    ],
+    "expected": false,
+    "detail": "pages/about.ts"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "test_pricing.py",
+      ""
+    ],
+    "expected": false,
+    "detail": "test_pricing.py"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "pricing_test.go",
+      ""
+    ],
+    "expected": false,
+    "detail": "pricing_test.go"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "price.spec.ts",
+      ""
+    ],
+    "expected": false,
+    "detail": "price.spec.ts"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "price.test.js",
+      ""
+    ],
+    "expected": false,
+    "detail": "price.test.js"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "tests/helpers.py",
+      ""
+    ],
+    "expected": false,
+    "detail": "tests/helpers.py"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "src/__tests__/a.js",
+      ""
+    ],
+    "expected": false,
+    "detail": "src/__tests__/a.js"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "node_modules/x/index.js",
+      ""
+    ],
+    "expected": false,
+    "detail": "node_modules/x/index.js"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "vendor/lib.go",
+      ""
+    ],
+    "expected": false,
+    "detail": "vendor/lib.go"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "dist/app.js",
+      ""
+    ],
+    "expected": false,
+    "detail": "dist/app.js"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "build/out.js",
+      ""
+    ],
+    "expected": false,
+    "detail": "build/out.js"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "third_party/a.c",
+      ""
+    ],
+    "expected": false,
+    "detail": "third_party/a.c"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "app.min.js",
+      ""
+    ],
+    "expected": false,
+    "detail": "app.min.js"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "package-lock.json",
+      ""
+    ],
+    "expected": false,
+    "detail": "package-lock.json"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "yarn.lock",
+      ""
+    ],
+    "expected": false,
+    "detail": "yarn.lock"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "Cargo.lock",
+      ""
+    ],
+    "expected": false,
+    "detail": "Cargo.lock"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "vite.config.ts",
+      ""
+    ],
+    "expected": false,
+    "detail": "vite.config.ts"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "next.config.js",
+      ""
+    ],
+    "expected": false,
+    "detail": "next.config.js"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      ".eslintrc.js",
+      ""
+    ],
+    "expected": false,
+    "detail": ".eslintrc.js"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "README.md",
+      ""
+    ],
+    "expected": false,
+    "detail": "README.md"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "docs/guide.md",
+      ""
+    ],
+    "expected": false,
+    "detail": "docs/guide.md"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      ".env",
+      ""
+    ],
+    "expected": false,
+    "detail": ".env"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "server.pem",
+      ""
+    ],
+    "expected": false,
+    "detail": "server.pem"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      ".intent/pricing.py/SPEC.k",
+      ""
+    ],
+    "expected": false,
+    "detail": ".intent/pricing.py/SPEC.k"
+  },
+  {
+    "label": "excludes UI, tests, vendored, generated, config, docs and lockfiles",
+    "op": "include",
+    "args": [
+      "../outside.py",
+      ""
+    ],
+    "expected": false,
+    "detail": "../outside.py"
+  },
+  {
+    "label": "API routes and server actions trigger even where UI code does not",
+    "op": "include",
+    "args": [
+      "pages/api/charge.ts",
+      ""
+    ],
+    "expected": true
+  },
+  {
+    "label": "API routes and server actions trigger even where UI code does not",
+    "op": "include",
+    "args": [
+      "src/pages/api/users/[id].js",
+      ""
+    ],
+    "expected": true
+  },
+  {
+    "label": "API routes and server actions trigger even where UI code does not",
+    "op": "include",
+    "args": [
+      "app/api/checkout/route.ts",
+      ""
+    ],
+    "expected": true
+  },
+  {
+    "label": "API routes and server actions trigger even where UI code does not",
+    "op": "include",
+    "args": [
+      "src/app/(shop)/cart/route.js",
+      ""
+    ],
+    "expected": true
+  },
+  {
+    "label": "API routes and server actions trigger even where UI code does not",
+    "op": "classify",
+    "args": [
+      "src/components/actions.tsx"
+    ],
+    "expected": "needs-content"
+  },
+  {
+    "label": "API routes and server actions trigger even where UI code does not",
+    "op": "include",
+    "args": [
+      "src/components/actions.tsx",
+      "\"use server\";\nexport async function pay() {}"
+    ],
+    "expected": true
+  },
+  {
+    "label": "API routes and server actions trigger even where UI code does not",
+    "op": "include",
+    "args": [
+      "app/actions.tsx",
+      "export async function pay() {\n  'use server'\n}"
+    ],
+    "expected": true
+  },
+  {
+    "label": "API routes and server actions trigger even where UI code does not",
+    "op": "include",
+    "args": [
+      "src/components/Button.tsx",
+      "export function Button() {}"
+    ],
+    "expected": false
+  },
+  {
+    "label": "API routes and server actions trigger even where UI code does not",
+    "op": "include",
+    "args": [
+      "node_modules/next/pages/api/x.js",
+      ""
+    ],
+    "expected": false
+  },
+  {
+    "label": "API routes and server actions trigger even where UI code does not",
+    "op": "include",
+    "args": [
+      "app/api/route.test.ts",
+      ""
+    ],
+    "expected": false
+  },
+  {
+    "label": "language names",
+    "op": "language",
+    "args": [
+      "a.py"
+    ],
+    "expected": "python"
+  },
+  {
+    "label": "language names",
+    "op": "language",
+    "args": [
+      "a.tsx"
+    ],
+    "expected": "typescript"
+  },
+  {
+    "label": "language names",
+    "op": "language",
+    "args": [
+      "a.html"
+    ],
+    "expected": "html"
+  },
+  {
+    "label": "language names",
+    "op": "language",
+    "args": [
+      "a.vue"
+    ],
+    "expected": "vue"
+  },
+  {
+    "label": "language names",
+    "op": "language",
+    "args": [
+      "a.svelte"
+    ],
+    "expected": "svelte"
+  },
+  {
+    "label": "language names",
+    "op": "language",
+    "args": [
+      "a.unknownext"
+    ],
+    "expected": "text"
+  },
+  {
+    "label": "UI files are needs-content, judged on logic inside them",
+    "op": "classify",
+    "args": [
+      "index.html"
+    ],
+    "expected": "needs-content"
+  },
+  {
+    "label": "UI files are needs-content, judged on logic inside them",
+    "op": "classify",
+    "args": [
+      "src/App.vue"
+    ],
+    "expected": "needs-content"
+  },
+  {
+    "label": "UI files are needs-content, judged on logic inside them",
+    "op": "classify",
+    "args": [
+      "src/Card.svelte"
+    ],
+    "expected": "needs-content"
+  },
+  {
+    "label": "UI files are needs-content, judged on logic inside them",
+    "op": "classify",
+    "args": [
+      "src/Button.tsx"
+    ],
+    "expected": "needs-content"
+  },
+  {
+    "label": "UI files are needs-content, judged on logic inside them",
+    "op": "classify",
+    "args": [
+      "components/cart.js"
+    ],
+    "expected": "needs-content"
+  },
+  {
+    "label": "UI files are needs-content, judged on logic inside them",
+    "op": "classify",
+    "args": [
+      "styles.css"
+    ],
+    "expected": "no"
+  },
+  {
+    "label": "UI files are needs-content, judged on logic inside them",
+    "op": "classify",
+    "args": [
+      "styles/site.scss"
+    ],
+    "expected": "no"
+  },
+  {
+    "label": "UI files are needs-content, judged on logic inside them",
+    "op": "classify",
+    "args": [
+      "pages/api/x.ts"
+    ],
+    "expected": "yes"
+  },
+  {
+    "label": "presentational components/Button.tsx is skipped (no control flow, no long function)",
+    "op": "logic",
+    "args": [
+      "\n\nexport function Button({ label, onClick, variant }) {\n  return (\n    <button className={variant === \"primary\" ? \"btn btn-primary\" : \"btn\"} onClick={onClick}>\n      {label}\n    </button>\n  );\n}\n",
+      ".tsx"
+    ],
+    "expected": false
+  },
+  {
+    "label": "presentational components/Button.tsx is skipped (no control flow, no long function)",
+    "op": "include",
+    "args": [
+      "components/Button.tsx",
+      "\n\nexport function Button({ label, onClick, variant }) {\n  return (\n    <button className={variant === \"primary\" ? \"btn btn-primary\" : \"btn\"} onClick={onClick}>\n      {label}\n    </button>\n  );\n}\n"
+    ],
+    "expected": false
+  },
+  {
+    "label": "components/Pendulum.tsx with RK4 physics is checked",
+    "op": "logic",
+    "args": [
+      "\n\nfunction derivative(state, g, L) {\n  const { theta, omega } = state;\n  const alpha = -(g / L) * Math.sin(theta);\n  return { theta: omega, omega: alpha };\n}\n\n// RK4 integration of the pendulum ODE.\nfunction rk4Step(state, dt, g, L) {\n  const k1 = derivative(state, g, L);\n  const k2 = derivative({ theta: state.theta + (dt / 2) * k1.theta, omega: state.omega + (dt / 2) * k1.omega }, g, L);\n  const k3 = derivative({ theta: state.theta + (dt / 2) * k2.theta, omega: state.omega + (dt / 2) * k2.omega }, g, L);\n  const k4 = derivative({ theta: state.theta + dt * k3.theta, omega: state.omega + dt * k3.omega }, g, L);\n  return {\n    theta: state.theta + (dt / 6) * (k1.theta + 2 * k2.theta + 2 * k3.theta + k4.theta),\n    omega: state.omega + (dt / 6) * (k1.omega + 2 * k2.omega + 2 * k3.omega + k4.omega),\n  };\n}\n\nexport function Pendulum() {\n  const [state, setState] = useState({ theta: Math.PI / 4, omega: 0 });\n  useEffect(() => {\n    const id = setInterval(() => setState((s) => rk4Step(s, 0.016, 9.81, 1)), 16);\n    return () => clearInterval(id);\n  }, []);\n  return <div>{state.theta.toFixed(2)}</div>;\n}\n",
+      ".tsx"
+    ],
+    "expected": true
+  },
+  {
+    "label": "components/Pendulum.tsx with RK4 physics is checked",
+    "op": "include",
+    "args": [
+      "components/Pendulum.tsx",
+      "\n\nfunction derivative(state, g, L) {\n  const { theta, omega } = state;\n  const alpha = -(g / L) * Math.sin(theta);\n  return { theta: omega, omega: alpha };\n}\n\n// RK4 integration of the pendulum ODE.\nfunction rk4Step(state, dt, g, L) {\n  const k1 = derivative(state, g, L);\n  const k2 = derivative({ theta: state.theta + (dt / 2) * k1.theta, omega: state.omega + (dt / 2) * k1.omega }, g, L);\n  const k3 = derivative({ theta: state.theta + (dt / 2) * k2.theta, omega: state.omega + (dt / 2) * k2.omega }, g, L);\n  const k4 = derivative({ theta: state.theta + dt * k3.theta, omega: state.omega + dt * k3.omega }, g, L);\n  return {\n    theta: state.theta + (dt / 6) * (k1.theta + 2 * k2.theta + 2 * k3.theta + k4.theta),\n    omega: state.omega + (dt / 6) * (k1.omega + 2 * k2.omega + 2 * k3.omega + k4.omega),\n  };\n}\n\nexport function Pendulum() {\n  const [state, setState] = useState({ theta: Math.PI / 4, omega: 0 });\n  useEffect(() => {\n    const id = setInterval(() => setState((s) => rk4Step(s, 0.016, 9.81, 1)), 16);\n    return () => clearInterval(id);\n  }, []);\n  return <div>{state.theta.toFixed(2)}</div>;\n}\n"
+    ],
+    "expected": true
+  },
+  {
+    "label": "index.html with an inline <script> simulation is checked",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html><body>\n<script>\n  let angle = Math.PI / 4;\n  let velocity = 0;\n  function step(dt) {\n    const g = 9.81;\n    const accel = -g * Math.sin(angle);\n    velocity += accel * dt;\n    angle += velocity * dt;\n    if (angle > Math.PI) {\n      angle -= 2 * Math.PI;\n    } else if (angle < -Math.PI) {\n      angle += 2 * Math.PI;\n    }\n    return angle;\n  }\n</script>\n</body></html>",
+      ".html"
+    ],
+    "expected": true
+  },
+  {
+    "label": "index.html with an inline <script> simulation is checked",
+    "op": "include",
+    "args": [
+      "index.html",
+      "<!doctype html>\n<html><body>\n<script>\n  let angle = Math.PI / 4;\n  let velocity = 0;\n  function step(dt) {\n    const g = 9.81;\n    const accel = -g * Math.sin(angle);\n    velocity += accel * dt;\n    angle += velocity * dt;\n    if (angle > Math.PI) {\n      angle -= 2 * Math.PI;\n    } else if (angle < -Math.PI) {\n      angle += 2 * Math.PI;\n    }\n    return angle;\n  }\n</script>\n</body></html>"
+    ],
+    "expected": true
+  },
+  {
+    "label": "index.html with markup and a <script src=\"app.js\"> only is skipped",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html><body>\n<h1>Double pendulum</h1>\n<p>Open the console to watch it swing.</p>\n<script src=\"app.js\"></script>\n</body></html>",
+      ".html"
+    ],
+    "expected": false
+  },
+  {
+    "label": "index.html with markup and a <script src=\"app.js\"> only is skipped",
+    "op": "include",
+    "args": [
+      "index.html",
+      "<!doctype html>\n<html><body>\n<h1>Double pendulum</h1>\n<p>Open the console to watch it swing.</p>\n<script src=\"app.js\"></script>\n</body></html>"
+    ],
+    "expected": false
+  },
+  {
+    "label": "components/cart.js with logic is checked",
+    "op": "logic",
+    "args": [
+      "\nexport function computeTotal(items, coupon) {\n  let total = 0;\n  for (const item of items) {\n    if (item.qty > 0) {\n      total += item.price * item.qty;\n    }\n  }\n  if (coupon && coupon.percent) {\n    total -= total * (coupon.percent / 100);\n  }\n  return total;\n}\n",
+      ".js"
+    ],
+    "expected": true
+  },
+  {
+    "label": "components/cart.js with logic is checked",
+    "op": "include",
+    "args": [
+      "components/cart.js",
+      "\nexport function computeTotal(items, coupon) {\n  let total = 0;\n  for (const item of items) {\n    if (item.qty > 0) {\n      total += item.price * item.qty;\n    }\n  }\n  if (coupon && coupon.percent) {\n    total -= total * (coupon.percent / 100);\n  }\n  return total;\n}\n"
+    ],
+    "expected": true
+  },
+  {
+    "label": "styles.css is skipped outright, never content-judged",
+    "op": "include",
+    "args": [
+      "styles.css",
+      "body { color: red; } /* if (x) { for (;;) {} } */"
+    ],
+    "expected": false
+  },
+  {
+    "label": "pages/api/x.ts is always yes, even presentational-looking content",
+    "op": "include",
+    "args": [
+      "pages/api/x.ts",
+      "export default function handler(req, res) { res.end(); }"
+    ],
+    "expected": true
+  },
+  {
+    "label": "a \"use server\" UI file is checked even with no other logic",
+    "op": "logic",
+    "args": [
+      "\"use server\";\n\nexport function Button() {\n  return null;\n}\n",
+      ".tsx"
+    ],
+    "expected": true
+  },
+  {
+    "label": "a \"use server\" UI file is checked even with no other logic",
+    "op": "include",
+    "args": [
+      "components/Button.tsx",
+      "\"use server\";\n\nexport function Button() {\n  return null;\n}\n"
+    ],
+    "expected": true
+  },
+  {
+    "label": "hasLogic ignores keywords inside strings and comments",
+    "op": "logic",
+    "args": [
+      "\n    // if (x) { for (;;) {} } while (true) { switch (x) { case 1: try {} } }\n    const msg = \"if for while switch case try ? : ? : ? :\";\n    export function Label({ text }) {\n      return <span>{text}</span>;\n    }\n  ",
+      ".tsx"
+    ],
+    "expected": false
+  },
+  {
+    "label": "a regex literal with escaped slashes does not swallow the rest of the line",
+    "op": "logic",
+    "args": [
+      "\nexport function classify(url, a, b, c) {\n  if (/^https?:\\/\\//.test(url)) { a = 1; } else if (b) { a = 2; } else if (c) { a = 3; }\n  return a;\n}\n",
+      ".js"
+    ],
+    "expected": true
+  },
+  {
+    "label": "ternaries inside template-literal ${...} interpolations are counted",
+    "op": "logic",
+    "args": [
+      "\nexport function describe(score) {\n  const label = `Score: ${score > 90 ? \"great\" : \"ok\"} today, trend ${score > 50 ? \"up\" : \"down\"}, mood ${score > 10 ? \"fine\" : \"bad\"}`;\n  return label;\n}\n",
+      ".js"
+    ],
+    "expected": true
+  },
+  {
+    "label": "Vue Options API SFC with a 10-line shorthand method and no ifs is checked",
+    "op": "logic",
+    "args": [
+      "<template>\n  <div>{{ total }}</div>\n</template>\n<script>\nexport default {\n  data() {\n    return { total: 0, items: [] };\n  },\n  methods: {\n    recalcTotal() {\n      let sum = 0;\n      sum = this.items.reduce((acc, item) => acc + item.price * item.qty, 0);\n      sum = sum * 1.08;\n      sum = Math.round(sum * 100) / 100;\n      sum = sum + this.shipping;\n      sum = sum - this.discount;\n      this.total = sum;\n      return sum;\n    },\n  },\n};\n</script>\n",
+      ".vue"
+    ],
+    "expected": true
+  },
+  {
+    "label": "Vue Options API SFC with a 10-line shorthand method and no ifs is checked",
+    "op": "include",
+    "args": [
+      "components/Cart.vue",
+      "<template>\n  <div>{{ total }}</div>\n</template>\n<script>\nexport default {\n  data() {\n    return { total: 0, items: [] };\n  },\n  methods: {\n    recalcTotal() {\n      let sum = 0;\n      sum = this.items.reduce((acc, item) => acc + item.price * item.qty, 0);\n      sum = sum * 1.08;\n      sum = Math.round(sum * 100) / 100;\n      sum = sum + this.shipping;\n      sum = sum - this.discount;\n      this.total = sum;\n      return sum;\n    },\n  },\n};\n</script>\n"
+    ],
+    "expected": true
+  },
+  {
+    "label": "a presentational component with \"Try again\" or \"in case\" text is skipped",
+    "op": "logic",
+    "args": [
+      "\nexport function ErrorBanner({ onRetry }) {\n  return <p>Try again, just in case it was a fluke. <button onClick={onRetry}>Retry</button></p>;\n}\n",
+      ".tsx"
+    ],
+    "expected": false
+  },
+  {
+    "label": "a presentational component with \"Try again\" or \"in case\" text is skipped",
+    "op": "include",
+    "args": [
+      "components/ErrorBanner.tsx",
+      "\nexport function ErrorBanner({ onRetry }) {\n  return <p>Try again, just in case it was a fluke. <button onClick={onRetry}>Retry</button></p>;\n}\n"
+    ],
+    "expected": false
+  },
+  {
+    "label": "a <script> inside an HTML comment is ignored",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html><body>\n<!--\n<script>\n  function step(dt) {\n    let x = 0;\n    if (dt > 1) { x = 1; } else if (dt > 2) { x = 2; } else if (dt > 3) { x = 3; }\n    return x;\n  }\n</script>\n-->\n<h1>hello</h1>\n</body></html>",
+      ".html"
+    ],
+    "expected": false
+  },
+  {
+    "label": "a <script> inside an HTML comment is ignored",
+    "op": "include",
+    "args": [
+      "index.html",
+      "<!doctype html>\n<html><body>\n<!--\n<script>\n  function step(dt) {\n    let x = 0;\n    if (dt > 1) { x = 1; } else if (dt > 2) { x = 2; } else if (dt > 3) { x = 3; }\n    return x;\n  }\n</script>\n-->\n<h1>hello</h1>\n</body></html>"
+    ],
+    "expected": false
+  },
+  {
+    "label": "small HTML app tally-counter.html with real logic is checked",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Tally Counter</title>\n<style>\n  :root { --bg:#f5f5f4; --fg:#1c1917; --card:#fff; --btn:#e7e5e4; --accent:#2563eb; }\n  @media (prefers-color-scheme: dark) {\n    :root { --bg:#0c0a09; --fg:#fafaf9; --card:#1c1917; --btn:#292524; --accent:#60a5fa; }\n  }\n  * { box-sizing: border-box; }\n  body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--fg);\n         font-family: system-ui, sans-serif; }\n  main { background:var(--card); padding:2rem; border-radius:1.5rem; width:min(92vw,22rem); text-align:center;\n         box-shadow:0 4px 24px rgba(0,0,0,.1); }\n  #count { font-size:6rem; font-weight:700; font-variant-numeric:tabular-nums; margin:.5rem 0 1.5rem; }\n  .row { display:flex; gap:.75rem; }\n  button { flex:1; font:inherit; font-size:2rem; padding:1rem 0; border:0; border-radius:1rem;\n           background:var(--btn); color:var(--fg); cursor:pointer; touch-action:manipulation; }\n  button:active:not(:disabled) { transform:scale(.96); }\n  button:disabled { opacity:.4; cursor:not-allowed; }\n  #inc { background:var(--accent); color:#fff; }\n  #undo { width:100%; margin-top:.75rem; font-size:1.1rem; padding:.8rem 0; }\n</style>\n</head>\n<body>\n<main>\n  <div id=\"count\" aria-live=\"polite\">0</div>\n  <div class=\"row\">\n    <button id=\"dec\" aria-label=\"Subtract one\">−</button>\n    <button id=\"inc\" aria-label=\"Add one\">+</button>\n  </div>\n  <button id=\"undo\">Undo</button>\n</main>\n<script>\n  let count = 0;\n  const history = []; // count before each tap, most recent last\n\n  const $ = id => document.getElementById(id);\n\n  function render() {\n    $(\"count\").textContent = count;\n    $(\"dec\").disabled = count === 0;\n    $(\"undo\").disabled = history.length === 0;\n  }\n\n  function tap(delta) {\n    history.push(count);\n    count = Math.max(0, count + delta);\n    render();\n  }\n\n  $(\"inc\").onclick = () => tap(1);\n  $(\"dec\").onclick = () => tap(-1);\n  $(\"undo\").onclick = () => {\n    if (history.length) { count = history.pop(); render(); }\n  };\n\n  render();\n</script>\n</body>\n</html>\n",
+      ".html"
+    ],
+    "expected": true
+  },
+  {
+    "label": "small HTML app tally-counter.html with real logic is checked",
+    "op": "include",
+    "args": [
+      "tally-counter.html",
+      "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Tally Counter</title>\n<style>\n  :root { --bg:#f5f5f4; --fg:#1c1917; --card:#fff; --btn:#e7e5e4; --accent:#2563eb; }\n  @media (prefers-color-scheme: dark) {\n    :root { --bg:#0c0a09; --fg:#fafaf9; --card:#1c1917; --btn:#292524; --accent:#60a5fa; }\n  }\n  * { box-sizing: border-box; }\n  body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--fg);\n         font-family: system-ui, sans-serif; }\n  main { background:var(--card); padding:2rem; border-radius:1.5rem; width:min(92vw,22rem); text-align:center;\n         box-shadow:0 4px 24px rgba(0,0,0,.1); }\n  #count { font-size:6rem; font-weight:700; font-variant-numeric:tabular-nums; margin:.5rem 0 1.5rem; }\n  .row { display:flex; gap:.75rem; }\n  button { flex:1; font:inherit; font-size:2rem; padding:1rem 0; border:0; border-radius:1rem;\n           background:var(--btn); color:var(--fg); cursor:pointer; touch-action:manipulation; }\n  button:active:not(:disabled) { transform:scale(.96); }\n  button:disabled { opacity:.4; cursor:not-allowed; }\n  #inc { background:var(--accent); color:#fff; }\n  #undo { width:100%; margin-top:.75rem; font-size:1.1rem; padding:.8rem 0; }\n</style>\n</head>\n<body>\n<main>\n  <div id=\"count\" aria-live=\"polite\">0</div>\n  <div class=\"row\">\n    <button id=\"dec\" aria-label=\"Subtract one\">−</button>\n    <button id=\"inc\" aria-label=\"Add one\">+</button>\n  </div>\n  <button id=\"undo\">Undo</button>\n</main>\n<script>\n  let count = 0;\n  const history = []; // count before each tap, most recent last\n\n  const $ = id => document.getElementById(id);\n\n  function render() {\n    $(\"count\").textContent = count;\n    $(\"dec\").disabled = count === 0;\n    $(\"undo\").disabled = history.length === 0;\n  }\n\n  function tap(delta) {\n    history.push(count);\n    count = Math.max(0, count + delta);\n    render();\n  }\n\n  $(\"inc\").onclick = () => tap(1);\n  $(\"dec\").onclick = () => tap(-1);\n  $(\"undo\").onclick = () => {\n    if (history.length) { count = history.pop(); render(); }\n  };\n\n  render();\n</script>\n</body>\n</html>\n"
+    ],
+    "expected": true
+  },
+  {
+    "label": "small HTML app tip-calculator.html with real logic is checked",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Tip Calculator</title>\n<style>\n  :root { --bg:#f6f5f2; --card:#fff; --ink:#1c1c1a; --muted:#6b6b66; --accent:#1f6f50; --line:#dcdad4; }\n  @media (prefers-color-scheme: dark) {\n    :root { --bg:#161715; --card:#20211e; --ink:#f0efea; --muted:#9a9a93; --accent:#5fc79a; --line:#34352f; }\n  }\n  * { box-sizing: border-box; }\n  body { margin:0; min-height:100vh; display:grid; place-items:center; padding:16px;\n         background:var(--bg); color:var(--ink); font:16px/1.4 system-ui, sans-serif; }\n  main { width:100%; max-width:360px; background:var(--card); border:1px solid var(--line);\n         border-radius:16px; padding:24px; }\n  h1 { font-size:1.1rem; margin:0 0 20px; }\n  label, legend { display:block; font-size:.85rem; color:var(--muted); margin-bottom:6px; padding:0; }\n  .money { position:relative; margin-bottom:20px; }\n  .money span { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--muted); }\n  input[type=number] { width:100%; font:inherit; font-size:1.4rem; padding:12px 14px 12px 28px;\n         background:transparent; color:inherit; border:1px solid var(--line); border-radius:10px; }\n  input:focus-visible, .pct input:focus-visible + span { outline:2px solid var(--accent); outline-offset:2px; }\n  fieldset { border:0; padding:0; margin:0 0 24px; }\n  .pct { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }\n  .pct label { margin:0; }\n  .pct input { position:absolute; opacity:0; }\n  .pct span { display:block; text-align:center; padding:10px 0; border:1px solid var(--line);\n         border-radius:10px; cursor:pointer; color:var(--ink); font-size:1rem; }\n  .pct input:checked + span { background:var(--accent); border-color:var(--accent); color:var(--card); }\n  dl { margin:0; border-top:1px solid var(--line); }\n  .row { display:flex; justify-content:space-between; align-items:baseline; padding:12px 0; }\n  dt { color:var(--muted); }\n  dd { margin:0; font-variant-numeric:tabular-nums; font-size:1.2rem; }\n  .total dd { font-size:1.8rem; font-weight:600; color:var(--accent); }\n  .note { font-size:.75rem; color:var(--muted); margin:8px 0 0; }\n</style>\n</head>\n<body>\n<main>\n  <h1>Tip Calculator</h1>\n\n  <label for=\"bill\">Bill</label>\n  <div class=\"money\">\n    <span>$</span>\n    <input id=\"bill\" type=\"number\" inputmode=\"decimal\" min=\"0\" step=\"0.01\" placeholder=\"0.00\" autofocus>\n  </div>\n\n  <fieldset>\n    <legend>Tip</legend>\n    <div class=\"pct\">\n      <label><input type=\"radio\" name=\"pct\" value=\"15\"><span>15%</span></label>\n      <label><input type=\"radio\" name=\"pct\" value=\"18\" checked><span>18%</span></label>\n      <label><input type=\"radio\" name=\"pct\" value=\"20\"><span>20%</span></label>\n    </div>\n  </fieldset>\n\n  <dl aria-live=\"polite\">\n    <div class=\"row\"><dt>Tip</dt><dd id=\"tip\">$0.00</dd></div>\n    <div class=\"row total\"><dt>Total</dt><dd id=\"total\">$0.00</dd></div>\n  </dl>\n  <p class=\"note\">Tip is rounded up to the next whole dollar.</p>\n</main>\n\n<script>\n  const bill = document.getElementById('bill');\n  const tipEl = document.getElementById('tip');\n  const totalEl = document.getElementById('total');\n  const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });\n\n  function update() {\n    const cents = Math.max(0, Math.round((parseFloat(bill.value) || 0) * 100));\n    const pct = Number(document.querySelector('input[name=pct]:checked').value);\n    // Integer math: cents * pct / 10000 is the tip in dollars; ceil to whole dollars.\n    const tip = Math.ceil((cents * pct) / 10000);\n    tipEl.textContent = fmt.format(tip);\n    totalEl.textContent = fmt.format(cents / 100 + tip);\n  }\n\n  bill.addEventListener('input', update);\n  document.querySelectorAll('input[name=pct]').forEach(r => r.addEventListener('change', update));\n  update();\n</script>\n</body>\n</html>\n",
+      ".html"
+    ],
+    "expected": true
+  },
+  {
+    "label": "small HTML app tip-calculator.html with real logic is checked",
+    "op": "include",
+    "args": [
+      "tip-calculator.html",
+      "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Tip Calculator</title>\n<style>\n  :root { --bg:#f6f5f2; --card:#fff; --ink:#1c1c1a; --muted:#6b6b66; --accent:#1f6f50; --line:#dcdad4; }\n  @media (prefers-color-scheme: dark) {\n    :root { --bg:#161715; --card:#20211e; --ink:#f0efea; --muted:#9a9a93; --accent:#5fc79a; --line:#34352f; }\n  }\n  * { box-sizing: border-box; }\n  body { margin:0; min-height:100vh; display:grid; place-items:center; padding:16px;\n         background:var(--bg); color:var(--ink); font:16px/1.4 system-ui, sans-serif; }\n  main { width:100%; max-width:360px; background:var(--card); border:1px solid var(--line);\n         border-radius:16px; padding:24px; }\n  h1 { font-size:1.1rem; margin:0 0 20px; }\n  label, legend { display:block; font-size:.85rem; color:var(--muted); margin-bottom:6px; padding:0; }\n  .money { position:relative; margin-bottom:20px; }\n  .money span { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--muted); }\n  input[type=number] { width:100%; font:inherit; font-size:1.4rem; padding:12px 14px 12px 28px;\n         background:transparent; color:inherit; border:1px solid var(--line); border-radius:10px; }\n  input:focus-visible, .pct input:focus-visible + span { outline:2px solid var(--accent); outline-offset:2px; }\n  fieldset { border:0; padding:0; margin:0 0 24px; }\n  .pct { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }\n  .pct label { margin:0; }\n  .pct input { position:absolute; opacity:0; }\n  .pct span { display:block; text-align:center; padding:10px 0; border:1px solid var(--line);\n         border-radius:10px; cursor:pointer; color:var(--ink); font-size:1rem; }\n  .pct input:checked + span { background:var(--accent); border-color:var(--accent); color:var(--card); }\n  dl { margin:0; border-top:1px solid var(--line); }\n  .row { display:flex; justify-content:space-between; align-items:baseline; padding:12px 0; }\n  dt { color:var(--muted); }\n  dd { margin:0; font-variant-numeric:tabular-nums; font-size:1.2rem; }\n  .total dd { font-size:1.8rem; font-weight:600; color:var(--accent); }\n  .note { font-size:.75rem; color:var(--muted); margin:8px 0 0; }\n</style>\n</head>\n<body>\n<main>\n  <h1>Tip Calculator</h1>\n\n  <label for=\"bill\">Bill</label>\n  <div class=\"money\">\n    <span>$</span>\n    <input id=\"bill\" type=\"number\" inputmode=\"decimal\" min=\"0\" step=\"0.01\" placeholder=\"0.00\" autofocus>\n  </div>\n\n  <fieldset>\n    <legend>Tip</legend>\n    <div class=\"pct\">\n      <label><input type=\"radio\" name=\"pct\" value=\"15\"><span>15%</span></label>\n      <label><input type=\"radio\" name=\"pct\" value=\"18\" checked><span>18%</span></label>\n      <label><input type=\"radio\" name=\"pct\" value=\"20\"><span>20%</span></label>\n    </div>\n  </fieldset>\n\n  <dl aria-live=\"polite\">\n    <div class=\"row\"><dt>Tip</dt><dd id=\"tip\">$0.00</dd></div>\n    <div class=\"row total\"><dt>Total</dt><dd id=\"total\">$0.00</dd></div>\n  </dl>\n  <p class=\"note\">Tip is rounded up to the next whole dollar.</p>\n</main>\n\n<script>\n  const bill = document.getElementById('bill');\n  const tipEl = document.getElementById('tip');\n  const totalEl = document.getElementById('total');\n  const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });\n\n  function update() {\n    const cents = Math.max(0, Math.round((parseFloat(bill.value) || 0) * 100));\n    const pct = Number(document.querySelector('input[name=pct]:checked').value);\n    // Integer math: cents * pct / 10000 is the tip in dollars; ceil to whole dollars.\n    const tip = Math.ceil((cents * pct) / 10000);\n    tipEl.textContent = fmt.format(tip);\n    totalEl.textContent = fmt.format(cents / 100 + tip);\n  }\n\n  bill.addEventListener('input', update);\n  document.querySelectorAll('input[name=pct]').forEach(r => r.addEventListener('change', update));\n  update();\n</script>\n</body>\n</html>\n"
+    ],
+    "expected": true
+  },
+  {
+    "label": "small HTML app tiny-bill-opus.html with real logic is checked",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html lang=\"en\">\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Bill Splitter</title>\n<style>\n  body { font: 16px system-ui, sans-serif; max-width: 22rem; margin: 2rem auto; padding: 0 1rem; }\n  label { display: block; margin: .5rem 0; }\n  input { width: 100%; padding: .4rem; font: inherit; box-sizing: border-box; }\n  ol, p { font-variant-numeric: tabular-nums; }\n</style>\n<h1>Bill Splitter</h1>\n<label>Total <input id=\"total\" type=\"number\" min=\"0\" step=\"0.01\" placeholder=\"0.00\"></label>\n<label>People <input id=\"people\" type=\"number\" min=\"1\" max=\"1000\" step=\"1\" value=\"2\"></label>\n<ol id=\"out\"></ol>\n<p id=\"sum\"></p>\n<script>\n  const $ = id => document.getElementById(id);\n  function split() {\n    const cents = Math.round(parseFloat($('total').value) * 100), n = parseInt($('people').value, 10);\n    if (!(cents >= 0) || !(n >= 1 && n <= 1000)) return $('out').innerHTML = $('sum').textContent = '';\n    const base = Math.floor(cents / n), extra = cents % n; // first `extra` people pay one cent more\n    const shares = Array.from({ length: n }, (_, i) => base + (i < extra ? 1 : 0));\n    $('out').innerHTML = shares.map(c => `<li>${(c / 100).toFixed(2)}</li>`).join('');\n    $('sum').textContent = `Sum: ${(shares.reduce((a, b) => a + b, 0) / 100).toFixed(2)}`;\n  }\n  $('total').oninput = $('people').oninput = split;\n</script>\n",
+      ".html"
+    ],
+    "expected": true
+  },
+  {
+    "label": "small HTML app tiny-bill-opus.html with real logic is checked",
+    "op": "include",
+    "args": [
+      "tiny-bill-opus.html",
+      "<!doctype html>\n<html lang=\"en\">\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Bill Splitter</title>\n<style>\n  body { font: 16px system-ui, sans-serif; max-width: 22rem; margin: 2rem auto; padding: 0 1rem; }\n  label { display: block; margin: .5rem 0; }\n  input { width: 100%; padding: .4rem; font: inherit; box-sizing: border-box; }\n  ol, p { font-variant-numeric: tabular-nums; }\n</style>\n<h1>Bill Splitter</h1>\n<label>Total <input id=\"total\" type=\"number\" min=\"0\" step=\"0.01\" placeholder=\"0.00\"></label>\n<label>People <input id=\"people\" type=\"number\" min=\"1\" max=\"1000\" step=\"1\" value=\"2\"></label>\n<ol id=\"out\"></ol>\n<p id=\"sum\"></p>\n<script>\n  const $ = id => document.getElementById(id);\n  function split() {\n    const cents = Math.round(parseFloat($('total').value) * 100), n = parseInt($('people').value, 10);\n    if (!(cents >= 0) || !(n >= 1 && n <= 1000)) return $('out').innerHTML = $('sum').textContent = '';\n    const base = Math.floor(cents / n), extra = cents % n; // first `extra` people pay one cent more\n    const shares = Array.from({ length: n }, (_, i) => base + (i < extra ? 1 : 0));\n    $('out').innerHTML = shares.map(c => `<li>${(c / 100).toFixed(2)}</li>`).join('');\n    $('sum').textContent = `Sum: ${(shares.reduce((a, b) => a + b, 0) / 100).toFixed(2)}`;\n  }\n  $('total').oninput = $('people').oninput = split;\n</script>\n"
+    ],
+    "expected": true
+  },
+  {
+    "label": "small HTML app tiny-bill-sonnet.html with real logic is checked",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Bill Splitter</title>\n<style>\n  body { font: 16px system-ui, sans-serif; max-width: 22rem; margin: 2rem auto; padding: 0 1rem; }\n  label { display: block; margin: .75rem 0; }\n  input { width: 100%; padding: .4rem; font-size: 1rem; box-sizing: border-box; }\n  li { margin: .2rem 0; }\n</style>\n</head>\n<body>\n<h1>Bill Splitter</h1>\n<label>Total <input id=\"total\" type=\"number\" min=\"0\" step=\"0.01\" value=\"100\"></label>\n<label>People <input id=\"n\" type=\"number\" min=\"1\" step=\"1\" value=\"3\"></label>\n<ol id=\"out\"></ol>\n<p id=\"sum\"></p>\n<script>\n  const $ = id => document.getElementById(id);\n  function split() {\n    const cents = Math.round(parseFloat($(\"total\").value) * 100), n = parseInt($(\"n\").value);\n    if (!(cents >= 0) || !(n >= 1)) { $(\"out\").innerHTML = \"\"; $(\"sum\").textContent = \"\"; return; }\n    const base = Math.floor(cents / n), extra = cents - base * n; // first `extra` people pay 1 cent more\n    const shares = Array.from({ length: n }, (_, i) => base + (i < extra ? 1 : 0));\n    $(\"out\").innerHTML = shares.map(c => `<li>${(c / 100).toFixed(2)}</li>`).join(\"\");\n    $(\"sum\").textContent = `Sum: ${(shares.reduce((a, b) => a + b, 0) / 100).toFixed(2)}`;\n  }\n  document.addEventListener(\"input\", split); split();\n</script>\n</body>\n</html>\n",
+      ".html"
+    ],
+    "expected": true
+  },
+  {
+    "label": "small HTML app tiny-bill-sonnet.html with real logic is checked",
+    "op": "include",
+    "args": [
+      "tiny-bill-sonnet.html",
+      "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Bill Splitter</title>\n<style>\n  body { font: 16px system-ui, sans-serif; max-width: 22rem; margin: 2rem auto; padding: 0 1rem; }\n  label { display: block; margin: .75rem 0; }\n  input { width: 100%; padding: .4rem; font-size: 1rem; box-sizing: border-box; }\n  li { margin: .2rem 0; }\n</style>\n</head>\n<body>\n<h1>Bill Splitter</h1>\n<label>Total <input id=\"total\" type=\"number\" min=\"0\" step=\"0.01\" value=\"100\"></label>\n<label>People <input id=\"n\" type=\"number\" min=\"1\" step=\"1\" value=\"3\"></label>\n<ol id=\"out\"></ol>\n<p id=\"sum\"></p>\n<script>\n  const $ = id => document.getElementById(id);\n  function split() {\n    const cents = Math.round(parseFloat($(\"total\").value) * 100), n = parseInt($(\"n\").value);\n    if (!(cents >= 0) || !(n >= 1)) { $(\"out\").innerHTML = \"\"; $(\"sum\").textContent = \"\"; return; }\n    const base = Math.floor(cents / n), extra = cents - base * n; // first `extra` people pay 1 cent more\n    const shares = Array.from({ length: n }, (_, i) => base + (i < extra ? 1 : 0));\n    $(\"out\").innerHTML = shares.map(c => `<li>${(c / 100).toFixed(2)}</li>`).join(\"\");\n    $(\"sum\").textContent = `Sum: ${(shares.reduce((a, b) => a + b, 0) / 100).toFixed(2)}`;\n  }\n  document.addEventListener(\"input\", split); split();\n</script>\n</body>\n</html>\n"
+    ],
+    "expected": true
+  },
+  {
+    "label": "small HTML pages without computation stay skipped",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<p>Just markup.</p>\n</body></html>",
+      ".html"
+    ],
+    "expected": false,
+    "detail": "no script"
+  },
+  {
+    "label": "small HTML pages without computation stay skipped",
+    "op": "include",
+    "args": [
+      "index.html",
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<p>Just markup.</p>\n</body></html>"
+    ],
+    "expected": false,
+    "detail": "no script"
+  },
+  {
+    "label": "small HTML pages without computation stay skipped",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<script src=\"https://cdn.example.com/app.js\"></script>\n</body></html>",
+      ".html"
+    ],
+    "expected": false,
+    "detail": "script src only"
+  },
+  {
+    "label": "small HTML pages without computation stay skipped",
+    "op": "include",
+    "args": [
+      "index.html",
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<script src=\"https://cdn.example.com/app.js\"></script>\n</body></html>"
+    ],
+    "expected": false,
+    "detail": "script src only"
+  },
+  {
+    "label": "small HTML pages without computation stay skipped",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<script async src=\"https://www.googletagmanager.com/gtag/js?id=G-XXXX\"></script>\n<script>\n  window.dataLayer = window.dataLayer || [];\n  function gtag() { dataLayer.push(arguments); }\n  gtag('js', new Date());\n  gtag('config', 'G-XXXX');\n</script>\n</body></html>",
+      ".html"
+    ],
+    "expected": false,
+    "detail": "analytics only"
+  },
+  {
+    "label": "small HTML pages without computation stay skipped",
+    "op": "include",
+    "args": [
+      "index.html",
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<script async src=\"https://www.googletagmanager.com/gtag/js?id=G-XXXX\"></script>\n<script>\n  window.dataLayer = window.dataLayer || [];\n  function gtag() { dataLayer.push(arguments); }\n  gtag('js', new Date());\n  gtag('config', 'G-XXXX');\n</script>\n</body></html>"
+    ],
+    "expected": false,
+    "detail": "analytics only"
+  },
+  {
+    "label": "small HTML pages without computation stay skipped",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<script>\n  document.getElementById('menu').onclick = () => document.body.classList.toggle('open');\n</script>\n</body></html>",
+      ".html"
+    ],
+    "expected": false,
+    "detail": "class toggle"
+  },
+  {
+    "label": "small HTML pages without computation stay skipped",
+    "op": "include",
+    "args": [
+      "index.html",
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<script>\n  document.getElementById('menu').onclick = () => document.body.classList.toggle('open');\n</script>\n</body></html>"
+    ],
+    "expected": false,
+    "detail": "class toggle"
+  },
+  {
+    "label": "small HTML pages without computation stay skipped",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<script>\n  const NAME = 'World';\n  document.getElementById('greeting').textContent = 'Hello, ' + NAME + '!';\n</script>\n</body></html>",
+      ".html"
+    ],
+    "expected": false,
+    "detail": "textContent from a constant"
+  },
+  {
+    "label": "small HTML pages without computation stay skipped",
+    "op": "include",
+    "args": [
+      "index.html",
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<script>\n  const NAME = 'World';\n  document.getElementById('greeting').textContent = 'Hello, ' + NAME + '!';\n</script>\n</body></html>"
+    ],
+    "expected": false,
+    "detail": "textContent from a constant"
+  },
+  {
+    "label": "non-code <script> types are ignored, JavaScript and module types count",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<script type=\"text/template\"><div class=\"a\"><b>x</b></div><p>y</p><i>z</i></script>\n</body></html>",
+      ".html"
+    ],
+    "expected": false,
+    "detail": "text/template"
+  },
+  {
+    "label": "non-code <script> types are ignored, JavaScript and module types count",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<script type=\"application/ld+json\"><div class=\"a\"><b>x</b></div><p>y</p><i>z</i></script>\n</body></html>",
+      ".html"
+    ],
+    "expected": false,
+    "detail": "application/ld+json"
+  },
+  {
+    "label": "non-code <script> types are ignored, JavaScript and module types count",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<script type=\"text/html\"><div class=\"a\"><b>x</b></div><p>y</p><i>z</i></script>\n</body></html>",
+      ".html"
+    ],
+    "expected": false,
+    "detail": "text/html"
+  },
+  {
+    "label": "non-code <script> types are ignored, JavaScript and module types count",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<script type=\"TEXT/TEMPLATE\"><div class=\"a\"><b>x</b></div><p>y</p><i>z</i></script>\n</body></html>",
+      ".html"
+    ],
+    "expected": false,
+    "detail": "TEXT/TEMPLATE"
+  },
+  {
+    "label": "non-code <script> types are ignored, JavaScript and module types count",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<script type=\"module\">const t = Math.round(a * 100) / 100; const u = b % 2;</script>\n</body></html>",
+      ".html"
+    ],
+    "expected": true,
+    "detail": "type=\"module\""
+  },
+  {
+    "label": "non-code <script> types are ignored, JavaScript and module types count",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<script type='text/javascript'>const t = Math.round(a * 100) / 100; const u = b % 2;</script>\n</body></html>",
+      ".html"
+    ],
+    "expected": true,
+    "detail": "type='text/javascript'"
+  },
+  {
+    "label": "non-code <script> types are ignored, JavaScript and module types count",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<script type=application/javascript>const t = Math.round(a * 100) / 100; const u = b % 2;</script>\n</body></html>",
+      ".html"
+    ],
+    "expected": true,
+    "detail": "type=application/javascript"
+  },
+  {
+    "label": "non-code <script> types are ignored, JavaScript and module types count",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<script >const t = Math.round(a * 100) / 100; const u = b % 2;</script>\n</body></html>",
+      ".html"
+    ],
+    "expected": true,
+    "detail": ""
+  },
+  {
+    "label": "comparisons alone do not trigger the small-app rule",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<script>\n  const t = localStorage.getItem('theme');\n  if (t === 'dark' || t === 'light') { document.documentElement.dataset.theme = t; }\n</script>\n</body></html>",
+      ".html"
+    ],
+    "expected": false
+  },
+  {
+    "label": "comparisons alone do not trigger the small-app rule",
+    "op": "logic",
+    "args": [
+      "<!doctype html>\n<html><body>\n<h1>Hi</h1>\n<script>\n  if (document.cookie.indexOf('ok') !== -1 || localStorage.ok === '1') { banner.hidden = true; }\n</script>\n</body></html>",
+      ".html"
+    ],
+    "expected": false
+  },
+  {
+    "label": "the small-app rule also covers .vue and skips a .svelte without arithmetic",
+    "op": "logic",
+    "args": [
+      "<template><p>{{ total }}</p></template>\n<script>\nexport default { methods: { total() { return Math.round(this.a * this.b) / 100; } } };\n</script>",
+      ".vue"
+    ],
+    "expected": true
+  },
+  {
+    "label": "the small-app rule also covers .vue and skips a .svelte without arithmetic",
+    "op": "logic",
+    "args": [
+      "<script>\n  let open = false;\n  const toggle = () => { open = !open; };\n</script>\n<button on:click={toggle}>Menu</button>",
+      ".svelte"
+    ],
+    "expected": false
+  },
+  {
+    "label": "computation signals only apply to script text, not JSX markup",
+    "op": "logic",
+    "args": [
+      "export function Card({ a, b }) {\n  return <div><span>{a}</span><span>{b}</span><hr /><br /></div>;\n}",
+      ".tsx"
+    ],
+    "expected": false
+  }
+]

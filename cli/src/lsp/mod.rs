@@ -1,7 +1,7 @@
 mod client;
 
 use crate::{api, config, storage};
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -302,7 +302,7 @@ fn collect(
             }
         }
     }
-    let fingerprint = json!({"format_version":4,"sources":sources,"project_configs":project_configs,
+    let fingerprint = json!({"format_version":5,"sources":sources,"project_configs":project_configs,
         "lsp_config_sha256":storage::hash(serde_json::to_vec(servers)?)});
     let state_name = format!("{}.json", storage::hash(root.to_string_lossy().as_bytes()));
     let previous = fs::read(state.join(&state_name))
@@ -326,17 +326,21 @@ fn collect(
             "LSP collection interrupted; previous graph preserved"
         );
         let config = &servers[name];
+        let mut collected = Graph::default();
         let result = collect_server(
             root,
             directory,
             selected,
             config,
             &sources,
-            &mut graph,
+            &mut collected,
             interrupted,
         );
         match result {
-            Ok(info) => analyzers.push(json!({"server":name, "root":relative(root, directory)?, "server_info":info})),
+            Ok(info) => {
+                graph.append(collected);
+                analyzers.push(json!({"server":name, "root":relative(root, directory)?, "server_info":info}));
+            }
             Err(error) => graph.issues.push(json!({"server":name, "root":relative(root, directory)?, "message":format!("{error:#}")})),
         }
     }
@@ -416,12 +420,6 @@ fn collect_server(
         );
         let references_supported = supports("referencesProvider");
         let calls_supported = supports("callHierarchyProvider");
-        for capability in ["referencesProvider", "callHierarchyProvider"] {
-            if !supports(capability) {
-                graph.issues.push(json!({"root":relative(root, directory)?,
-                    "message":format!("language server does not advertise {capability}")}));
-            }
-        }
         // Hold local documents open so incoming queries can see callers outside the selected seed files.
         for path in sources
             .keys()
@@ -432,132 +430,160 @@ fn collect_server(
                 "uri":uri(&path)?,"languageId":config.language_id,"version":1,"text":fs::read_to_string(&path)?
             }}))?;
         }
-        for file in selected {
-            let file_uri = uri(file)?;
-            let symbols = client
-                .request(
-                    "textDocument/documentSymbol",
-                    json!({"textDocument":{"uri":file_uri}}),
-                )
-                .with_context(|| format!("documentSymbol for {}", file.display()))?;
-            symbol_positions(&symbols, "", &relative(root, file)?, false, graph)?;
-        }
-        for file in selected {
-            let file_uri = uri(file)?;
-            let path = relative(root, file)?;
-            let seeds: Vec<_> = graph
-                .nodes
-                .iter()
-                .filter(|(_, node)| node.path == path)
-                .map(|(id, node)| (id.clone(), node.position.clone(), node.kind))
-                .collect();
-            for (id, position, kind) in seeds {
-                if references_supported
-                    && matches!(
-                        kind,
-                        SymbolKind::Variable
-                            | SymbolKind::Constant
-                            | SymbolKind::Field
-                            | SymbolKind::Property
+        // Some servers begin workspace work only after their first query. Recollect once
+        // on the same connection rather than repeatedly failing on each cold start.
+        for _ in 0..2 {
+            *graph = Graph::default();
+            for capability in ["referencesProvider", "callHierarchyProvider"] {
+                if !supports(capability) {
+                    graph.issues.push(json!({"root":relative(root, directory)?,
+                    "message":format!("language server does not advertise {capability}")}));
+                }
+            }
+            let work_generation = client.wait_for_idle()?;
+            for file in selected {
+                let file_uri = uri(file)?;
+                let symbols = client
+                    .request(
+                        "textDocument/documentSymbol",
+                        json!({"textDocument":{"uri":file_uri}}),
                     )
-                {
-                    let usages = graph.query(
-                        &mut client,
-                        "textDocument/references",
-                        json!({
-                            "textDocument":{"uri":file_uri},"position":position,
-                            "context":{"includeDeclaration":false}
-                        }),
-                        &path,
-                    )?;
-                    for usage in array(&usages)? {
-                        let Some(path) = local_path(
-                            root,
-                            sources,
-                            usage["uri"].as_str().context("reference has no URI")?,
-                        )?
-                        else {
-                            graph.omitted_external += 1;
-                            continue;
-                        };
-                        graph.usages.push(Usage {
-                            target: id.clone(),
-                            path,
-                            range: serde_json::from_value(usage["range"].clone())?,
-                        });
-                    }
-                }
-                if !calls_supported || !kind.callable() {
-                    continue;
-                }
-                let prepared = graph.query(
-                    &mut client,
-                    "textDocument/prepareCallHierarchy",
-                    json!({
-                        "textDocument":{"uri":file_uri},"position":position
-                    }),
-                    &path,
-                )?;
-                if array(&prepared)?.is_empty() {
-                    graph
-                        .omitted_symbols
-                        .push(json!({"path":relative(root, file)?,
-                        "position":position,"reason":"prepareCallHierarchy returned no callable"}));
-                }
-                for raw in array(&prepared)? {
-                    let item: Item = serde_json::from_value(raw.clone())?;
-                    let Some(seed) = graph.node(root, sources, &item)? else {
-                        continue;
-                    };
-                    for (direction, endpoint) in
-                        [("incomingCalls", "from"), ("outgoingCalls", "to")]
+                    .with_context(|| format!("documentSymbol for {}", file.display()))?;
+                symbol_positions(&symbols, "", &relative(root, file)?, false, graph)?;
+            }
+            for file in selected {
+                let file_uri = uri(file)?;
+                let path = relative(root, file)?;
+                let seeds: Vec<_> = graph
+                    .nodes
+                    .iter()
+                    .filter(|(_, node)| node.path == path)
+                    .map(|(id, node)| (id.clone(), node.position.clone(), node.kind))
+                    .collect();
+                for (id, position, kind) in seeds {
+                    if references_supported
+                        && matches!(
+                            kind,
+                            SymbolKind::Variable
+                                | SymbolKind::Constant
+                                | SymbolKind::Field
+                                | SymbolKind::Property
+                        )
                     {
-                        let result = graph.query(
+                        let usages = graph.query(
                             &mut client,
-                            &format!("callHierarchy/{direction}"),
-                            json!({"item":raw}),
+                            "textDocument/references",
+                            json!({
+                                "textDocument":{"uri":file_uri},"position":position,
+                                "context":{"includeDeclaration":false}
+                            }),
                             &path,
                         )?;
-                        for call in array(&result)? {
-                            let neighbor: Item = serde_json::from_value(call[endpoint].clone())?;
-                            let Some(other) = graph.node(root, sources, &neighbor)? else {
+                        for usage in array(&usages)? {
+                            let Some(path) = local_path(
+                                root,
+                                sources,
+                                usage["uri"].as_str().context("reference has no URI")?,
+                            )?
+                            else {
                                 graph.omitted_external += 1;
                                 continue;
                             };
-                            let (from, to) = if endpoint == "from" {
-                                (&other, &seed)
-                            } else {
-                                (&seed, &other)
-                            };
-                            for raw_range in array(&call["fromRanges"])? {
-                                let range: Range = serde_json::from_value(raw_range.clone())?;
-                                let site = graph.nodes[from].path.clone();
-                                let key = serde_json::to_string(&(from, to, &site, &range))?;
-                                graph
-                                    .relationships
-                                    .entry(key)
-                                    .or_insert_with(|| Relationship {
-                                        from: from.clone(),
-                                        to: to.clone(),
-                                        path: site,
-                                        range,
+                            graph.usages.push(Usage {
+                                target: id.clone(),
+                                path,
+                                range: serde_json::from_value(usage["range"].clone())?,
+                            });
+                        }
+                    }
+                    if !calls_supported || !kind.callable() {
+                        continue;
+                    }
+                    let prepared = graph.query(
+                        &mut client,
+                        "textDocument/prepareCallHierarchy",
+                        json!({
+                            "textDocument":{"uri":file_uri},"position":position
+                        }),
+                        &path,
+                    )?;
+                    if array(&prepared)?.is_empty() {
+                        graph
+                            .omitted_symbols
+                            .push(json!({"path":relative(root, file)?,
+                        "position":position,"reason":"prepareCallHierarchy returned no callable"}));
+                    }
+                    for raw in array(&prepared)? {
+                        let item: Item = serde_json::from_value(raw.clone())?;
+                        let Some(seed) = graph.node(root, sources, &item)? else {
+                            continue;
+                        };
+                        for (direction, endpoint) in
+                            [("incomingCalls", "from"), ("outgoingCalls", "to")]
+                        {
+                            let result = graph.query(
+                                &mut client,
+                                &format!("callHierarchy/{direction}"),
+                                json!({"item":raw}),
+                                &path,
+                            )?;
+                            for call in array(&result)? {
+                                let neighbor: Item =
+                                    serde_json::from_value(call[endpoint].clone())?;
+                                let Some(other) = graph.node(root, sources, &neighbor)? else {
+                                    graph.omitted_external += 1;
+                                    continue;
+                                };
+                                let (from, to) = if endpoint == "from" {
+                                    (&other, &seed)
+                                } else {
+                                    (&seed, &other)
+                                };
+                                for raw_range in array(&call["fromRanges"])? {
+                                    let range: Range = serde_json::from_value(raw_range.clone())?;
+                                    let site = graph.nodes[from].path.clone();
+                                    let key = serde_json::to_string(&(from, to, &site, &range))?;
+                                    graph.relationships.entry(key).or_insert_with(|| {
+                                        Relationship {
+                                            from: from.clone(),
+                                            to: to.clone(),
+                                            path: site,
+                                            range,
+                                        }
                                     });
+                                }
                             }
                         }
                     }
                 }
             }
-            graph.completed_files.insert(relative(root, file)?);
+            if client.wait_for_idle()? == work_generation {
+                return Ok(());
+            }
         }
-        Ok(())
+        bail!(
+            "Language server kept starting new work during collection; previous server results discarded"
+        )
     })();
-    let shutdown = client.shutdown();
     result?;
-    shutdown.context("shutting down language server")?;
+    client.shutdown().context("shutting down language server")?;
+    for file in selected {
+        graph.completed_files.insert(relative(root, file)?);
+    }
     Ok(info)
 }
 
 impl Graph {
+    fn append(&mut self, other: Self) {
+        self.nodes.extend(other.nodes);
+        self.relationships.extend(other.relationships);
+        self.usages.extend(other.usages);
+        self.completed_files.extend(other.completed_files);
+        self.issues.extend(other.issues);
+        self.omitted_symbols.extend(other.omitted_symbols);
+        self.omitted_external += other.omitted_external;
+    }
+
     fn query(
         &mut self,
         client: &mut client::Client,

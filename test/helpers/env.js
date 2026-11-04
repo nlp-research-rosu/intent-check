@@ -4,19 +4,23 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const BIN = path.join(ROOT, "cli", "target", "debug", process.platform === "win32" ? "intent-check.exe" : "intent-check");
 export const FIXTURES = path.join(ROOT, "test", "fixtures", "claude");
 
-// Resolve assertions against the latest saved generation, not the removed mutable unit folder.
+// Resolve result assertions against the latest logged review of this source.
 export function reviewPath(repo, source, artifact) {
-  const dir = path.join(repo, ".intent", "files", source, "checks");
+  const dir = path.join(repo, ".intent", "logs");
   try {
-    const generations = fs.readdirSync(dir).map(id => ({ id, meta: JSON.parse(fs.readFileSync(path.join(dir, id, "meta.json"), "utf8")) }))
+    const generations = fs.readdirSync(dir).flatMap(id => {
+      try { return [{ id, meta: JSON.parse(fs.readFileSync(path.join(dir, id, "artifacts", source, "meta.json"), "utf8")) }]; }
+      catch { return []; }
+    })
       .sort((a, b) => (b.meta.submitted_at || 0) - (a.meta.submitted_at || 0) || b.id.localeCompare(a.id));
-    return path.join(dir, generations[0]?.id || "missing", ...(artifact ? [artifact] : []));
-  } catch { return path.join(dir, "missing", ...(artifact ? [artifact] : [])); }
+    return path.join(dir, generations[0]?.id || "missing", "artifacts", source, ...(artifact ? [artifact] : []));
+  } catch { return path.join(dir, "missing", "artifacts", source, ...(artifact ? [artifact] : [])); }
 }
 
 // Raw fixture JSON with its project dir rewritten to `dir`, escaped because a Windows path has backslashes.
@@ -56,16 +60,19 @@ export function baseEnv(dataDir, apiUrl, extra = {}) {
   for (const k of Object.keys(env)) {
     if (k.startsWith("INTENT_") || k.startsWith("CLAUDE_") || k === "DO_NOT_TRACK") delete env[k];
   }
-  return { ...env, CLAUDE_PLUGIN_DATA: dataDir, XDG_CONFIG_HOME: xdgDir(dataDir), INTENT_API_URL: apiUrl, INTENT_CONSOLE_URL: apiUrl, CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PLUGIN_ROOT: ROOT, INTENT_LIVE: "0", ...extra };
+  const pathKey = Object.keys(env).find((key) => key.toUpperCase() === "PATH");
+  const inheritedPath = pathKey ? env[pathKey] : "";
+  for (const key of Object.keys(env)) if (key.toUpperCase() === "PATH") delete env[key];
+  return { ...env, PATH: inheritedPath, CLAUDE_PLUGIN_DATA: dataDir, XDG_CONFIG_HOME: xdgDir(dataDir), INTENT_API_URL: apiUrl, INTENT_CONSOLE_URL: apiUrl, CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PLUGIN_ROOT: ROOT, INTENT_LIVE: "0", ...extra };
 }
 
 // Run a native hook or public command: JSON on stdin, capture stdout/stderr/exit code.
-export function runHook(event, payload, env, { timeoutMs = 60000, onSpawn } = {}) {
+export function runHook(event, payload, env, { timeoutMs = 60000, onSpawn, host = "claude-code", args: extraArgs = [] } = {}) {
   return new Promise((resolve) => {
     const t0 = Date.now();
     const args = ["on", "off", "live", "doctor", "review", "deepscan"].includes(event)
-      ? [event]
-      : ["__hook", "--host", "claude-code", event];
+      ? [event, ...extraArgs]
+      : ["__hook", "--host", host, event];
     const child = spawn(BIN, args, { env, cwd: payload && payload.cwd && fs.existsSync(payload.cwd) ? payload.cwd : ROOT });
     let stdout = "";
     let stderr = "";
@@ -137,6 +144,19 @@ export function seedGlobal(dataDir, obj) {
   let cur = {};
   try { cur = JSON.parse(fs.readFileSync(f, "utf8")); } catch { /* none yet */ }
   fs.writeFileSync(f, JSON.stringify({ ...cur, ...obj }), { mode: 0o600 });
+}
+
+// Seed retained evidence for tests of subsequent capture; this does not exercise persistence.
+export function seedReview(repo, unit, job, result) {
+  const dir = path.join(repo, ".intent", "logs", "abc123", "artifacts", unit.path);
+  fs.mkdirSync(dir, { recursive: true });
+  for (const [name, text] of Object.entries(unit.artifacts)) fs.writeFileSync(path.join(dir, name), text);
+  fs.writeFileSync(path.join(dir, "meta.json"), JSON.stringify({ version: 1, path: unit.path, source_sha256: unit.checked_sha256, review_id: job.job_id, submitted_at: Date.now(), reviewed_at: result.checked_at, url: job.url, verdict: unit.verdict }));
+}
+
+export function seedPause(data, key, code, source = "file") {
+  const id = createHash("sha256").update(`${key}\n${PLUGIN_VERSION}`).digest("hex").slice(0, 16);
+  seedGlobal(data, { paused: { id, code, source, at: Date.now() } });
 }
 
 // fs.symlinkSync that also works on Windows without the symlink privilege where it can: a link to a

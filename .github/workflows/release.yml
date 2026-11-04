@@ -4,7 +4,7 @@ name: release
 # prerelease (vX.Y.Z-<branch>.N) and commits the bump to that branch, because users install from the branch head.
 # The release carries the intent-check CLI builds for six targets and the two standalone installers; it is created as a
 # draft and published only after every asset is uploaded. The branch advances only after publication.
-# Pushes made with GITHUB_TOKEN do not trigger ci.yml; that is fine because the test job below runs first.
+# Pushes made with GITHUB_TOKEN do not trigger ci.yml; the Linux smoke below runs first.
 on:
   workflow_dispatch:
     inputs:
@@ -19,28 +19,27 @@ concurrency:
   group: release
   cancel-in-progress: false
 jobs:
-  test:
+  smoke:
+    name: smoke (Linux)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    strategy:
-      matrix:
-        node: [18, 22]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 22
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
       - name: Build matching CLI for plugin tests
         run: cargo build --manifest-path cli/Cargo.toml --locked
       - name: Add matching CLI to PATH
+        shell: bash
         run: echo "$GITHUB_WORKSPACE/cli/target/debug" >> "$GITHUB_PATH"
-      - run: node --test test/*.test.js
+      - run: npm run test:smoke
   # The real claude/codex CLIs on Linux, macOS and Windows (LLM-free), before anything is released.
   integration:
     uses: ./.github/workflows/integration.yml
   bump:
-    needs: [test, integration]
+    needs: [smoke, integration]
     if: github.ref_type == 'branch'
     runs-on: ubuntu-latest
     timeout-minutes: 5

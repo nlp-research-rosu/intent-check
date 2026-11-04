@@ -10,6 +10,59 @@ mod runner;
 mod scan;
 mod state;
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    pub(super) struct Fixture {
+        pub root: PathBuf,
+        pub rt: Runtime,
+        directory: PathBuf,
+    }
+
+    impl Fixture {
+        pub fn new() -> Self {
+            let directory = env::temp_dir().join(format!("intent-native-{}", id()));
+            let root = directory.join("repo");
+            fs::create_dir_all(&root).expect("create test project");
+            let root = capture::canonical(&root).expect("canonical test project");
+            Self {
+                root,
+                rt: Runtime {
+                    host: "claude-code".into(),
+                    root: None,
+                    data: directory.join("data"),
+                    version: env!("CARGO_PKG_VERSION").into(),
+                    config: crate::config::Config::default(),
+                    started: Instant::now(),
+                },
+                directory,
+            }
+        }
+
+        pub fn write(&self, rel: &str, text: &str) -> PathBuf {
+            let path = self.root.join(rel);
+            fs::create_dir_all(path.parent().expect("fixture parent"))
+                .expect("create fixture parent");
+            fs::write(&path, text).expect("write fixture");
+            path
+        }
+
+        pub fn git(&self, args: &[&str]) -> String {
+            let mut command = vec!["-c", "user.name=test", "-c", "user.email=test@example.test"];
+            command.extend_from_slice(args);
+            capture::git(&self.root, &command)
+                .unwrap_or_else(|| panic!("fixture git failed: {args:?}"))
+        }
+    }
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.directory);
+        }
+    }
+}
+
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 use std::{
@@ -187,7 +240,7 @@ impl Runtime {
             })
             .map(PathBuf::from)
         });
-        let root = root.map(|p| p.canonicalize().unwrap_or(p));
+        let root = root.map(|p| capture::canonical(&p).unwrap_or(p));
         let home = env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
             .map(PathBuf::from)
             .context("Home directory is unavailable")?;

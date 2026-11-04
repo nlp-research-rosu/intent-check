@@ -89,11 +89,26 @@ pub(super) fn git_env(
 pub(super) fn git(cwd: &Path, args: &[&str]) -> Option<String> {
     git_env(cwd, args, &[], None, 5000)
 }
+pub(super) fn canonical(path: &Path) -> io::Result<PathBuf> {
+    let path = path.canonicalize()?;
+    #[cfg(windows)]
+    {
+        // Keep canonical state keys comparable with host paths and Git's ordinary DOS/UNC paths.
+        let text = path.to_string_lossy();
+        if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+            return Ok(PathBuf::from(format!(r"\\{rest}")));
+        }
+        if let Some(rest) = text.strip_prefix(r"\\?\") {
+            return Ok(PathBuf::from(rest));
+        }
+    }
+    Ok(path)
+}
 pub(super) fn root(cwd: &Path) -> PathBuf {
     git(cwd, &["rev-parse", "--show-toplevel"])
         .map(|s| PathBuf::from(s.trim()))
-        .and_then(|p| p.canonicalize().ok())
-        .unwrap_or_else(|| cwd.canonicalize().unwrap_or_else(|_| cwd.into()))
+        .and_then(|p| canonical(&p).ok())
+        .unwrap_or_else(|| canonical(cwd).unwrap_or_else(|_| cwd.into()))
 }
 pub(super) fn relative(root: &Path, path: &Path) -> Option<String> {
     let full = if path.is_absolute() {
@@ -101,7 +116,7 @@ pub(super) fn relative(root: &Path, path: &Path) -> Option<String> {
     } else {
         root.join(path)
     };
-    let full = full.canonicalize().unwrap_or(full);
+    let full = canonical(&full).unwrap_or(full);
     let rel = full
         .strip_prefix(root)
         .ok()?
@@ -202,13 +217,13 @@ fn shadow_tree(
     root: &Path,
     persist: bool,
 ) -> Option<(PathBuf, String, BTreeSet<String>)> {
-    let real = root.canonicalize().ok()?;
+    let real = canonical(root).ok()?;
     real.parent()?;
     for home in [env::var_os("HOME"), env::var_os("USERPROFILE")]
         .into_iter()
         .flatten()
     {
-        if PathBuf::from(home).canonicalize().ok().as_ref() == Some(&real) {
+        if canonical(&PathBuf::from(home)).ok().as_ref() == Some(&real) {
             return None;
         }
     }
@@ -330,6 +345,7 @@ pub(super) struct FileChange {
     pub changed: usize,
     pub worktree: bool,
 }
+
 pub(super) struct Changes {
     pub root: PathBuf,
     pub files: Vec<FileChange>,
@@ -373,7 +389,7 @@ pub(super) fn read_file(
     if redact::never(rel) {
         return None;
     }
-    let abs = root.join(rel).canonicalize().ok()?;
+    let abs = canonical(&root.join(rel)).ok()?;
     if !abs.starts_with(root) {
         return None;
     }
@@ -668,4 +684,139 @@ pub(super) fn collect(rt: &Runtime, snap: &Value, cwd: &Path) -> Changes {
         }
     }
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::runtime::tests::Fixture;
+
+    #[test]
+    fn baseline_uses_temporary_index_and_preserves_user_lock_and_stash() {
+        let f = Fixture::new();
+        f.git(&["init", "-q"]);
+        f.write("README.md", "# test\n");
+        f.git(&["add", "README.md"]);
+        f.git(&["commit", "-qm", "initial"]);
+        f.write("README.md", "# changed\n");
+        let index = f.root.join(".git/index");
+        let bytes = fs::read(&index).expect("index bytes");
+        let modified = fs::metadata(&index)
+            .expect("index metadata")
+            .modified()
+            .expect("index mtime");
+        f.write(".git/index.lock", "");
+        let b = baseline(&f.rt, &f.root);
+        assert!(re(r"^[0-9a-f]{40}$").is_match(string(&b["sha"])));
+        assert_ne!(b["sha"], b["head"]);
+        assert!(f.root.join(".git/index.lock").exists());
+        assert_eq!(fs::read(&index).expect("unchanged index bytes"), bytes);
+        assert_eq!(
+            fs::metadata(&index)
+                .expect("index metadata")
+                .modified()
+                .expect("index mtime"),
+            modified
+        );
+        assert_eq!(f.git(&["stash", "list"]), "");
+        f.write(".git/index", "garbage, not an index");
+        assert!(baseline(&f.rt, &f.root)["sha"].is_null());
+    }
+
+    #[test]
+    fn nongit_root_is_current_folder_not_parent_intent_or_nested_repository() {
+        let f = Fixture::new();
+        f.write(".intent/README.md", "parent");
+        f.write("sub/file.py", "x = 1\n");
+        assert_eq!(
+            root(&f.root.join("sub")),
+            canonical(&f.root.join("sub")).expect("subfolder")
+        );
+        let nested = f.root.join("code");
+        fs::create_dir(&nested).expect("nested repo");
+        assert!(git(&nested, &["init", "-q"]).is_some());
+        assert_eq!(root(&f.root), canonical(&f.root).expect("root folder"));
+    }
+
+    fn touched(f: &Fixture, rel: &str, content: &str) -> Changes {
+        let abs = f.write(rel, content);
+        collect(
+            &f.rt,
+            &json!({"touched":[abs],"patches":{},"baseline":null}),
+            &f.root,
+        )
+    }
+
+    #[test]
+    fn inline_simulation_is_reviewable_but_plain_markup_is_not() {
+        let f = Fixture::new();
+        assert!(
+            git(&f.root, &["init", "-q"]).is_some(),
+            "initialize fixture repo"
+        );
+        let html = "<!doctype html>\n<html><body>\n<script>\n  let angle = Math.PI / 4;\n  let velocity = 0;\n  function step(dt) {\n    const g = 9.81;\n    const accel = -g * Math.sin(angle);\n    velocity += accel * dt;\n    angle += velocity * dt;\n    if (angle > Math.PI) {\n      angle -= 2 * Math.PI;\n    } else if (angle < -Math.PI) {\n      angle += 2 * Math.PI;\n    }\n    return angle;\n  }\n</script>\n</body></html>";
+        let ch = touched(&f, "index.html", html);
+        assert_eq!(ch.root, canonical(&f.root).expect("project root"));
+        assert_eq!(ch.files.len(), 1);
+        assert_eq!(ch.files[0].rel, "index.html");
+        assert!(
+            ch.files[0]
+                .diff
+                .as_deref()
+                .expect("new file diff")
+                .starts_with("--- /dev/null\n+++ b/index.html")
+        );
+        let ch = touched(
+            &f,
+            "index.html",
+            "<!doctype html>\n<html><body>\n<h1>Double pendulum</h1>\n<script src=\"app.js\"></script>\n</body></html>",
+        );
+        assert!(ch.files.is_empty(), "markup must not become a review unit");
+    }
+
+    #[test]
+    fn excluded_files_are_reported_only_above_threshold_and_secrets_are_never_reported() {
+        let f = Fixture::new();
+        let text = (0..10).map(|i| format!("line {i}\n")).collect::<String>();
+        for rel in [
+            "styles.css",
+            "tests/foo.test.js",
+            "jest.config.js",
+            "vendor/lib.go",
+        ] {
+            let ch = touched(&f, rel, &text);
+            assert!(ch.files.is_empty(), "{rel}");
+            assert_eq!(ch.skipped, vec![rel], "{rel}");
+            assert!(!filter::include(rel, &text), "{rel}");
+        }
+        let ch = touched(&f, "styles.css", "a\n");
+        assert!(ch.files.is_empty() && ch.skipped.is_empty());
+        let ch = touched(&f, "app.py", &text);
+        assert!(ch.skipped.is_empty());
+        assert_eq!(ch.files.len(), 1);
+        assert_eq!(ch.files[0].rel, "app.py");
+        let ch = touched(&f, ".env", &text);
+        assert!(ch.files.is_empty() && ch.skipped.is_empty());
+    }
+
+    #[test]
+    fn structured_patch_hunks_become_counted_unified_diffs() {
+        let f = Fixture::new();
+        let path = f.write(
+            "calc.py",
+            "def sub(a, b):\n    \"\"\"Doc.\"\"\"\n    return a - b\n",
+        );
+        let ch = collect(
+            &f.rt,
+            &json!({"touched":[path],"patches":{path.to_string_lossy().as_ref():[{"oldStart":2,"oldLines":4,"newStart":2,"newLines":5,"lines":["     return a + b"," "," def sub(a, b):","+    \"\"\"Doc.\"\"\"","     return a - b"]}]}}),
+            &f.root,
+        );
+        assert_eq!(ch.files.len(), 1);
+        let diff = ch.files[0].diff.as_deref().expect("structured diff");
+        assert!(
+            diff.starts_with("--- a/calc.py\n+++ b/calc.py\n@@ -2,4 +2,5 @@\n"),
+            "{diff}"
+        );
+        assert_eq!(changed(diff), 1);
+    }
 }

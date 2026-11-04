@@ -28,7 +28,7 @@ after(async () => {
   if (fp) await fp.close();
 });
 
-async function session({ key = null, oldNode = false } = {}) {
+async function session({ key = null, noNode = false } = {}) {
   const repo = makeRepo().dir;
   // The test writes the edit, not Codex: on some CI runners Codex's sandbox is read-only or
   // unavailable ("patch rejected: writing is blocked by read-only sandbox"), and what is under test
@@ -50,6 +50,7 @@ async function session({ key = null, oldNode = false } = {}) {
   const env = cleanEnv({
     HOME: home,
     USERPROFILE: home,
+    XDG_CONFIG_HOME: path.join(home, "xdg"),
     CODEX_HOME: codexHome,
     INTENT_API_URL: fp.url,
     INTENT_CONSOLE_URL: fp.url,
@@ -76,7 +77,7 @@ async function session({ key = null, oldNode = false } = {}) {
     const a = await cx(["plugin", "add", "intent@intentcomputing"]);
     assert.equal(a.code, 0, `plugin add: ${a.stdout}${a.stderr}`);
     fs.appendFileSync(path.join(codexHome, "config.toml"), "\n" + trustEntries() + "\n");
-    const r = await cx(["exec", "--skip-git-repo-check", "-s", "workspace-write", "--json", "write the file"], oldNode ? { env: { ...env, PATH: toolsDir({ oldNode: true }) } } : {});
+    const r = await cx(["exec", "--skip-git-repo-check", "-s", "workspace-write", "--json", "write the file"], noNode ? { env: { ...env, PATH: toolsDir() } } : {});
     const events = r.stdout.split("\n").filter((l) => l.startsWith("{")).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
     const bodies = mock.requests.map((q) => q.raw).join("\n");
     const log = (() => { try { return fs.readFileSync(path.join(codexHome, "plugins", "data", "intent-intentcomputing", "intent.log"), "utf8"); } catch { return ""; } })();
@@ -129,13 +130,12 @@ test("codex exec with a seeded key: the edit is uploaded to the prover as a job"
   assert.ok(fp.jobRequests().at(-1).units.some((u) => /a\.js$/.test(u.path)), "the written file is in the job");
 });
 
-// Node 16 on the PATH Codex runs hooks with: the hook command (node ... --host codex) exits 0 and its
-// additionalContext line reaches the model request, so the user is told what to do. The plugin itself
-// does not run, so there is no plugin log and no job.
-test("codex exec with Node 16 on PATH: hooks exit 0 and the 'needs Node 18' line reaches the model", { skip: skip || (process.platform === "win32" ? "POSIX-only (PATH of symlinks)" : false), timeout: 60000 }, async () => {
-  const s = await session({ oldNode: true });
-  assert.ok(!s.r.timedOut, note(s, "codex exec timed out"));
-  assert.equal(s.r.code, 0, note(s, "codex exec did not exit 0"));
-  assert.match(s.bodies, /Intent Check needs Node\.js 18 or newer to run \(found 16\.1\.0\)\. Install it from nodejs\.org, then restart Codex\./, note(s, "the line did not reach the model request"));
-  assert.doesNotMatch(s.log, /hook\.in/, "the plugin did not run");
+// The native plugin must still submit reviews when Node is absent from the hooks' PATH.
+test("codex exec without Node on PATH: native hooks run and upload the edit", { skip: skip || (process.platform === "win32" ? "POSIX-only (PATH of symlinks)" : false), timeout: 60000 }, async () => {
+  const before = fp.jobRequests().length;
+  const s = await session({ key: TEST_KEY, noNode: true });
+  assertHooksRan(s, ["SessionStart", "UserPromptSubmit", "Stop"]);
+  assert.doesNotMatch(s.bodies, /Intent Check needs Node/);
+  assert.ok(await waitFor(() => fp.jobRequests().length > before, { timeoutMs: 20000 }), note(s, "no review reached the fake prover without Node"));
+  assert.ok(fp.jobRequests().at(-1).units.some((u) => /a\.js$/.test(u.path)), "the written file is in the job");
 });

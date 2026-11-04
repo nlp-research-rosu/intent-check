@@ -3,6 +3,7 @@ use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
+    collections::BTreeSet,
     io::{BufRead, BufReader, Write},
     path::Path,
     process::{Child, ChildStdin, Command, Stdio},
@@ -14,6 +15,8 @@ use std::{
 // Bounds an analyzer response, not the overall number of files or queries.
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(30);
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
+// Allow consecutive work-done tasks to arrive; this is an idle hint, not a readiness guarantee.
+const PROGRESS_QUIET: Duration = Duration::from_millis(200);
 
 #[derive(Debug, Deserialize)]
 pub(super) struct ResponseError {
@@ -36,6 +39,8 @@ pub(super) struct Client {
     next_id: u64,
     settings: Value,
     interrupted: fn() -> bool,
+    work: BTreeSet<String>,
+    work_generation: u64,
 }
 
 impl Client {
@@ -77,6 +82,8 @@ impl Client {
             next_id: 0,
             settings: config.settings.clone(),
             interrupted,
+            work: BTreeSet::new(),
+            work_generation: 0,
         };
         let uri = super::uri(root)?;
         let result = client.request(
@@ -87,6 +94,7 @@ impl Client {
                 "capabilities": {
                     "general": {"positionEncodings": ["utf-16"]},
                     "workspace": {"configuration": true, "workspaceFolders": true},
+                    "window": {"workDoneProgress": true},
                     "textDocument": {
                         "documentSymbol": {"hierarchicalDocumentSymbolSupport": true,
                             "symbolKind": {"valueSet": (1..=26).collect::<Vec<u32>>() }},
@@ -151,6 +159,41 @@ impl Client {
         self.send(json!({"jsonrpc":"2.0", "method":method, "params":params}))
     }
 
+    pub(super) fn wait_for_idle(&mut self) -> Result<u64> {
+        let deadline = Instant::now() + RESPONSE_TIMEOUT;
+        let mut quiet_since = Instant::now();
+        loop {
+            ensure!(!(self.interrupted)(), "LSP collection interrupted");
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            ensure!(
+                !remaining.is_zero(),
+                "Language server work did not settle before timeout"
+            );
+            if self.work.is_empty() && quiet_since.elapsed() >= PROGRESS_QUIET {
+                return Ok(self.work_generation);
+            }
+            match self
+                .messages
+                .recv_timeout(remaining.min(Duration::from_millis(50)))
+            {
+                Ok(message) => {
+                    let message = message?;
+                    if matches!(
+                        message["method"].as_str(),
+                        Some("$/progress" | "window/workDoneProgress/create")
+                    ) {
+                        quiet_since = Instant::now();
+                    }
+                    if message.get("method").is_some() {
+                        self.server_request(&message)?;
+                    }
+                }
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => bail!("language server disconnected"),
+            }
+        }
+    }
+
     fn send(&mut self, message: Value) -> Result<()> {
         let body = serde_json::to_vec(&message)?;
         write!(self.stdin, "Content-Length: {}\r\n\r\n", body.len())?;
@@ -160,8 +203,21 @@ impl Client {
     }
 
     fn server_request(&mut self, message: &Value) -> Result<()> {
+        if message["method"] == "$/progress" {
+            let token = serde_json::to_string(&message["params"]["token"])?;
+            match message["params"]["value"]["kind"].as_str() {
+                Some("begin") => {
+                    self.work.insert(token);
+                    self.work_generation += 1;
+                }
+                Some("end") => {
+                    self.work.remove(&token);
+                }
+                _ => {}
+            }
+        }
         let Some(id) = message.get("id") else {
-            return Ok(()); // Notifications, including diagnostics and progress, need no response.
+            return Ok(());
         };
         match message["method"].as_str() {
             Some("workspace/configuration") => {

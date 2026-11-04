@@ -5,9 +5,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { reviewPath, symlink, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT, xdgDir } from "./helpers/env.js";
+import { reviewPath, symlink, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, seedReview, BIN, ROOT, xdgDir } from "./helpers/env.js";
 import { validateDef } from "./helpers/schema.js";
-import { writeUnit } from "../lib/intentdir.js";
 
 let fp;
 before(async () => { fp = createFakeProver(); await fp.listen(); });
@@ -30,9 +29,10 @@ function cli(args, cwd, data) {
   return new Promise((resolve) => {
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("CLAUDE_") && !k.startsWith("INTENT_")));
     // HOME points at a throwaway dir so a failing run cannot log into the real plugin data dir.
-    const c = spawn(process.execPath, [BIN, "deepscan", ...args, ...(data ? ["--data", data] : [])], { cwd, env: { ...env, HOME: tmpdir("intent-home-"), XDG_CONFIG_HOME: data ? xdgDir(data) : undefined, INTENT_API_URL: fp.url } });
+    const c = spawn(BIN, ["deepscan", ...args, ...(data ? ["--data", data] : [])], { cwd, env: { ...env, HOME: tmpdir("intent-home-"), XDG_CONFIG_HOME: data ? xdgDir(data) : undefined, INTENT_API_URL: fp.url } });
     let out = "";
     c.stdout.on("data", (d) => { out += d; });
+    c.stderr.on("data", (d) => { out += d; });
     c.on("close", (code) => resolve({ code, out: out.trim() }));
   });
 }
@@ -60,11 +60,13 @@ test("intent deepscan <files> queues validated repo-relative paths, offline, and
   assert.deepEqual([item.mode, item.paths], ["request", ["src/auth/login.py"]]);
   assert.equal(fp.state.requests.length, n, "the CLI never calls the service");
   // .queue is ignored by git.
-  assert.equal(fs.readFileSync(path.join(repo, ".intent", ".gitignore"), "utf8"), ".sent.log\n.queue\n");
+  assert.equal(fs.readFileSync(path.join(repo, ".intent", ".gitignore"), "utf8"), ".sent.log\n.queue\n.storage.lock\n");
   // A depth word is not a file, and says so; a flag is refused.
   const deep = await cli(["src/auth/login.py", "full"], repo, data);
   assert.match(deep.out, /queued a review of 1 file.*The depth only applies to a whole-repo or folder scan\./);
-  assert.match((await cli(["--scope", "src"], repo, data)).out, /--scope is not a DeepScan option/);
+  const invalid = await cli(["--scope", "src"], repo, data);
+  assert.notEqual(invalid.code, 0);
+  assert.match(invalid.out, /unexpected argument '--scope'/);
   assert.match((await cli(["src", "src/auth/login.py"], repo, data)).out, /files or one folder, not both/);
 });
 
@@ -106,7 +108,8 @@ test("a symlinked queue folder or queue file is refused", async () => {
   fs.mkdirSync(path.join(repo, ".intent"));
   symlink(outside, path.join(repo, ".intent", ".queue"));
   const r = await cli(["a.py"], repo, data);
-  assert.match(r.out, /could not queue/);
+  assert.notEqual(r.code, 0);
+  assert.match(r.out, /symlink/);
   assert.deepEqual(fs.readdirSync(outside), []);
 });
 
@@ -114,20 +117,20 @@ test("renames and deletions retain original-path history and foreign files", asy
   const ctx = setup();
   for (const f of ["old.py", "gone.py", "keep.py"]) fs.writeFileSync(path.join(ctx.repo, f), `V = "${f}"\n`);
   ctx.git("add", "-A"); ctx.git("commit", "-qm", "files");
-  for (const f of ["old.py", "gone.py", "keep.py"]) writeUnit(ctx.repo, { ...example.result.units[0], path: f }, { job_id: "j", url: "u" }, example.result);
-  fs.writeFileSync(path.join(ctx.repo, ".intent/files/keep.py/NOTES.txt"), "mine\n");
+  for (const f of ["old.py", "gone.py", "keep.py"]) seedReview(ctx.repo, { ...example.result.units[0], path: f }, { job_id: "j", url: "u" }, example.result);
+  fs.writeFileSync(path.join(ctx.repo, ".intent/logs/abc123/artifacts/keep.py/NOTES.txt"), "mine\n");
   ctx.git("add", "-A"); ctx.git("commit", "-qm", "intent");
   await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
   ctx.git("mv", "old.py", "new.py");
   fs.unlinkSync(path.join(ctx.repo, "gone.py"));
   fs.unlinkSync(path.join(ctx.repo, "keep.py"));
   await runHook("stop", fixture("stop", ctx.repo), ctx.env);
-  const d = path.join(ctx.repo, ".intent");
-  assert.ok(fs.existsSync(path.join(d, "files/old.py/checks/j/SPEC.k")));
-  assert.ok(fs.existsSync(path.join(d, "files/gone.py/checks/j/SPEC.k")));
-  assert.ok(fs.existsSync(path.join(d, "files/keep.py/checks/j/SPEC.k")));
-  assert.equal(fs.existsSync(path.join(d, "files/new.py/checks/j")), false, "historical evidence is not rebound to a new source path");
-  assert.ok(fs.existsSync(path.join(d, "files/keep.py/NOTES.txt")), "foreign files are not touched");
+  const d = path.join(ctx.repo, ".intent/logs/abc123");
+  assert.ok(fs.existsSync(path.join(d, "artifacts/old.py/SPEC.k")));
+  assert.ok(fs.existsSync(path.join(d, "artifacts/gone.py/SPEC.k")));
+  assert.ok(fs.existsSync(path.join(d, "artifacts/keep.py/SPEC.k")));
+  assert.equal(fs.existsSync(path.join(d, "artifacts/new.py")), false, "historical evidence is not rebound to a new source path");
+  assert.ok(fs.existsSync(path.join(d, "artifacts/keep.py/NOTES.txt")), "foreign files are not touched");
 });
 
 test("intent deepscan <files> inside a worktree-isolated subagent is queued in the main repo and reviewed under the repo path", async () => {
@@ -161,6 +164,9 @@ test("a queued item naming a folder outside the repo's worktrees is dropped", as
   fs.writeFileSync(path.join(outside, "passwd"), "root:x:0:0\n");
   fs.mkdirSync(path.join(ctx.repo, ".intent", ".queue"), { recursive: true });
   fs.writeFileSync(path.join(ctx.repo, ".intent", ".queue", "1-deadbeef.json"), JSON.stringify({ mode: "request", paths: ["passwd"], worktree: outside }));
-  const { takeQueue } = await import("../lib/queue.js");
-  assert.deepEqual(takeQueue(ctx.repo), []);
+  const before = fp.jobRequests().length;
+  const result = await runHook("stop", fixture("stop", ctx.repo), ctx.env);
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(queueFiles(ctx.repo), []);
+  assert.equal(fp.jobRequests().length, before, "outside paths are never uploaded");
 });
