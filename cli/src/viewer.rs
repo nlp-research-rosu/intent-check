@@ -235,7 +235,7 @@ fn snapshot(root: &Path, name: &str, data_dirs: &[PathBuf]) -> Result<Snapshot> 
     // Validate all structured scopes, including files that were not eligible for export.
     let current_requirements = crate::requirements::documents(root);
     if current_requirements.is_err() {
-        snapshot.warnings.push("Local requirements are invalid; requirement freshness is unknown. Run intent-check requirements list to inspect the error.".into());
+        snapshot.warnings.push("Local requirements are invalid; requirement freshness is unknown. Run intent-prover requirements list to inspect the error.".into());
     }
     let current_hashes = current_requirements
         .as_ref()

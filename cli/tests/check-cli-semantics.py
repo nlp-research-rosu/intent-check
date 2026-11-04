@@ -163,7 +163,7 @@ class Tests(unittest.TestCase):
         self.base = Path(self.tmp.name).resolve()
         self.root = self.base / "project"
         self.root.mkdir()
-        self.data = self.base / "config/intent-check"
+        self.data = self.base / "config/intent-prover"
         self.source = seed(self.data)
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.server.identity = dict(IDENTITY)
@@ -199,7 +199,7 @@ class Tests(unittest.TestCase):
         self.server.bucket_status = 200
         self.server.link_location = f"http://127.0.0.1:{self.server.server_port}/bucket/"
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
-        config = self.base / "config/intent-check"
+        config = self.base / "config/intent-prover"
         config.mkdir(parents=True, exist_ok=True)
         self.config = config / "config.toml"
         self.config.write_text(
@@ -680,7 +680,7 @@ class Tests(unittest.TestCase):
         for command in ("run", "validate", "prove"):
             result = self.operation(command, code=1)
             self.assertIsNone(result["exitCode"])
-            self.assertEqual(result["error"], "Intent Check service task timed out.")
+            self.assertEqual(result["error"], "Intent Prover service task timed out.")
             self.assertEqual(result["task"]["status"], "timed_out")
             self.assertIsNone(result["task"]["result"])
             self.assertEqual(self.server.cancel_requests, [])

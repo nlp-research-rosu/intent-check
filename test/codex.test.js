@@ -91,7 +91,7 @@ test("Stop is sync and quick: submits a codex job, hands polling to a detached p
   assert.equal(next.json.systemMessage, undefined);
   assert.equal(next.json.hookSpecificOutput.hookEventName, "UserPromptSubmit");
   const text = next.json.hookSpecificOutput.additionalContext;
-  assert.match(text, /^Intent Check: 1 concern/);
+  assert.match(text, /^Intent Prover: 1 concern/);
   assert.match(text, /Fix, Skip or Intended as a plain question/);
   assert.doesNotMatch(text, /AskUserQuestion/);
 });
@@ -100,7 +100,7 @@ test("a result that is already done when Stop checks is handed over in the same 
   const ctx = setup();
   const r = await turn(ctx, { "pricing.py": PRICING });
   assert.equal(r.code, 2);
-  assert.match(r.stderr, /^Intent Check: 1 concern/);
+  assert.match(r.stderr, /^Intent Prover: 1 concern/);
 });
 
 test("no concerns stay silent on Codex", async () => {
@@ -121,7 +121,7 @@ test("finished concerns waiting at Stop are handed over with exit 2, but not at 
   await new Promise((r) => setTimeout(r, 300));
   const r = await run("stop", cfx("stop", ctx.repo, ctx.transcript), ctx.env);
   assert.equal(r.code, 2);
-  assert.match(r.stderr, /^Intent Check: 1 concern/);
+  assert.match(r.stderr, /^Intent Prover: 1 concern/);
   const again = await run("stop", cfx("stop-active", ctx.repo, ctx.transcript), ctx.env);
   assert.equal(again.code, 0);
 });

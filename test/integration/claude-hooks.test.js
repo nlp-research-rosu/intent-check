@@ -53,7 +53,7 @@ async function session({ key = null, prompt = "write the file" } = {}) {
   const r = await runCli(CLAUDE, args, { env, cwd: repo, timeoutMs: 55000 });
   const events = r.stdout.split("\n").filter((l) => l.startsWith("{")).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
   const hooks = (kind) => events.filter((e) => e.type === "system" && e.subtype === kind);
-  const done = { mockBodies: mock.requests.map((q) => JSON.stringify(q.body || "")).join("\n"), repo, events, hooks, r, credentials: path.join(xdg, "intent-check", "credentials.json") };
+  const done = { mockBodies: mock.requests.map((q) => JSON.stringify(q.body || "")).join("\n"), repo, events, hooks, r, credentials: path.join(xdg, "intent-prover", "credentials.json") };
   await mock.close();
   return done;
 }
@@ -83,7 +83,7 @@ test("claude -p with the native CLI but no credentials: sign-in starts without b
   assert.ok(fs.existsSync(path.join(s.repo, "src", "a.js")), "the model's edit still happened while disconnected");
   // The denied fixture can settle before SessionStart finishes, or after a pending notice.
   // Assert the context received by the model, not a host-version-specific hook_response field.
-  assert.match(s.mockBodies, /Intent Check(?: is starting sign-in through the global CLI\.|: connect your account| sign-in was denied\. Nothing is checked)/, note(s, "native sign-in guidance missing from the model request"));
+  assert.match(s.mockBodies, /Intent Prover(?: is starting sign-in through the global CLI\.|: connect your account| sign-in was denied\. Nothing is checked)/, note(s, "native sign-in guidance missing from the model request"));
   assert.doesNotMatch(s.mockBodies, /do not start on their request until they reply/, "headless gets the soft note, not the wait gate");
   assert.equal(fp.jobRequests().length, 0);
   assert.ok(fp.state.requests.slice(before).some((q) => q.method === "POST" && q.path === "/api/cli-connect" && q.body?.action === "start"), "native sign-in starts against the mock console");
@@ -95,7 +95,7 @@ test("claude -p with a seeded key: the edit is uploaded to the prover as a job",
   const before = fp.jobRequests().length;
   const s = await session({ key: TEST_KEY });
   assertHooksRan(s);
-  assert.doesNotMatch(s.mockBodies, /Intent Check is not connected/);
+  assert.doesNotMatch(s.mockBodies, /Intent Prover is not connected/);
   // claude -p never renders asyncRewake, so Stop hands the upload to a detached process that can
   // outlive the session: wait for it.
   await waitFor(() => fp.jobRequests().length > before, { timeoutMs: 20000 });

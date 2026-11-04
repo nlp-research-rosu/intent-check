@@ -12,7 +12,7 @@ export const FILES = ["package.json", ".claude-plugin/plugin.json", ".claude-plu
 // The CLI ships in the same release, so its crate version follows the plugin's. Only the package's own entry counts.
 const PATTERNS = {
   "cli/Cargo.toml": /(\[package\][^[]*?\nversion = ")([^"]*)(")/g,
-  "cli/Cargo.lock": /(name = "intent-check"\nversion = ")([^"]*)(")/g,
+  "cli/Cargo.lock": /(name = "intent-prover"\nversion = ")([^"]*)(")/g,
 };
 // The install picker shows this version and test/install-json.test.js pins it to package.json, so plain releases bump it too.
 // Prerelease bumps leave it alone: the per-edit branch requires install.json to stay plain semver.

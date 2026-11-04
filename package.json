@@ -1,8 +1,8 @@
 {
-  "name": "intent-check",
+  "name": "intent-prover",
   "version": "1.0.3",
   "private": true,
-  "description": "Intent Check plugin for Claude Code and Codex, powered by the native intent-check CLI.",
+  "description": "Intent Prover plugin for Claude Code and Codex, powered by the native intent-prover CLI.",
   "type": "module",
   "engines": {
     "node": ">=18"

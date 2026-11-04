@@ -255,7 +255,7 @@ pub(super) fn build(
         .iter()
         .map(|u| string(&u["path"]).to_owned())
         .collect();
-    let context=crate::requirements::context(root,&paths).context("Local requirements could not be validated; run intent-check requirements list in this project")?;
+    let context=crate::requirements::context(root,&paths).context("Local requirements could not be validated; run intent-prover requirements list in this project")?;
     let (notes, binding, n) = notes(&context, &paths, &redactor);
     count += n;
     let mut clean = |value: &Value, max: usize| -> Value {

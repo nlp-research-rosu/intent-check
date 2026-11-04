@@ -7,7 +7,7 @@ static INTERRUPTED: AtomicBool = AtomicBool::new(false);
 pub(super) fn interrupted() -> bool {
     INTERRUPTED.load(Ordering::Relaxed)
 }
-const CONSENT: &str = "Intent Check is on. After a turn that changes source files, it sends your recent prompts, the diffs, the changed files and applicable .intent requirements to the Intent Check service for a background review; obvious secrets are masked first. Each upload is listed in .intent/.sent.log. To turn it off: /intent:off";
+const CONSENT: &str = "Intent Prover is on. After a turn that changes source files, it sends your recent prompts, the diffs, the changed files and applicable .intent requirements to the Intent Prover service for a background review; obvious secrets are masked first. Each upload is listed in .intent/.sent.log. To turn it off: /intent:off";
 
 fn merge(out: &mut Output, mut other: Output) {
     out.add(&other.user, &other.context);
@@ -47,9 +47,9 @@ pub(super) fn hook(rt: &Runtime, event: &str, payload: &Value) -> Result<Output>
                 state::gc(rt)?;
             }
             rt.global_mut(|g| {
-                if g["consent_shown_at"].is_null(){g["consent_shown_at"]=json!(iso(now()));let consent=if rt.host=="codex"{CONSENT.replace("To turn it off: /intent:off","To turn it off: ask the agent to turn Intent Check off, or set INTENT_DISABLED=1")}else{CONSENT.into()};out.add(&consent,"The Intent Check plugin is active: code changes are reviewed in the background, and concerns may arrive later as notes. The user can turn it off with intent-check off.");}
-                if g["ready_version"]!=rt.version{g["ready_version"]=json!(rt.version);out.add(&format!("Intent Check v{} ready",rt.version),"");}
-                if rt.host=="codex" && g["hook_notice_version"]!=rt.version {g["hook_notice_version"]=json!(rt.version);out.add(&format!("Intent Check {} updated its edit hook. If Codex lists it as Modified, approve it in /hooks (or the app's hook review).",rt.version),"");}
+                if g["consent_shown_at"].is_null(){g["consent_shown_at"]=json!(iso(now()));let consent=if rt.host=="codex"{CONSENT.replace("To turn it off: /intent:off","To turn it off: ask the agent to turn Intent Prover off, or set INTENT_DISABLED=1")}else{CONSENT.into()};out.add(&consent,"The Intent Prover plugin is active: code changes are reviewed in the background, and concerns may arrive later as notes. The user can turn it off with intent-prover off.");}
+                if g["ready_version"]!=rt.version{g["ready_version"]=json!(rt.version);out.add(&format!("Intent Prover v{} ready",rt.version),"");}
+                if rt.host=="codex" && g["hook_notice_version"]!=rt.version {g["hook_notice_version"]=json!(rt.version);out.add(&format!("Intent Prover {} updated its edit hook. If Codex lists it as Modified, approve it in /hooks (or the app's hook review).",rt.version),"");}
                 Ok(())
             })?;
             if event == "prompt" {
@@ -171,8 +171,8 @@ fn connection(rt: &Runtime, key: &str, out: &mut Output, wait: u64) -> Result<()
             })?;
             if announce {
                 out.add(
-                    "Intent Check connected",
-                    "Intent Check connected. Continue with the user's task.",
+                    "Intent Prover connected",
+                    "Intent Prover connected. Continue with the user's task.",
                 );
             }
         }
@@ -253,10 +253,10 @@ fn connection(rt: &Runtime, key: &str, out: &mut Output, wait: u64) -> Result<()
     } else {
         "failed"
     });
-    let text=valid_pending.map(|v|format!("Intent Check: connect your account → {}\nOpen the link and approve; your task can continue while sign-in finishes.",string(&v["verification_url"]))).unwrap_or_else(||match status {
-        "starting"=>"Intent Check is starting sign-in through the global CLI. The approval link will appear on your next prompt; your task can continue.",
-        "denied"=>"Intent Check sign-in was denied. Nothing is checked; run intent-check login when you want to reconnect.",
-        _=>"Intent Check could not finish sign-in. Run intent-check login to retry; nothing is being checked yet."
+    let text=valid_pending.map(|v|format!("Intent Prover: connect your account → {}\nOpen the link and approve; your task can continue while sign-in finishes.",string(&v["verification_url"]))).unwrap_or_else(||match status {
+        "starting"=>"Intent Prover is starting sign-in through the global CLI. The approval link will appear on your next prompt; your task can continue.",
+        "denied"=>"Intent Prover sign-in was denied. Nothing is checked; run intent-prover login when you want to reconnect.",
+        _=>"Intent Prover could not finish sign-in. Run intent-prover login to retry; nothing is being checked yet."
     }.into());
     let token = format!("{}:{status}", number(&state["created_at"]));
     rt.session_mut(key, |s| {
@@ -506,23 +506,25 @@ fn failure(rt: &Runtime, key: &str, r: &Reply, used: &str) -> Result<()> {
     }
     let text = match r.status {
         401 if env::var("INTENT_API_KEY").is_ok() => {
-            "Intent Check: INTENT_API_KEY was not accepted, so checks are paused. Set a valid environment key, or unset it and run intent-check login."
+            "Intent Prover: INTENT_API_KEY was not accepted, so checks are paused. Set a valid environment key, or unset it and run intent-prover login."
         }
         401 => {
-            "Intent Check: the API key was not accepted, so checks are paused. Run intent-check login to reconnect."
+            "Intent Prover: the API key was not accepted, so checks are paused. Run intent-prover login to reconnect."
         }
         426 => {
-            "Intent Check: this plugin version is too old for the service. Update the intent plugin to keep checks running."
+            "Intent Prover: this plugin version is too old for the service. Update the intent plugin to keep checks running."
         }
         429 if r.code() == "SPEND_CAP" => {
-            "Intent Check: today's free check limit was reached, so recent changes were not checked. Checks resume tomorrow."
+            "Intent Prover: today's free check limit was reached, so recent changes were not checked. Checks resume tomorrow."
         }
-        429 => "Intent Check: too many checks in a short time, so recent changes were not checked.",
+        429 => {
+            "Intent Prover: too many checks in a short time, so recent changes were not checked."
+        }
         0 => {
-            "Intent Check: couldn't reach the service, so recent changes haven't been checked yet. They will be once it's back."
+            "Intent Prover: couldn't reach the service, so recent changes haven't been checked yet. They will be once it's back."
         }
         _ => {
-            "Intent Check: the service could not start the review; it will retry when appropriate."
+            "Intent Prover: the service could not start the review; it will retry when appropriate."
         }
     };
     let once = if [401, 426].contains(&r.status) {
@@ -689,9 +691,9 @@ pub(super) fn stop(rt: &Runtime, payload: &Value, can_wake: bool, poll: bool) ->
             state::note(
                 s,
                 if p["code"] == 426 {
-                    "Intent Check: checks are paused because this plugin version is too old for the service. Update the intent plugin to resume."
+                    "Intent Prover: checks are paused because this plugin version is too old for the service. Update the intent plugin to resume."
                 } else {
-                    "Intent Check: checks are paused because the API key was not accepted. Set a valid key, or unset INTENT_API_KEY and run intent-check login."
+                    "Intent Prover: checks are paused because the API key was not accepted. Set a valid key, or unset INTENT_API_KEY and run intent-prover login."
                 },
                 true,
                 "info",
@@ -807,7 +809,7 @@ pub(super) fn stop(rt: &Runtime, payload: &Value, can_wake: bool, poll: bool) ->
         rt.session_mut(&key, |s| {
             state::note(
                 s,
-                &format!("Intent Check: review did not start: {error}"),
+                &format!("Intent Prover: review did not start: {error}"),
                 true,
                 "info",
                 Some("requirements_context"),
@@ -853,7 +855,7 @@ pub(super) fn stop(rt: &Runtime, payload: &Value, can_wake: bool, poll: bool) ->
                     rt.session_mut(&key, |s| {
                         state::note(
                             s,
-                            &format!("Intent Check: gave up on a requested review of {} file{} after 3 failed attempts.", array(&q["paths"]).len(), if array(&q["paths"]).len() == 1 { "" } else { "s" }),
+                            &format!("Intent Prover: gave up on a requested review of {} file{} after 3 failed attempts.", array(&q["paths"]).len(), if array(&q["paths"]).len() == 1 { "" } else { "s" }),
                             true,
                             "info",
                             None,
@@ -922,7 +924,7 @@ pub(super) fn stop(rt: &Runtime, payload: &Value, can_wake: bool, poll: bool) ->
         if !out.context.is_empty() {
             out.exit = 2;
             if out.summary.is_empty() {
-                out.summary = "Intent Check found concerns".into();
+                out.summary = "Intent Prover found concerns".into();
             }
         }
     }
@@ -1011,7 +1013,7 @@ fn settle(rt: &Runtime, key: &str, job: &Value, status: &Value, can_wake: bool) 
         s["pending"].as_array_mut().context("Pending jobs must be an array")?.retain(|j|j["job_id"]!=id);
         if edit {if result.is_object(){s["edit_jobs"][id]["settled"]=json!(true);}else{state::remove(&mut s["edit_jobs"],id);}}
         if !result.is_object() {
-            if status["status"]=="failed" {let text=if status["error"]["code"]=="SPEND_CAP"{"Intent Check: today's free check limit was reached, so recent changes were not checked. Checks resume tomorrow.".into()}else{render::failed(string(&job["url"]),&array(&job["sent"]).iter().map(|p|string(&p["rel"])).collect::<Vec<_>>())};state::note(s,&text,true,"failed",None);}return Ok(false);
+            if status["status"]=="failed" {let text=if status["error"]["code"]=="SPEND_CAP"{"Intent Prover: today's free check limit was reached, so recent changes were not checked. Checks resume tomorrow.".into()}else{render::failed(string(&job["url"]),&array(&job["sent"]).iter().map(|p|string(&p["rel"])).collect::<Vec<_>>())};state::note(s,&text,true,"failed",None);}return Ok(false);
         }
         let concerns=render::concerns(result,&job["sent"]);
         if !s["flags"]["delivered"].is_object(){s["flags"]["delivered"]=json!({});}

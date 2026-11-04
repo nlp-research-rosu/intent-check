@@ -22,7 +22,7 @@ test("missing global CLI: SessionStart shows setup guidance once without downloa
   const n = fp.state.requests.length;
   const r = await runHook("session-start", fixture("session-start", ctx.repo), ctx.env);
   assert.equal(r.code, 0);
-  assert.match(r.json.systemMessage, /global intent-check CLI.*onboarding/);
+  assert.match(r.json.systemMessage, /global intent-prover CLI.*setup/);
   assert.doesNotMatch(r.stdout, /wait|done.*skip|Before doing anything else/);
   assert.equal((await runHook("prompt", fixture("prompt", ctx.repo), ctx.env)).stdout, "");
   assert.equal(fp.state.requests.length, n);
@@ -36,7 +36,7 @@ test("first prompt without a global CLI gives setup guidance without a private i
   const n = fp.state.requests.length;
   const r = await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
   assert.equal(r.code, 0);
-  assert.match(r.json.systemMessage, /onboarding/);
+  assert.match(r.json.systemMessage, /setup/);
   assert.equal(fp.state.requests.length, n);
   assert.equal(fs.existsSync(path.join(ctx.data, "connect.json")), false);
 });
@@ -51,12 +51,12 @@ test("until connected nothing is sent", async () => {
   assert.equal(fp.jobRequests().length, n);
 });
 
-test("credentials saved by explicit onboarding are reused by later hooks", async () => {
+test("credentials saved by explicit setup are reused by later hooks", async () => {
   const ctx = setup();
   await runHook("session-start", fixture("session-start", ctx.repo), ctx.env);
   saveKey(ctx.data, TEST_KEY, fp.url);
   const p = await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
-  assert.equal(p.json.systemMessage, "Intent Check connected");
+  assert.equal(p.json.systemMessage, "Intent Prover connected");
   assert.equal((await runHook("prompt", fixture("prompt", ctx.repo), ctx.env)).stdout, "");
   fs.writeFileSync(path.join(ctx.repo, "pricing.py"), "def a(x):\n    y = x\n    return y\n");
   assert.equal((await runHook("stop", fixture("stop", ctx.repo), ctx.env)).code, 2);

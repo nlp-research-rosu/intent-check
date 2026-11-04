@@ -196,7 +196,7 @@ pub(crate) struct PublicArgs {
 pub(crate) struct ReviewArgs {
     #[command(flatten)]
     runtime: PublicArgs,
-    /// Paths to review; DeepScan also accepts one folder and a fast|balanced|full depth.
+    /// Paths to review; Scan also accepts one folder and a fast|balanced|full depth.
     targets: Vec<String>,
 }
 
@@ -217,7 +217,7 @@ pub(crate) fn public(
     )?;
     match action {
         "review" => scan::queue_command(&runtime, targets),
-        "deepscan" => scan::command(&runtime, targets),
+        "scan" => scan::command(&runtime, targets),
         _ => controls::command(&runtime, action),
     }
 }
@@ -227,7 +227,7 @@ pub(crate) fn review(action: &str, args: &ReviewArgs, project: Option<&Path>) ->
 }
 
 pub(crate) fn capabilities() -> Value {
-    json!({"version":env!("CARGO_PKG_VERSION"),"capabilities":["hooks-v1","requirements-context-v1","reviews-v1","deepscan-v1"]})
+    json!({"version":env!("CARGO_PKG_VERSION"),"capabilities":["hooks-v1","requirements-context-v1","reviews-v1","scan-v1"]})
 }
 
 impl Runtime {
@@ -557,13 +557,13 @@ pub(crate) fn entry() -> Option<i32> {
         Err(error) => {
             if kind == "__hook" {
                 eprintln!(
-                    "Intent Check: review did not start: {error}. Run intent-check doctor to inspect setup."
+                    "Intent Prover: review did not start: {error}. Run intent-prover doctor to inspect setup."
                 );
                 0
             } else if kind == "__worker" {
                 0
             } else {
-                eprintln!("Intent Check: {error}");
+                eprintln!("Intent Prover: {error}");
                 1
             }
         }

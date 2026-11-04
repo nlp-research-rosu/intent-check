@@ -88,7 +88,7 @@ test("native off switches and plugin version", async () => {
   for (const [extra, settings, off] of [[{}, {}, false], [{ INTENT_DISABLED: "1" }, {}, true], [{ DO_NOT_TRACK: "1" }, {}, true], [{}, { disabled: true }, true]]) {
     const ctx = setup(extra, settings);
     const result = await runHook("doctor", undefined, ctx.env);
-    assert.match(result.stdout, new RegExp(`^Intent Check v${PLUGIN_VERSION.replaceAll(".", "\\.")}: ${off ? "off" : "on"}`));
+    assert.match(result.stdout, new RegExp(`^Intent Prover v${PLUGIN_VERSION.replaceAll(".", "\\.")}: ${off ? "off" : "on"}`));
     assert.equal(result.code, 0, result.stderr);
   }
 });

@@ -26,7 +26,7 @@ function setup({ key = true, git = true, env = {} } = {}) {
 function cli(args, cwd, data, extraEnv = {}) {
   return new Promise((resolve) => {
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("CLAUDE_") && !k.startsWith("INTENT_") && k !== "DO_NOT_TRACK"));
-    const c = spawn(BIN, ["deepscan", ...args, "--data", data], { cwd, env: { ...env, HOME: tmpdir("intent-home-"), XDG_CONFIG_HOME: xdgDir(data), INTENT_API_URL: fp.url, ...extraEnv } });
+    const c = spawn(BIN, ["scan", ...args, "--data", data], { cwd, env: { ...env, HOME: tmpdir("intent-home-"), XDG_CONFIG_HOME: xdgDir(data), INTENT_API_URL: fp.url, ...extraEnv } });
     let out = "";
     c.stdout.on("data", (d) => { out += d; });
     c.stderr.on("data", (d) => { out += d; });
@@ -73,10 +73,10 @@ test("3. queued reviews survive a transient submit failure and go out at the nex
   assert.equal(queueFiles(ctx.repo).length, 0);
 });
 
-test("4. intent deepscan <files> says so when off, not connected or paused, and queues nothing; Stop drops the queue while off", async () => {
+test("4. intent scan <files> says so when off, not connected or paused, and queues nothing; Stop drops the queue while off", async () => {
   const off = setup({ env: {} });
   fs.writeFileSync(path.join(off.repo, "a.py"), "A = 1\n");
-  assert.match(await cli(["a.py"], off.repo, off.data, { INTENT_DISABLED: "1" }), /^Intent Check is off, so nothing was queued/);
+  assert.match(await cli(["a.py"], off.repo, off.data, { INTENT_DISABLED: "1" }), /^Intent Prover is off, so nothing was queued/);
   const nokey = setup({ key: false });
   fs.writeFileSync(path.join(nokey.repo, "a.py"), "A = 1\n");
   assert.match(await cli(["a.py"], nokey.repo, nokey.data), /not connected yet, so nothing was queued/);

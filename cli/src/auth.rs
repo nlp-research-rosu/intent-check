@@ -105,6 +105,11 @@ pub fn api_key(server: &str) -> Result<Option<String>> {
     Ok(key)
 }
 
+pub(crate) fn validate_saved_credentials() -> Result<()> {
+    read(&file()?)?;
+    Ok(())
+}
+
 pub(crate) fn stored_keys() -> Result<Vec<String>> {
     let mut keys: Vec<_> = read(&file()?)
         .unwrap_or_default()

@@ -110,14 +110,14 @@ test("the CLI crate version (Cargo.toml and Cargo.lock) matches package.json", (
   assert.equal(v["cli/Cargo.lock"], v["package.json"]);
 });
 
-test("CLI: a bump changes only the intent-check entry in Cargo.lock and the [package] version in Cargo.toml", () => {
+test("CLI: a bump changes only the intent-prover entry in Cargo.lock and the [package] version in Cargo.toml", () => {
   const { dir, run } = sandbox();
   const lock = path.join(dir, "cli/Cargo.lock");
   const toml = path.join(dir, "cli/Cargo.toml");
   const [lockBefore, tomlBefore] = [lock, toml].map((p) => fs.readFileSync(p, "utf8"));
   run("7.8.9");
   const diff = (a, b) => a.split("\n").filter((l, i) => l !== b.split("\n")[i]);
-  assert.deepEqual(diff(lockBefore, fs.readFileSync(lock, "utf8")), [lockBefore.match(/name = "intent-check"\nversion = "[^"]*"/)[0].split("\n")[1]]);
+  assert.deepEqual(diff(lockBefore, fs.readFileSync(lock, "utf8")), [lockBefore.match(/name = "intent-prover"\nversion = "[^"]*"/)[0].split("\n")[1]]);
   assert.equal(diff(tomlBefore, fs.readFileSync(toml, "utf8")).length, 1);
 });
 

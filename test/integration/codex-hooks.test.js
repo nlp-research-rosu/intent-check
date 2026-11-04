@@ -114,7 +114,7 @@ function assertHooksRan(s, events, outputs = ["SessionStart"]) {
 test("codex exec without a global CLI: hooks give setup guidance, no job is sent", { skip, timeout: 60000 }, async () => {
   const s = await session();
   assertHooksRan(s, ["SessionStart", "UserPromptSubmit", "Stop"]);
-  assert.match(s.bodies, /onboarding/, note(s, "setup guidance missing from the model request"));
+  assert.match(s.bodies, /setup/, note(s, "setup guidance missing from the model request"));
   assert.equal(fp.jobRequests().length, 0);
 });
 
@@ -135,7 +135,7 @@ test("codex exec without Node on PATH: native hooks run and upload the edit", { 
   const before = fp.jobRequests().length;
   const s = await session({ key: TEST_KEY, noNode: true });
   assertHooksRan(s, ["SessionStart", "UserPromptSubmit", "Stop"]);
-  assert.doesNotMatch(s.bodies, /Intent Check needs Node/);
+  assert.doesNotMatch(s.bodies, /Intent Prover needs Node/);
   assert.ok(await waitFor(() => fp.jobRequests().length > before, { timeoutMs: 20000 }), note(s, "no review reached the fake prover without Node"));
   assert.ok(fp.jobRequests().at(-1).units.some((u) => /a\.js$/.test(u.path)), "the written file is in the job");
 });

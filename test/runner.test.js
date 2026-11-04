@@ -44,8 +44,8 @@ test("concerns: submits a contract-valid job, writes .intent/ and wakes the agen
   const n = fp.jobRequests().length;
   const r = await turn(ctx, { "pricing.py": PRICING });
   assert.equal(r.code, 2, r.stderr);
-  assert.deepEqual(JSON.parse(r.stdout.split("\n")[0]), { rewakeSummary: "Intent Check: 1 concern in pricing.py" });
-  assert.match(r.stderr, /^Intent Check: 1 concern about code changed in this session\. Report: http:\/\/127\.0\.0\.1:\d+\/tasks\/[0-9a-f-]{36}\n/);
+  assert.deepEqual(JSON.parse(r.stdout.split("\n")[0]), { rewakeSummary: "Intent Prover: 1 concern in pricing.py" });
+  assert.match(r.stderr, /^Intent Prover: 1 concern about code changed in this session\. Report: http:\/\/127\.0\.0\.1:\d+\/tasks\/[0-9a-f-]{36}\n/);
   assert.match(r.stderr, /Intent mismatch \(high\) at pricing\.py:3/);
   assert.match(r.stderr, /fix it directly, editing only pricing\.py/); // fixture permission_mode is acceptEdits
 
@@ -86,8 +86,8 @@ test("no concerns: silent at Stop; the model and the user each get a line at the
   assert.equal(r.code, 0);
   assert.equal(r.stdout + r.stderr, "");
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "thanks" }), ctx.env);
-  assert.match(next.json.hookSpecificOutput.additionalContext, /^Intent Check: no concerns in pricing\.py · http:\/\/127\.0\.0\.1:\d+\/tasks\/[0-9a-f-]{36}$/);
-  assert.match(next.json.systemMessage, /^Intent Check: checked `pricing\.py` · no concerns · http:\/\/127\.0\.0\.1:\d+\/tasks\/[0-9a-f-]{36}$/);
+  assert.match(next.json.hookSpecificOutput.additionalContext, /^Intent Prover: no concerns in pricing\.py · http:\/\/127\.0\.0\.1:\d+\/tasks\/[0-9a-f-]{36}$/);
+  assert.match(next.json.systemMessage, /^Intent Prover: checked `pricing\.py` · no concerns · http:\/\/127\.0\.0\.1:\d+\/tasks\/[0-9a-f-]{36}$/);
   const again = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "and again" }), ctx.env);
   assert.equal(again.stdout, "");
 });
@@ -99,7 +99,7 @@ test("failed job: one user note, /intent:doctor shows the error, last check not 
   assert.equal(r.code, 0);
   assert.ok(await waitFor(() => (readSessionFiles(ctx.data)[0] || { notes: [] }).notes.length > 0));
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "thanks" }), ctx.env);
-  assert.match(next.json.systemMessage, /^Intent Check could not finish checking `pricing\.py`, so there is no report for it\. Run intent-check review with the files to try again\. · http:\/\/127\.0\.0\.1:\d+\/tasks\/[0-9a-f-]{36}$/);
+  assert.match(next.json.systemMessage, /^Intent Prover could not finish checking `pricing\.py`, so there is no report for it\. Run intent-prover review with the files to try again\. · http:\/\/127\.0\.0\.1:\d+\/tasks\/[0-9a-f-]{36}$/);
   assert.doesNotMatch(next.json.systemMessage, /[\u2013\u2014]/);
   const again = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "and again" }), ctx.env);
   assert.equal(again.stdout, "");
@@ -127,7 +127,7 @@ test("failed job: Codex shows the note too (it drops only quiet notes)", async (
   assert.ok(await waitFor(() => (readSessionFiles(ctx.data)[0] || { notes: [] }).notes.length > 0));
   const out = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "next" }), ctx.env, { host: "codex" });
   assert.equal(out.code, 0, out.stderr);
-  assert.match(out.json.hookSpecificOutput.additionalContext, /Intent Check could not finish checking `pricing\.py`/);
+  assert.match(out.json.hookSpecificOutput.additionalContext, /Intent Prover could not finish checking `pricing\.py`/);
   assert.equal(out.json.systemMessage, undefined);
 });
 
@@ -150,7 +150,7 @@ test("the Stop of a wake-up turn (stop_hook_active) never wakes; its result arri
   assert.equal(r.code, 0);
   assert.equal(r.stderr, "");
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "ok" }), ctx.env);
-  assert.match(next.json.hookSpecificOutput.additionalContext, /^Intent Check: 1 concern/);
+  assert.match(next.json.hookSpecificOutput.additionalContext, /^Intent Prover: 1 concern/);
 });
 
 test("a file fixed after a wake is re-checked but reported as a note, not another wake", async () => {
@@ -239,7 +239,7 @@ test("a rejected saved key (401) is dropped, so the next prompt asks for explici
   const cfile = path.join(ctx.data, "connect.json");
   assert.equal(fs.existsSync(cfile), false, "no legacy per-host connect record");
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "ok" }), ctx.env);
-  assert.match(next.json.systemMessage, /intent-check login/);
+  assert.match(next.json.systemMessage, /intent-prover login/);
 });
 
 test("prover unreachable: the turn is not held up, paths are kept, the next prompt says so once", async () => {
@@ -262,7 +262,7 @@ for (const [name, env, off] of [["INTENT_DISABLED=1", { INTENT_DISABLED: "1" }, 
     const ctx = setup({ key: false, env });
     if (off) {
       const o = await runHook("off", undefined, ctx.env);
-      assert.match(o.stdout, /Intent Check is off/);
+      assert.match(o.stdout, /Intent Prover is off/);
     }
     // Connect pollers left running by other tests' data dirs are not ours; count everything else.
     const ours = () => fp.state.requests.filter((x) => x.path !== "/api/cli-connect").length;
@@ -276,7 +276,7 @@ for (const [name, env, off] of [["INTENT_DISABLED=1", { INTENT_DISABLED: "1" }, 
     assert.equal(fs.existsSync(path.join(ctx.repo, ".intent")), false);
     if (off) {
       const on = await runHook("on", undefined, ctx.env);
-      assert.match(on.stdout, /Intent Check is on/);
+      assert.match(on.stdout, /Intent Prover is on/);
       assert.equal((await turn(ctx, { "pricing.py": PRICING + "# on\n# on\n# on\n" })).code, 2);
     }
   });
@@ -298,7 +298,7 @@ test("SIGTERM (hook timeout or quit): a detached finisher keeps polling and writ
   fp.state.pollsBeforeDone = 0;
   assert.ok(await waitFor(() => fs.existsSync(reviewPath(ctx.repo, "pricing.py", "VERDICT.md")), { timeoutMs: 20000 }));
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "back" }), ctx.env);
-  assert.match(next.json.hookSpecificOutput.additionalContext, /^Intent Check: 1 concern/);
+  assert.match(next.json.hookSpecificOutput.additionalContext, /^Intent Prover: 1 concern/);
 });
 
 test("late result: a job whose runner died is delivered at the next prompt (1 s check)", async () => {
@@ -313,7 +313,7 @@ test("late result: a job whose runner died is delivered at the next prompt (1 s 
   await done;
   fp.state.pollsBeforeDone = 0;
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "back" }), ctx.env);
-  assert.match(next.json.hookSpecificOutput.additionalContext, /^Intent Check: 1 concern/);
+  assert.match(next.json.hookSpecificOutput.additionalContext, /^Intent Prover: 1 concern/);
   assert.ok(fs.existsSync(reviewPath(ctx.repo, "pricing.py", "meta.json")));
 });
 
@@ -405,7 +405,7 @@ test("a turn that only touches filtered-out files gets a skipped-files note, onc
   assert.equal(r.stdout + r.stderr, "");
   assert.equal(fp.jobRequests().length, n); // nothing was sent to the prover
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "ok" }), ctx.env);
-  assert.equal(next.json.systemMessage, "Intent Check: skipped `styles.css` (styling, markup, tests, config or vendored code); it checks code with logic.");
+  assert.equal(next.json.systemMessage, "Intent Prover: skipped `styles.css` (styling, markup, tests, config or vendored code); it checks code with logic.");
 
   // A second filtered-out turn in the same session does not repeat the note.
   await turn(ctx, { "other.css": css });

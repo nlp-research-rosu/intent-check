@@ -1,7 +1,7 @@
 {
   "name": "intent",
   "version": "1.0.3",
-  "description": "Checks that the code your agent wrote does what you asked, with formal proofs in prove mode",
+  "description": "Intent Prover: Formalize requirements, Review changes, Scan repositories and Prove formal claims",
   "author": { "name": "Intent Computing" },
   "homepage": "https://check.intentcomputing.org/privacy",
   "repository": "https://github.com/nlp-research-rosu/intent-check",

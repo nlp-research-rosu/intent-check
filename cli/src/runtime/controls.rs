@@ -16,7 +16,7 @@ fn settings(rt: &Runtime, disabled: bool, live: Option<bool>) -> Result<()> {
 pub(super) fn command(rt: &Runtime, command: &str) -> Result<String> {
     if command == "off" {
         settings(rt, true, None).context("could not turn checks off. Set INTENT_DISABLED=1 to stop uploads until the local data folder is writable")?;
-        return Ok("Intent Check is off. Nothing will be sent until it is turned back on (intent-check on or intent-check live).".into());
+        return Ok("Intent Prover is off. Nothing will be sent until it is turned back on (intent-prover on or intent-prover live).".into());
     }
     if command == "on" || command == "live" {
         let was_live = rt.live();
@@ -24,11 +24,11 @@ pub(super) fn command(rt: &Runtime, command: &str) -> Result<String> {
             .context("could not turn checks on; check that the local data folder is writable")?;
         if let Some(reason) = rt.disabled() {
             return Ok(format!(
-                "Intent Check is on, but {reason}=1 is set in the environment, so nothing will be sent until it is removed."
+                "Intent Prover is on, but {reason}=1 is set in the environment, so nothing will be sent until it is removed."
             ));
         }
         let mut text = format!(
-            "Intent Check is on{}. {}{}",
+            "Intent Prover is on{}. {}{}",
             if rt.live() { " (live)" } else { "" },
             if rt.live() {
                 "Every edit is checked as it happens, and each turn at its end."
@@ -36,7 +36,7 @@ pub(super) fn command(rt: &Runtime, command: &str) -> Result<String> {
                 "Changes are checked at the end of each turn."
             },
             if was_live && !rt.live() {
-                " Live review is now off; intent-check live turns it back on."
+                " Reviews after edits are now off; intent-prover live turns them back on."
             } else {
                 ""
             }
@@ -50,7 +50,7 @@ pub(super) fn command(rt: &Runtime, command: &str) -> Result<String> {
             ));
         }
         if rt.key()?.is_none() {
-            text.push_str("\nIntent Check is not connected. Run intent-check login. Nothing is checked until setup is complete.");
+            text.push_str("\nIntent Prover is not connected. Run intent-prover login. Nothing is checked until setup is complete.");
         }
         return Ok(text);
     }
@@ -68,7 +68,7 @@ pub(super) fn command(rt: &Runtime, command: &str) -> Result<String> {
         } else if reply.status == 401 {
             account = "the service did not accept the key";
             if env::var("INTENT_API_KEY").is_ok() {
-                tasks.push("The key in INTENT_API_KEY is not accepted. Set a valid one, or unset it and run intent-check login.".into());
+                tasks.push("The key in INTENT_API_KEY is not accepted. Set a valid one, or unset it and run intent-prover login.".into());
             } else {
                 crate::auth::clear_key(
                     &rt.config.server_url,
@@ -78,7 +78,7 @@ pub(super) fn command(rt: &Runtime, command: &str) -> Result<String> {
             }
         } else {
             account = "could not reach the service";
-            tasks.push(format!("The service at {} could not be reached. Check your network and run intent-check doctor again.",rt.config.server_url));
+            tasks.push(format!("The service at {} could not be reached. Check your network and run intent-prover doctor again.",rt.config.server_url));
         }
     }
     if let Err(error) = &key {
@@ -118,7 +118,7 @@ pub(super) fn command(rt: &Runtime, command: &str) -> Result<String> {
         .unwrap_or_else(|| "none".into());
     let mut lines = vec![
         format!(
-            "Intent Check v{}: {}",
+            "Intent Prover v{}: {}",
             rt.version,
             if reason.is_some() {
                 "off"
@@ -171,13 +171,13 @@ pub(super) fn command(rt: &Runtime, command: &str) -> Result<String> {
     }
     if let Some(reason) = reason {
         tasks.push(if reason == "off" {
-            "Checks are off. Run intent-check on (or intent-check live) to turn them on.".into()
+            "Checks are off. Run intent-prover on (or intent-prover live) to turn them on.".into()
         } else {
             format!("{reason}=1 is set in the environment. Remove it to turn checks on.")
         });
     }
     if key.is_none() && reason.is_none() {
-        tasks.push("This machine is not connected. Run intent-check login.".into());
+        tasks.push("This machine is not connected. Run intent-prover login.".into());
     }
     if global["last_check"].is_null() {
         lines.push(

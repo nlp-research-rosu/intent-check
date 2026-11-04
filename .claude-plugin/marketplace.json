@@ -2,7 +2,7 @@
   "name": "intentcomputing",
   "owner": { "name": "Intent Computing" },
   "metadata": {
-    "description": "Intent Check: background intent review for coding agents"
+    "description": "Intent Prover: Formalize, Review, Scan and Prove for coding agents"
   },
   "plugins": [
     {

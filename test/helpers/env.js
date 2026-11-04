@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-export const BIN = path.join(ROOT, "cli", "target", "debug", process.platform === "win32" ? "intent-check.exe" : "intent-check");
+export const BIN = path.join(ROOT, "cli", "target", "debug", process.platform === "win32" ? "intent-prover.exe" : "intent-prover");
 export const FIXTURES = path.join(ROOT, "test", "fixtures", "claude");
 
 // Resolve result assertions against the latest logged review of this source.
@@ -70,7 +70,7 @@ export function baseEnv(dataDir, apiUrl, extra = {}) {
 export function runHook(event, payload, env, { timeoutMs = 60000, onSpawn, host = "claude-code", args: extraArgs = [] } = {}) {
   return new Promise((resolve) => {
     const t0 = Date.now();
-    const args = ["on", "off", "live", "doctor", "review", "deepscan"].includes(event)
+    const args = ["on", "off", "live", "doctor", "review", "scan"].includes(event)
       ? [event, ...extraArgs]
       : ["__hook", "--host", host, event];
     const child = spawn(BIN, args, { env, cwd: payload && payload.cwd && fs.existsSync(payload.cwd) ? payload.cwd : ROOT });
@@ -121,7 +121,7 @@ export async function waitFor(fn, { timeoutMs = 15000, stepMs = 100 } = {}) {
 // Saves the key for one service URL (config.json keys[url]).
 // The credentials file lives under XDG_CONFIG_HOME; each test gets its own next to its data dir.
 export const xdgDir = (dataDir) => path.join(dataDir, "xdg");
-export const credentialsPath = (dataDir) => path.join(xdgDir(dataDir), "intent-check", "credentials.json");
+export const credentialsPath = (dataDir) => path.join(xdgDir(dataDir), "intent-prover", "credentials.json");
 
 export function saveKey(dataDir, key, url) {
   const file = credentialsPath(dataDir);
