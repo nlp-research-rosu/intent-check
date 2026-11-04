@@ -18,6 +18,15 @@ stdout. This skill provides the tools to read that residual and extend
 
 Use `writing-spec` before this skill if `spec.k` is not yet written.
 
+Inspect an associated local record with `intent-check requirements show <id>`;
+use that returned six-character ID with `--requirement <id>` on the proof command. The CLI
+binds the exact record hash as a local association, not uploaded requirement
+context or a proof of the record. If its statement or targets need correction,
+follow the actual input/add/update commands in
+[local requirements](../proof-help/SKILL.md#local-requirements): update retains the
+ID and derives/relocates storage from targets. Never add evidence/status fields
+to requirements, and do not infer certification from aggregate `proved` or trusted claims.
+
 For EVM targets, read [EVM specification patterns](../shared/evm-spec-patterns.md)
 before drafting or repairing the claims.
 
@@ -158,7 +167,7 @@ For server timeouts, HTTP request limits, and cancellation, follow
 [proof-help](../proof-help/SKILL.md#task-timeouts).
 
 `intent-check prove` polls the Intent Check service automatically and updates
-`proof-NNN/result.json`. Keep the command running and read `metrics`
+`.intent/logs/<run-id>/result.json`. Keep the command running and read `metrics`
 in that file to check progress when metrics are available. They may stay
 unchanged while the backend is still working.
 
@@ -173,8 +182,8 @@ recover:
 
 - Consider focused claims before the unfiltered run, so one stuck task costs
   one server execution limit, not the session.
-- On every `proved`, copy the exact submitted `spec.k` and `verification.k`
-  aside as the proved snapshot, in `.intent/prove/<target>/` at the repository
+- On every `proved`, retain the CLI's exact frozen `spec.k` and `verification.k`
+  snapshot in `.intent/logs/<run-id>/inputs/` at the repository
   root (the session's `projectRoot`). Deliver files byte-identical to the latest
   snapshot. Make no edit after the last proved check; if an edit cannot be
   proved again before the deadline, restore the snapshot.

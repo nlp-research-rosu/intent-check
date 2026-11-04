@@ -5,9 +5,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { symlink, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT, xdgDir } from "./helpers/env.js";
+import { reviewPath, symlink, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, BIN, ROOT, xdgDir } from "./helpers/env.js";
 import { validateDef } from "./helpers/schema.js";
 import { writeUnit } from "../lib/intentdir.js";
+import { runDir } from "../lib/store.js";
 
 let fp;
 before(async () => { fp = createFakeProver(); await fp.listen(); });
@@ -60,7 +61,7 @@ test("intent deepscan <files> queues validated repo-relative paths, offline, and
   assert.deepEqual([item.mode, item.paths], ["request", ["src/auth/login.py"]]);
   assert.equal(fp.state.requests.length, n, "the CLI never calls the service");
   // .queue is ignored by git.
-  assert.equal(fs.readFileSync(path.join(repo, ".intent", ".gitignore"), "utf8"), ".sent.log\n.queue\n");
+  assert.equal(fs.readFileSync(path.join(repo, ".intent", ".gitignore"), "utf8"), ".sent.log\n.queue\n.storage.lock\n");
   // A depth word is not a file, and says so; a flag is refused.
   const deep = await cli(["src/auth/login.py", "full"], repo, data);
   assert.match(deep.out, /queued a review of 1 file.*The depth only applies to a whole-repo or folder scan\./);
@@ -110,23 +111,24 @@ test("a symlinked queue folder or queue file is refused", async () => {
   assert.deepEqual(fs.readdirSync(outside), []);
 });
 
-test("renames move unit folders and deletions remove them; foreign files are left alone", async () => {
+test("renames and deletions retain original-path history and foreign files", async () => {
   const ctx = setup();
   for (const f of ["old.py", "gone.py", "keep.py"]) fs.writeFileSync(path.join(ctx.repo, f), `V = "${f}"\n`);
   ctx.git("add", "-A"); ctx.git("commit", "-qm", "files");
   for (const f of ["old.py", "gone.py", "keep.py"]) writeUnit(ctx.repo, { ...example.result.units[0], path: f }, { job_id: "j", url: "u" }, example.result);
-  fs.writeFileSync(path.join(ctx.repo, ".intent", "keep.py", "NOTES.txt"), "mine\n");
+  fs.writeFileSync(path.join(runDir(ctx.repo, "j"), "artifacts/keep.py/NOTES.txt"), "mine\n");
   ctx.git("add", "-A"); ctx.git("commit", "-qm", "intent");
   await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
   ctx.git("mv", "old.py", "new.py");
   fs.unlinkSync(path.join(ctx.repo, "gone.py"));
   fs.unlinkSync(path.join(ctx.repo, "keep.py"));
   await runHook("stop", fixture("stop", ctx.repo), ctx.env);
-  const d = path.join(ctx.repo, ".intent");
-  assert.ok(fs.existsSync(path.join(d, "new.py", "SPEC.k")));
-  assert.equal(fs.existsSync(path.join(d, "old.py")), false);
-  assert.equal(fs.existsSync(path.join(d, "gone.py")), false);
-  assert.ok(fs.existsSync(path.join(d, "keep.py", "NOTES.txt")), "a folder with foreign files is not touched");
+  const d = runDir(ctx.repo, "j");
+  assert.ok(fs.existsSync(path.join(d, "artifacts/old.py/SPEC.k")));
+  assert.ok(fs.existsSync(path.join(d, "artifacts/gone.py/SPEC.k")));
+  assert.ok(fs.existsSync(path.join(d, "artifacts/keep.py/SPEC.k")));
+  assert.equal(fs.existsSync(path.join(d, "artifacts/new.py")), false, "historical evidence is not rebound to a new source path");
+  assert.ok(fs.existsSync(path.join(d, "artifacts/keep.py/NOTES.txt")), "foreign files are not touched");
 });
 
 test("intent deepscan <files> inside a worktree-isolated subagent is queued in the main repo and reviewed under the repo path", async () => {
@@ -150,7 +152,7 @@ test("intent deepscan <files> inside a worktree-isolated subagent is queued in t
   assert.equal(req.mode, "request");
   assert.equal(req.units[0].path, "pricing.py");
   assert.match(req.units[0].content, /apply_discount/); // the worktree's copy, not the main tree's
-  assert.ok(fs.existsSync(path.join(ctx.repo, ".intent", "pricing.py", "meta.json")));
+  assert.ok(fs.existsSync(reviewPath(ctx.repo, "pricing.py", "meta.json")));
   assert.ok(!fs.existsSync(path.join(ctx.repo, ".intent", ".claude")));
 });
 

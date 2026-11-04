@@ -16,15 +16,59 @@ what is proved, what depends on assumptions, and what remains unresolved.
 
 ## Where files go
 
-Everything you write for a proof lives in `.intent/prove/<target>/` at the
-repository root, one folder per program or function being proved. The CLI
-detects that root automatically: use the returned `projectRoot`, not the shell's
-working directory, to resolve these paths. Outside a repository, use the
-session's project directory. Pick a short kebab-case name, for example
-`.intent/prove/should-strip-auth/`. Put `spec.k`, `verification.k`, `SCOPE.md`,
-`prove.sh`, `PROOF.md`, the program copy and any differential test there. These
-files are meant to be committed; the CLI's session state in
-`.intent/prove/sessions/` is not.
+Prepare inputs in the session's returned `workspaceDir/inputs/` (ignored authoring scratch).
+Each prove submission freezes its exact uploaded inputs in the repository-root
+`.intent/logs/<run-id>/inputs/`. Use the returned `proofDir` (the operation's
+`artifacts/`) for `SCOPE.md`, `prove.sh` and `PROOF.md`. Canonical request/result/log/metrics
+evidence lives in the returned `evidenceDir`, under `.intent/logs/<run-id>/`.
+Current formal files live under per-source `specs/<spec-id>/`, selected by `index.json`.
+Use `--spec-id <id>` to update or intentionally share an existing bundle;
+omit it to create an independent bundle, even when filenames match.
+Use `--target <source-path>[::symbol]` for declared source coverage and
+`--requirement <id>` for an existing CLI-assigned structured requirement when applicable.
+These associations are declarations, not automatic proof of those requirements.
+Uploaded dependencies and trusted claims are not additional verified targets.
+The CLI detects `projectRoot` automatically. Scratch `.intent/prove/sessions/`
+and machine session bookkeeping are not durable proof evidence.
+
+### Bind local requirements
+
+For a new structured requirement, save this transport input outside `.intent/`
+as `requirement-input.json`:
+
+```json
+{
+  "statement": "Reject negative input prices.",
+  "targets": [{"path": "src/pricing.py", "symbol": "calculate_total"}],
+  "reason": "Negative prices are invalid."
+}
+```
+
+```sh
+intent-check requirements add --input requirement-input.json
+intent-check requirements show <id>
+# If the statement or targets change, edit the input and retain the ID:
+intent-check requirements update <id> --input requirement-input.json
+```
+
+The CLI assigns six-character lowercase letter/digit IDs and derives placement: one exact source file (even multiple
+methods) uses `.intent/source/<source-path>/requirements.json`; multiple source
+files use `.intent/source/requirements.json`. Update relocates the same ID without a
+duplicate. Add/update have no `--file` flag and `--input` is not a store destination.
+Documents contain only `schema_version: 1` and `requirements`; records contain
+`id`, `statement`, nonempty `targets`, and optional `reason`. Target `path` is
+required; optional `symbol` is a function/method qualified name, not a variable.
+No kind, provenance, assumptions or references fields are accepted.
+The project-wide editable brief starts with `# Project requirements` and five
+empty sections: Purpose, Expected behavior, Constraints, Out of scope and
+Open questions. It is not synchronized with JSON. See
+[local requirements](../proof-help/SKILL.md#local-requirements) for management details.
+
+Use the returned ID, not an invented ID, with `--requirement`. Proof request
+manifests bind the record's exact content hash but do not upload its prose or
+certify it. Edited/deleted records are stale independently of unchanged source.
+Trusted claims remain assumptions; aggregate server results do not establish
+per-claim coverage or an independent audit.
 
 ## Start live verification
 

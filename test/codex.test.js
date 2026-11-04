@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { QUIET_GLOBAL, rewriteProjectDir, tmpdir, makeRepo, baseEnv, saveKey, waitFor, ROOT, BIN } from "./helpers/env.js";
+import { reviewPath, QUIET_GLOBAL, rewriteProjectDir, tmpdir, makeRepo, baseEnv, saveKey, waitFor, ROOT, BIN } from "./helpers/env.js";
 import { spawn } from "node:child_process";
 import { validateDef } from "./helpers/schema.js";
 import { applyPatchPaths, readTurnContext, codexModes, fixModeFor } from "../lib/codex.js";
@@ -103,7 +103,7 @@ test("Stop is sync and quick: submits a codex job, hands polling to a detached p
   assert.equal(req.permission_mode, null);
   assert.deepEqual(req.codex_modes, { approval_policy: "on-request", sandbox: "workspace-write", collaboration_mode: "default" });
   assert.deepEqual(req.units.map((u) => u.path), ["pricing.py"]);
-  assert.ok(await waitFor(() => fs.existsSync(path.join(ctx.repo, ".intent", "pricing.py", "VERDICT.md"))));
+  assert.ok(await waitFor(() => fs.existsSync(reviewPath(ctx.repo, "pricing.py", "VERDICT.md"))));
   // Concerns reach the agent with the next prompt, as additionalContext only.
   await waitFor(() => JSON.parse(fs.readFileSync(path.join(ctx.data, "sessions", fs.readdirSync(path.join(ctx.data, "sessions")).find((f) => f.endsWith(".json"))), "utf8")).notes.length > 0);
   const next = await run("prompt", cfx("prompt", ctx.repo, ctx.transcript, { prompt: "next" }), ctx.env);
@@ -126,7 +126,7 @@ test("no concerns stay silent on Codex", async () => {
   fp.state.scenario = "no_concerns";
   const ctx = setup();
   await turn(ctx, { "pricing.py": PRICING });
-  assert.ok(await waitFor(() => fs.existsSync(path.join(ctx.repo, ".intent", "pricing.py", "meta.json"))));
+  assert.ok(await waitFor(() => fs.existsSync(reviewPath(ctx.repo, "pricing.py", "meta.json"))));
   await new Promise((r) => setTimeout(r, 300));
   const next = await run("prompt", cfx("prompt", ctx.repo, ctx.transcript, { prompt: "next" }), ctx.env);
   assert.equal(next.stdout, "");
@@ -136,7 +136,7 @@ test("finished concerns waiting at Stop are handed over with exit 2, but not at 
   fp.state.pollsBeforeDone = 1;
   const ctx = setup();
   await turn(ctx, { "pricing.py": PRICING });
-  assert.ok(await waitFor(() => fs.existsSync(path.join(ctx.repo, ".intent", "pricing.py", "VERDICT.md"))));
+  assert.ok(await waitFor(() => fs.existsSync(reviewPath(ctx.repo, "pricing.py", "VERDICT.md"))));
   await new Promise((r) => setTimeout(r, 300));
   const r = await run("stop", cfx("stop", ctx.repo, ctx.transcript), ctx.env);
   assert.equal(r.code, 2);
@@ -150,7 +150,7 @@ test("fix directly when Codex runs without approvals", async () => {
   const ctx = setup();
   ctx.transcript = rollout(tmpdir("intent-codex-home-"), { approval: "never" });
   await turn(ctx, { "pricing.py": PRICING });
-  assert.ok(await waitFor(() => fs.existsSync(path.join(ctx.repo, ".intent", "pricing.py", "VERDICT.md"))));
+  assert.ok(await waitFor(() => fs.existsSync(reviewPath(ctx.repo, "pricing.py", "VERDICT.md"))));
   await new Promise((r) => setTimeout(r, 300));
   const next = await run("prompt", cfx("prompt", ctx.repo, ctx.transcript, { prompt: "next" }), ctx.env);
   assert.match(next.json.hookSpecificOutput.additionalContext, /fix it directly, editing only pricing\.py/);
@@ -237,7 +237,7 @@ test("r2-5: every job of a Codex Stop gets its result, even when the first settl
   enqueue(ctx.repo, "request", ["q.py"]);
   await turn(ctx, { "pricing.py": PRICING });
   for (const f of ["pricing.py", "q.py"]) {
-    assert.ok(await waitFor(() => fs.existsSync(path.join(ctx.repo, ".intent", f, "meta.json")), { timeoutMs: 15000 }), f);
+    assert.ok(await waitFor(() => fs.existsSync(reviewPath(ctx.repo, f, "meta.json")), { timeoutMs: 15000 }), f);
   }
 });
 
@@ -254,5 +254,5 @@ test("r2-1: a slow submit that the server did create is replayed at the next Sto
   fp.state.submitDelayMs = 0;
   await run("stop", cfx("stop", ctx.repo, ctx.transcript), ctx.env);
   assert.equal(fp.state.jobs.size - jobsBefore, 1, "one server job for both attempts");
-  assert.ok(await waitFor(() => fs.existsSync(path.join(ctx.repo, ".intent", "q.py", "meta.json")), { timeoutMs: 15000 }));
+  assert.ok(await waitFor(() => fs.existsSync(reviewPath(ctx.repo, "q.py", "meta.json")), { timeoutMs: 15000 }));
 });

@@ -58,8 +58,10 @@ test("2. prior artifacts: symlinks and oversized files are not read, contents ar
   const root = tmpdir();
   const secretFile = path.join(tmpdir("intent-home-"), "credentials");
   fs.writeFileSync(secretFile, `aws_secret_access_key = ${SECRET}\n`);
-  const dir = path.join(root, ".intent", "app.py");
+  const dir = path.join(root, ".intent/source/app.py/specs/def456");
   fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, "../../requirements.json"), JSON.stringify({schema_version:1,requirements:[{id:'abc123',statement:'App property',targets:[{path:'app.py'}]}]}));
+  fs.writeFileSync(path.join(dir, "../../index.json"), JSON.stringify({schema_version:1,properties:{abc123:{specs:['source/app.py/specs/def456/SPEC.k','source/app.py/specs/def456/SEMANTICS.k'],last_run:null}}}));
   fs.writeFileSync(path.join(dir, "SPEC.k"), "x".repeat(70 * 1024));
   fs.writeFileSync(path.join(dir, "SEMANTICS.k"), `token = "${SECRET}"\n`);
   const p = readPrior(root, "app.py");
@@ -76,8 +78,10 @@ test("2. prior artifacts: a symlinked INTENT.md is not read", { skip: SKIP_FILE_
   const root = tmpdir();
   const secretFile = path.join(tmpdir("intent-home-"), "credentials");
   fs.writeFileSync(secretFile, `aws_secret_access_key = ${SECRET}\n`);
-  const dir = path.join(root, ".intent", "app.py");
+  const dir = path.join(root, ".intent/source/app.py/specs/def456");
   fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, "../../requirements.json"), JSON.stringify({schema_version:1,requirements:[{id:'abc123',statement:'App property',targets:[{path:'app.py'}]}]}));
+  fs.writeFileSync(path.join(dir, "../../index.json"), JSON.stringify({schema_version:1,properties:{abc123:{specs:[],last_run:null}}}));
   symlink(secretFile, path.join(dir, "INTENT.md"));
   assert.equal(readPrior(root, "app.py")?.intent_md ?? null, null);
 });

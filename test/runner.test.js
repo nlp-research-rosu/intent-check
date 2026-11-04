@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, readSessionFiles, saveKey, savedKey, waitFor, sleep, BIN, ROOT } from "./helpers/env.js";
+import { reviewPath, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, readSessionFiles, saveKey, savedKey, waitFor, sleep, BIN, ROOT } from "./helpers/env.js";
 import { validateDef } from "./helpers/schema.js";
 
 const PRICING = "# pricing.py\ndef apply_discount(price_cents: int, percent: int) -> int:\n    return price_cents - price_cents * percent // 100\n";
@@ -60,7 +60,7 @@ test("concerns: submits a contract-valid job, writes .intent/ and wakes the agen
   assert.match(post.headers["idempotency-key"], /^[0-9a-f]{64}$/);
   assert.equal(post.headers.authorization, `Bearer ${TEST_KEY}`);
 
-  const unit = path.join(ctx.repo, ".intent", "pricing.py");
+  const unit = reviewPath(ctx.repo, "pricing.py");
   for (const f of ["INTENT.md", "SPEC.k", "SEMANTICS.k", "VERDICT.md", "meta.json"]) assert.ok(fs.existsSync(path.join(unit, f)), f);
   const log = fs.readFileSync(path.join(ctx.repo, ".intent", ".sent.log"), "utf8").trim().split("\n").map(JSON.parse);
   assert.deepEqual(log[0].paths, ["pricing.py"]);
@@ -68,10 +68,10 @@ test("concerns: submits a contract-valid job, writes .intent/ and wakes the agen
   assert.deepEqual(readSessionFiles(ctx.data)[0].pending, []);
 });
 
-test("a job carries intent.notes from the repo's .intent/NOTES.md", async () => {
+test("a job carries intent.notes from the repo's .intent/REQUIREMENTS.md", async () => {
   const ctx = setup();
   fs.mkdirSync(path.join(ctx.repo, ".intent"), { recursive: true });
-  fs.writeFileSync(path.join(ctx.repo, ".intent", "NOTES.md"), "- Coupons intentionally never expire; the docstring is stale.\n");
+  fs.writeFileSync(path.join(ctx.repo, ".intent", "REQUIREMENTS.md"), "- Coupons intentionally never expire; the docstring is stale.\n");
   const n = fp.jobRequests().length;
   await turn(ctx, { "pricing.py": PRICING });
   const [req] = jobsSince(n);
@@ -205,7 +205,7 @@ test("headless (claude -p): detaches at once, never wakes, result becomes a note
   assert.ok(r.ms < 1500, `took ${r.ms} ms`);
   const note = await waitFor(() => (readSessionFiles(ctx.data)[0] || { notes: [] }).notes.length > 0);
   assert.ok(note);
-  assert.ok(fs.existsSync(path.join(ctx.repo, ".intent", "pricing.py", "VERDICT.md")));
+  assert.ok(fs.existsSync(reviewPath(ctx.repo, "pricing.py", "VERDICT.md")));
 });
 
 test("entrypoint matrix: only the SDKs/local-agent/mcp detach; everything else (including unset) wakes", async () => {
@@ -302,7 +302,7 @@ test("SIGTERM (hook timeout or quit): a detached finisher keeps polling and writ
   const r = await done;
   assert.equal(r.code, 0);
   fp.state.pollsBeforeDone = 0;
-  assert.ok(await waitFor(() => fs.existsSync(path.join(ctx.repo, ".intent", "pricing.py", "VERDICT.md")), { timeoutMs: 20000 }));
+  assert.ok(await waitFor(() => fs.existsSync(reviewPath(ctx.repo, "pricing.py", "VERDICT.md")), { timeoutMs: 20000 }));
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "back" }), ctx.env);
   assert.match(next.json.hookSpecificOutput.additionalContext, /^Intent Check: 1 concern/);
 });
@@ -320,7 +320,7 @@ test("late result: a job whose runner died is delivered at the next prompt (1 s 
   fp.state.pollsBeforeDone = 0;
   const next = await runHook("prompt", fixture("prompt", ctx.repo, { prompt: "back" }), ctx.env);
   assert.match(next.json.hookSpecificOutput.additionalContext, /^Intent Check: 1 concern/);
-  assert.ok(fs.existsSync(path.join(ctx.repo, ".intent", "pricing.py", "meta.json")));
+  assert.ok(fs.existsSync(reviewPath(ctx.repo, "pricing.py", "meta.json")));
 });
 
 test("stale result: a file edited after submission gets the 'checked the version from' label", async () => {
@@ -455,7 +455,7 @@ test("a worktree-isolated subagent's edit is reviewed under its repo path, not .
   const [req] = jobsSince(n);
   assert.deepEqual(req.units.map((u) => u.path), ["pricing.py"]);
   assert.match(req.units[0].diff, /\n--- a\/pricing\.py\n\+\+\+ b\/pricing\.py\n/);
-  assert.ok(fs.existsSync(path.join(ctx.repo, ".intent", "pricing.py", "VERDICT.md")));
+  assert.ok(fs.existsSync(reviewPath(ctx.repo, "pricing.py", "VERDICT.md")));
   assert.ok(!fs.existsSync(path.join(ctx.repo, ".intent", ".claude")));
   assert.doesNotMatch(r.stderr, /has changed since/); // stale check reads the worktree copy
 });

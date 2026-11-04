@@ -1,5 +1,5 @@
 use crate::{CommandResult, ProofArgs, ProveArgs, RunArgs, TaskCommand, api::Api, config, session};
-use anyhow::{Context, bail, ensure};
+use anyhow::{bail, ensure};
 use serde_json::{Value, json};
 
 pub fn run_program(args: RunArgs) -> CommandResult {
@@ -16,11 +16,10 @@ pub fn run_program(args: RunArgs) -> CommandResult {
     if proof_session.runs_used >= config.max_run_attempts {
         return exhausted("run", proof_session.runs_used, config.max_run_attempts);
     }
+    let evidence = crate::api::record_request(&upload, &proof_session, "run")?;
     let response = api.submit_run(&upload)?;
     proof_session.runs_used += 1;
     session::save(&proof_session)?;
-    let evidence =
-        session::workspace(&proof_session).join(format!("run-{:03}", proof_session.runs_used));
     crate::api::record_submission(&response, &evidence)?;
     drop(lock);
     let task = api.complete(
@@ -60,10 +59,10 @@ pub fn validate(args: ProofArgs) -> CommandResult {
             config.max_validation_attempts,
         );
     }
+    let evidence = crate::api::record_request(&upload, &proof_session, "validate")?;
     let response = api.submit_validation(&upload)?;
     proof_session.validations_used += 1;
     session::save(&proof_session)?;
-    let evidence = root.join(format!("validation-{:03}", proof_session.validations_used));
     crate::api::record_submission(&response, &evidence)?;
     drop(lock);
     let task = api.complete(
@@ -106,10 +105,10 @@ pub fn prove(args: ProveArgs) -> CommandResult {
             config.max_proof_attempts,
         );
     }
+    let evidence = crate::api::record_request(&upload, &proof_session, "prove")?;
     let response = api.submit_proof(&upload)?;
     proof_session.attempts_used += 1;
     session::save(&proof_session)?;
-    let evidence = root.join(format!("proof-{:03}", proof_session.attempts_used));
     crate::api::record_submission(&response, &evidence)?;
     drop(lock);
     let task = api.complete(
@@ -146,36 +145,48 @@ pub fn task(command: TaskCommand) -> CommandResult {
             session: session_id,
         } => {
             let proof_session = session::load(session_id)?;
-            let root = session::workspace(&proof_session);
+            let root = proof_session.project_root.join(".intent/logs");
+            crate::storage::intent(&proof_session.project_root, false)?;
+            crate::storage::safe_parent(&proof_session.project_root, &root)?;
             let id = id.to_string();
             for entry in std::fs::read_dir(&root)? {
                 let entry = entry?;
                 if !entry.file_type()?.is_dir() {
                     continue;
                 }
-                let name = entry.file_name();
-                let name = name.to_string_lossy();
-                let Some((phase, number)) = name.split_once('-') else {
-                    continue;
-                };
-                if number.parse::<u32>().is_err() {
+                let request_path = entry.path().join("request.json");
+                let result_path = entry.path().join("result.json");
+                if crate::storage::safe_parent(&proof_session.project_root, &request_path).is_err()
+                    || crate::storage::safe_parent(&proof_session.project_root, &result_path)
+                        .is_err()
+                {
                     continue;
                 }
-                let (used, limit) = match phase {
-                    "proof" => (proof_session.attempts_used, config.max_proof_attempts),
-                    "validation" => (
+                let Some(manifest) = std::fs::read(&request_path)
+                    .ok()
+                    .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+                else {
+                    continue;
+                };
+                if manifest["session_id"] != proof_session.session_id.to_string() {
+                    continue;
+                }
+                let (used, limit) = match manifest["operation"].as_str() {
+                    Some("prove") => (proof_session.attempts_used, config.max_proof_attempts),
+                    Some("validate") => (
                         proof_session.validations_used,
                         config.max_validation_attempts,
                     ),
-                    "run" => (proof_session.runs_used, config.max_run_attempts),
+                    Some("run") => (proof_session.runs_used, config.max_run_attempts),
                     _ => continue,
                 };
                 let evidence = entry.path();
-                let snapshot: Value = serde_json::from_slice(
-                    &std::fs::read(evidence.join("result.json")).with_context(|| {
-                        format!("Cannot read evidence in {}", evidence.display())
-                    })?,
-                )?;
+                let Some(snapshot) = std::fs::read(&result_path)
+                    .ok()
+                    .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+                else {
+                    continue;
+                };
                 let accepted = &snapshot["task"];
                 if accepted["id"] != id {
                     continue;
@@ -221,6 +232,12 @@ fn finish(
         && task["error"].is_null();
     let mut response = json!({"task": task, "sessionId": proof_session.session_id,
         "budget": budget, "evidenceDir": evidence});
+    let manifest: Value = serde_json::from_slice(&std::fs::read(evidence.join("request.json"))?)?;
+    if manifest["operation"] == "prove" {
+        let artifacts = evidence.join("artifacts");
+        std::fs::create_dir_all(&artifacts)?;
+        response["proofDir"] = json!(artifacts);
+    }
     if exit.is_none() {
         response["exitCode"] = Value::Null;
         if !completed_without_run {

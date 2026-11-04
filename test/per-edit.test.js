@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
+import { runDir } from "../lib/store.js";
 import { fixture, tmpdir, makeRepo, baseEnv, runHook, readSessionFiles, saveKey, waitFor, sleep, ROOT, xdgDir, savedKey } from "./helpers/env.js";
 
 const V1 = "def apply_discount(price_cents, percent):\n    return price_cents - price_cents * percent // 100\n\ndef total(items):\n    return sum(items)\n";
@@ -197,8 +198,11 @@ test("writeUnit: an older job finishing late does not overwrite a unit from newe
   const unit = (v) => ({ path: "a.py", checked_sha256: "a".repeat(64), verdict: "no_concerns", artifacts: { "INTENT.md": v } });
   const res = { checked_at: "2026-01-01T00:00:00Z" };
   assert.equal(writeUnit(root, unit("new"), { job_id: "N", url: "http://x/n", submitted_at: 2000 }, res), true);
-  assert.equal(writeUnit(root, unit("old"), { job_id: "O", url: "http://x/o", submitted_at: 1000 }, res), false);
-  assert.equal(fs.readFileSync(path.join(root, ".intent", "a.py", "INTENT.md"), "utf8"), "new");
+  assert.equal(writeUnit(root, unit("old"), { job_id: "O", url: "http://x/o", submitted_at: 1000 }, res), true);
+  assert.equal(fs.readFileSync(path.join(runDir(root, "N"), "artifacts/a.py/INTENT.md"), "utf8"), "new");
+  assert.equal(fs.readFileSync(path.join(runDir(root, "O"), "artifacts/a.py/INTENT.md"), "utf8"), "old");
+  const { readPrior } = await import('../lib/payload.js');
+  assert.equal(readPrior(root,'a.py'), null);
   assert.equal(writeUnit(root, unit("legacy"), { job_id: "L", url: "http://x/l" }, res), true);
 });
 

@@ -38,7 +38,9 @@ test("keys are per service: a key saved for another URL is not used", async () =
   const ctx = setup();
   saveKey(ctx.data, TEST_KEY, "http://127.0.0.1:1");
   const r = await start(ctx);
-  assert.match(r.json.systemMessage, /onboarding/);
+  assert.ok(r.json.systemMessage.startsWith(`Intent Check: connect your account → ${fp.url}/connect/`));
+  assert.match(r.json.systemMessage, /\/connect\/[A-Z]{4}-[A-Z]{4}\nOpen the link and approve;/);
+  assert.equal(r.json.systemMessage.includes(TEST_KEY), false);
   assert.equal(fs.existsSync(path.join(ctx.data, "connect.json")), false);
   assert.match((await slash("doctor", ctx)).stdout, /Key source: none/);
 });

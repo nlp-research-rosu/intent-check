@@ -21,6 +21,7 @@ For nested commands, use help such as `intent-check session start --help`.
 | Command | When it helps |
 |---|---|
 | `intent-check config` | Inspect the endpoint and effective resource limits |
+| `intent-check requirements list / show / add / update / remove / context` | Manage validated local requirements without service calls |
 | `intent-check health` | Check whether live verification is available |
 | `intent-check semantics` | List server-supported language revisions |
 | `intent-check semantics fetch` | Download shared semantics sources for inspection |
@@ -52,11 +53,68 @@ value to the user without evidence. Changes apply to all sessions using that
 configuration; each session tracks its own attempt counts.
 
 Session counters and downloaded semantics are stored beside the configuration.
-Session state (working files and results) lives under the project's
+Session authoring scratch lives under the project's
 `.intent/prove/sessions/<id>/` at the automatically detected repository root;
 it is not meant to be committed. Outside a repository, use the session's
 project directory.
+Canonical manifests and results live in `.intent/logs/<run-id>/`.
+Frozen submitted inputs live in that operation's `inputs/`; use the returned
+`proofDir` (`logs/<run-id>/artifacts/`) for `SCOPE.md`, `PROOF.md` and `prove.sh`.
+`--target path[::symbol]` declares source scope; supporting inputs are not targets,
+trusted claims are assumptions, and `--requirement <id>` is a declared association,
+not evidence that a requirement was proved. Use existing CLI-generated six-character IDs;
+their exact record hashes bind the declared association independently of source freshness.
 `intent-check session show <ID>` reports a session's paths and counters.
+
+## Local requirements
+
+The matching CLI owns managed JSON. Save this transport payload outside `.intent/`
+as `requirement-input.json`:
+
+```json
+{
+  "statement": "Reject negative input prices.",
+  "targets": [{"path": "src/pricing.py", "symbol": "calculate_total"}],
+  "reason": "Negative prices are invalid."
+}
+```
+
+```sh
+intent-check requirements add --input requirement-input.json
+intent-check requirements show <id>
+# Edit the input as needed, then retain the assigned ID:
+intent-check requirements update <id> --input requirement-input.json
+```
+
+An add stores a generated six-character lowercase letter/digit ID under
+`.intent/source/src/pricing.py/requirements.json`. IDs are stable on update.
+All targets in one exact source file use
+that file's managed folder, even for multiple methods; targets in multiple files
+use `.intent/source/requirements.json`. Update relocates the record when necessary
+without duplication. `--input` is transport, not a destination; add/update have
+no `--file` flag.
+
+Stored documents contain only `schema_version: 1` and `requirements`. Stored
+records require `id`, `statement`, and nonempty `targets`, with optional `reason`.
+Targets require exact repository-relative `path` and may include a function/method
+qualified name `symbol`; omit it for a whole file. No variable targets or symbol
+analysis, no `kind`/provenance/assumptions/references fields, and no writable proof
+status. Input omits `id`. Use `list`/`show` to inspect and `remove <id>` to remove;
+do not write canonical JSON or create a competing `properties.json` store.
+
+The one directly editable `.intent/REQUIREMENTS.md` starts with
+`# Project requirements` and empty Purpose, Expected behavior, Constraints,
+Out of scope and Open questions sections. No invented prose, per-file Markdown
+or JSON synchronization. Read `.intent` directly with normal file tools.
+Per-source indexes select current specification paths and last_run for each property;
+cross-file requirements have one owning per-file index, not a global index/spec folder.
+Internal hook/worker entry points are reserved for the host, not agent CLI usage.
+Formal files use independent `specs/<spec-id>/` bundles. Use proof `--spec-id <id>`
+to update or intentionally share an existing bundle; omit it for a new bundle.
+`--requirement <id>` on a proof records only a versioned
+local association, not uploaded context or per-requirement certification. Requirement
+and source/input freshness are separate; aggregate `proved`, trusted claims and
+tool exits do not establish per-claim coverage or an audit.
 
 ## Attempt limits
 

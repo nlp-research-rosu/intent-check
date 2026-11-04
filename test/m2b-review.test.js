@@ -5,8 +5,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
-import { symlink, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, readSessionFiles, waitFor, BIN, ROOT, xdgDir } from "./helpers/env.js";
-import { writeUnit, syncUnits } from "../lib/intentdir.js";
+import { reviewPath, symlink, QUIET_GLOBAL, fixture, tmpdir, makeRepo, baseEnv, runHook, saveKey, readSessionFiles, waitFor, BIN, ROOT, xdgDir } from "./helpers/env.js";
+import { writeUnit } from "../lib/intentdir.js";
+import { runDir } from "../lib/store.js";
 import { redact } from "../lib/redact.js";
 import { sanitize } from "../lib/render.js";
 import { dataDirFromRoot } from "../lib/config.js";
@@ -41,27 +42,34 @@ const queueFiles = (repo) => {
   try { return fs.readdirSync(path.join(repo, ".intent", ".queue")); } catch { return []; }
 };
 
-test("1. syncUnits refuses a symlinked .intent/", () => {
+test("1. evidence writes refuse a symlinked .intent/ without moving or removing history", () => {
   const { repo } = setup();
   const outside = tmpdir("intent-outside-");
   fs.mkdirSync(path.join(outside, "gone.py"), { recursive: true });
   fs.writeFileSync(path.join(outside, "gone.py", "VERDICT.md"), "x");
   symlink(outside, path.join(repo, ".intent"));
-  assert.equal(syncUnits(repo, { deleted: ["gone.py"], renamed: [{ from: "gone.py", to: "new.py" }] }), 0);
+  assert.throws(() => unit(repo, "new.py"), /symlink/);
   assert.ok(fs.existsSync(path.join(outside, "gone.py", "VERDICT.md")));
   assert.equal(fs.existsSync(path.join(outside, "new.py")), false);
 });
 
-test("2. unit folders stay when git says deleted but the file exists (rm --cached, conflicts, recreated)", () => {
-  const { repo } = setup();
+test("2. history stays when git reports deletion or rename but the old file exists again", async () => {
+  const ctx = setup();
+  const { repo } = ctx;
   for (const f of ["kept.py", "back.py"]) {
     fs.writeFileSync(path.join(repo, f), "X = 1\n");
     unit(repo, f);
   }
-  syncUnits(repo, { deleted: ["kept.py"], renamed: [{ from: "back.py", to: "moved.py" }] });
-  assert.ok(fs.existsSync(path.join(repo, ".intent", "kept.py", "SPEC.k")));
-  assert.ok(fs.existsSync(path.join(repo, ".intent", "back.py", "SPEC.k")));
-  assert.equal(fs.existsSync(path.join(repo, ".intent", "moved.py")), false);
+  ctx.git("add", "kept.py", "back.py");
+  ctx.git("commit", "-qm", "source files");
+  await runHook("prompt", fixture("prompt", repo), ctx.env);
+  ctx.git("rm", "--cached", "kept.py");
+  ctx.git("mv", "back.py", "moved.py");
+  fs.writeFileSync(path.join(repo, "back.py"), "X = 1\n");
+  await runHook("stop", fixture("stop", repo), ctx.env);
+  assert.ok(fs.existsSync(path.join(runDir(repo, "j"), "artifacts/kept.py/SPEC.k")));
+  assert.ok(fs.existsSync(path.join(runDir(repo, "j"), "artifacts/back.py/SPEC.k")));
+  assert.equal(fs.existsSync(path.join(runDir(repo, "j"), "artifacts/moved.py")), false);
 });
 
 test("3. queued reviews survive a transient submit failure and go out at the next Stop", async () => {
@@ -130,7 +138,7 @@ test("6. after a wake, other running jobs are finished by a detached finisher", 
   const r = await runHook("stop", fixture("stop", ctx.repo), ctx.env);
   assert.equal(r.code, 2);
   // The second job's result arrives anyway: written to .intent/ and left as a note.
-  assert.ok(await waitFor(() => fs.existsSync(path.join(ctx.repo, ".intent", "queued.py", "VERDICT.md")), { timeoutMs: 15000 }));
+  assert.ok(await waitFor(() => fs.existsSync(reviewPath(ctx.repo, "queued.py", "VERDICT.md")), { timeoutMs: 15000 }));
   assert.ok(await waitFor(() => (readSessionFiles(ctx.data)[0] || { notes: [] }).notes.length > 0, { timeoutMs: 15000 }));
 });
 
