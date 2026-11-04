@@ -60,7 +60,7 @@ test("intent deepscan <files> queues validated repo-relative paths, offline, and
   assert.deepEqual([item.mode, item.paths], ["request", ["src/auth/login.py"]]);
   assert.equal(fp.state.requests.length, n, "the CLI never calls the service");
   // .queue is ignored by git.
-  assert.equal(fs.readFileSync(path.join(repo, ".intent", ".gitignore"), "utf8"), ".sent.log\n.queue\n");
+  assert.equal(fs.readFileSync(path.join(repo, ".intent", ".gitignore"), "utf8"), ".sent.log\n.queue\n.storage.lock\n");
   // A depth word is not a file, and says so; a flag is refused.
   const deep = await cli(["src/auth/login.py", "full"], repo, data);
   assert.match(deep.out, /queued a review of 1 file.*The depth only applies to a whole-repo or folder scan\./);
@@ -115,7 +115,7 @@ test("renames and deletions retain original-path history and foreign files", asy
   for (const f of ["old.py", "gone.py", "keep.py"]) fs.writeFileSync(path.join(ctx.repo, f), `V = "${f}"\n`);
   ctx.git("add", "-A"); ctx.git("commit", "-qm", "files");
   for (const f of ["old.py", "gone.py", "keep.py"]) writeUnit(ctx.repo, { ...example.result.units[0], path: f }, { job_id: "j", url: "u" }, example.result);
-  fs.writeFileSync(path.join(ctx.repo, ".intent/files/keep.py/NOTES.txt"), "mine\n");
+  fs.writeFileSync(path.join(ctx.repo, ".intent/logs/j/artifacts/keep.py/NOTES.txt"), "mine\n");
   ctx.git("add", "-A"); ctx.git("commit", "-qm", "intent");
   await runHook("prompt", fixture("prompt", ctx.repo), ctx.env);
   ctx.git("mv", "old.py", "new.py");
@@ -123,11 +123,11 @@ test("renames and deletions retain original-path history and foreign files", asy
   fs.unlinkSync(path.join(ctx.repo, "keep.py"));
   await runHook("stop", fixture("stop", ctx.repo), ctx.env);
   const d = path.join(ctx.repo, ".intent");
-  assert.ok(fs.existsSync(path.join(d, "files/old.py/checks/j/SPEC.k")));
-  assert.ok(fs.existsSync(path.join(d, "files/gone.py/checks/j/SPEC.k")));
-  assert.ok(fs.existsSync(path.join(d, "files/keep.py/checks/j/SPEC.k")));
-  assert.equal(fs.existsSync(path.join(d, "files/new.py/checks/j")), false, "historical evidence is not rebound to a new source path");
-  assert.ok(fs.existsSync(path.join(d, "files/keep.py/NOTES.txt")), "foreign files are not touched");
+  assert.ok(fs.existsSync(path.join(d, "logs/j/artifacts/old.py/SPEC.k")));
+  assert.ok(fs.existsSync(path.join(d, "logs/j/artifacts/gone.py/SPEC.k")));
+  assert.ok(fs.existsSync(path.join(d, "logs/j/artifacts/keep.py/SPEC.k")));
+  assert.equal(fs.existsSync(path.join(d, "logs/j/artifacts/new.py")), false, "historical evidence is not rebound to a new source path");
+  assert.ok(fs.existsSync(path.join(d, "logs/j/artifacts/keep.py/NOTES.txt")), "foreign files are not touched");
 });
 
 test("intent deepscan <files> inside a worktree-isolated subagent is queued in the main repo and reviewed under the repo path", async () => {

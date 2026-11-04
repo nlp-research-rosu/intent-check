@@ -191,7 +191,7 @@ class CancellationTests(unittest.TestCase):
                             proc.communicate()
                 self.assertLess(time.monotonic() - started, 9)
                 result = json.loads(stdout)
-                evidence = next((root / ".intent/runs").glob("*/result.json")).parent
+                evidence = next((root / ".intent/logs").glob("*/result.json")).parent
                 snapshot = json.loads((evidence / "result.json").read_text())
                 task = snapshot["task"]
                 wait = snapshot["wait"]

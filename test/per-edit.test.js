@@ -198,10 +198,10 @@ test("writeUnit: an older job finishing late does not overwrite a unit from newe
   const res = { checked_at: "2026-01-01T00:00:00Z" };
   assert.equal(writeUnit(root, unit("new"), { job_id: "N", url: "http://x/n", submitted_at: 2000 }, res), true);
   assert.equal(writeUnit(root, unit("old"), { job_id: "O", url: "http://x/o", submitted_at: 1000 }, res), true);
-  assert.equal(fs.readFileSync(path.join(root, ".intent/files/a.py/checks/N/INTENT.md"), "utf8"), "new");
-  assert.equal(fs.readFileSync(path.join(root, ".intent/files/a.py/checks/O/INTENT.md"), "utf8"), "old");
+  assert.equal(fs.readFileSync(path.join(root, ".intent/logs/N/artifacts/a.py/INTENT.md"), "utf8"), "new");
+  assert.equal(fs.readFileSync(path.join(root, ".intent/logs/O/artifacts/a.py/INTENT.md"), "utf8"), "old");
   const { readPrior } = await import('../lib/payload.js');
-  assert.equal(readPrior(root,'a.py').intent_md, 'new');
+  assert.equal(readPrior(root,'a.py'), null);
   assert.equal(writeUnit(root, unit("legacy"), { job_id: "L", url: "http://x/l" }, res), true);
 });
 

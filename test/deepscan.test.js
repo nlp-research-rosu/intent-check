@@ -196,7 +196,7 @@ test("snapshot: name rules and text decoding", () => {
   assert.equal(pathReason("a/vendor/x.go"), "vendored");
   assert.equal(pathReason("yarn.lock"), "lockfile");
   assert.equal(pathReason("src/a.py"), null);
-  for (const p of [".intent/files/x.py/checks/j/SPEC.k", ".intent/README.md", ".intent/.sent.log", ".intent/REQUIREMENTS.md"]) assert.equal(isIntentOutput(p), true, p);
+  for (const p of [".intent/source/x.py/specs/SPEC.k", ".intent/logs/j/artifacts/x.py/SPEC.k", ".intent/README.md", ".intent/.sent.log", ".intent/REQUIREMENTS.md"]) assert.equal(isIntentOutput(p), true, p);
   for (const p of ["src/.intentional.py", "docs/intent/README.md", ".intentx/a.py"]) assert.equal(isIntentOutput(p), false, p);
   assert.equal(decodeText(Buffer.from("héllo")), "héllo");
   assert.equal(decodeText(Buffer.from([0x61, 0, 0x62])), null);

@@ -14,7 +14,7 @@ test("writes one unit folder with the four artifacts and meta.json", () => {
   const root = tmpdir();
   const unit = { ...example.result.units[0], path: "src/billing/pricing.py" };
   assert.equal(writeUnit(root, unit, { job_id: example.job_id, url: example.url }, example.result), true);
-  const dir = path.join(unitDir(root, unit.path), "checks", example.job_id);
+  const dir = path.join(root, ".intent", "logs", example.job_id, "artifacts", unit.path);
   for (const f of ["INTENT.md", "SPEC.k", "SEMANTICS.k", "VERDICT.md"]) {
     assert.equal(fs.readFileSync(path.join(dir, f), "utf8"), unit.artifacts[f]);
   }
@@ -33,7 +33,7 @@ test("writes VERIFICATION.k and REASONING.md, and skips the SEMANTICS.k stub", (
   const root = tmpdir();
   const unit = { ...stubExample.result.units[0], path: "pricing.py" };
   assert.equal(writeUnit(root, unit, { job_id: stubExample.job_id, url: stubExample.url }, stubExample.result), true);
-  const dir = path.join(unitDir(root, unit.path), "checks", stubExample.job_id);
+  const dir = path.join(root, ".intent", "logs", stubExample.job_id, "artifacts", unit.path);
   assert.equal(fs.readFileSync(path.join(dir, "VERIFICATION.k"), "utf8"), unit.artifacts["VERIFICATION.k"]);
   assert.equal(fs.readFileSync(path.join(dir, "REASONING.md"), "utf8"), unit.artifacts["REASONING.md"]);
   // The stub ("// Not generated; see REASONING.md") carries no behaviour, so it is not written.
@@ -45,8 +45,8 @@ test("a later stub never inherits SEMANTICS.k from the retained older generation
   const rel = "pricing.py";
   // First check: the old shape, a real SEMANTICS.k gets written.
   writeUnit(root, { ...example.result.units[0], path: rel }, { job_id: example.job_id, url: example.url }, example.result);
-  const old = path.join(unitDir(root, rel), "checks", example.job_id);
-  const dir = path.join(unitDir(root, rel), "checks", "later");
+  const old = path.join(root, ".intent", "logs", example.job_id, "artifacts", rel);
+  const dir = path.join(root, ".intent", "logs", "later", "artifacts", rel);
   assert.equal(fs.existsSync(path.join(old, "SEMANTICS.k")), true);
   // The later generation has its own artifacts and does not inherit the older model.
   writeUnit(root, { ...stubExample.result.units[0], path: rel }, { job_id: "later", url: stubExample.url }, stubExample.result);
@@ -61,7 +61,7 @@ test("scaffold: README, .ignore with *, .gitignore for the local log and queue",
   ensureScaffold(root);
   const d = path.join(root, ".intent");
   assert.equal(fs.readFileSync(path.join(d, ".ignore"), "utf8"), "*\n");
-  assert.equal(fs.readFileSync(path.join(d, ".gitignore"), "utf8"), ".sent.log\n.queue\n");
+  assert.equal(fs.readFileSync(path.join(d, ".gitignore"), "utf8"), ".sent.log\n.queue\n.storage.lock\n");
   assert.equal(fs.existsSync(path.join(d, "README.md")), true);
 });
 
@@ -70,7 +70,7 @@ test("git tracks .intent/ but not the sent log", () => {
   writeUnit(dir, example.result.units[0], { job_id: example.job_id, url: example.url }, example.result);
   appendSentLog(dir, { time: "t", url: "u", paths: ["pricing.py"], bytes: 1 });
   const out = execFileSync("git", ["status", "--porcelain", "-uall"], { cwd: dir }).toString();
-  assert.ok(out.includes(`.intent/files/pricing.py/checks/${example.job_id}/SPEC.k`));
+  assert.ok(out.includes(`.intent/logs/${example.job_id}/artifacts/pricing.py/SPEC.k`));
   assert.match(out, /\.intent\/README\.md/);
   assert.doesNotMatch(out, /\.sent\.log/);
   void git;
@@ -107,8 +107,8 @@ test("sent log holds paths and sizes, never contents", () => {
 test("a symlink planted in .intent/ cannot redirect writes outside it", () => {
   const root = tmpdir();
   const outside = tmpdir("intent-outside-");
-  fs.mkdirSync(path.join(root, ".intent", "files"), { recursive: true });
-  symlink(outside, path.join(root, ".intent", "files", "src"));
+  fs.mkdirSync(path.join(root, ".intent", "logs", "j", "artifacts"), { recursive: true });
+  symlink(outside, path.join(root, ".intent", "logs", "j", "artifacts", "src"));
   const ok = writeUnit(root, { ...example.result.units[0], path: "src/pricing.py" }, { job_id: "j", url: "u" }, example.result);
   assert.equal(ok, false);
   assert.deepEqual(fs.readdirSync(outside), []);

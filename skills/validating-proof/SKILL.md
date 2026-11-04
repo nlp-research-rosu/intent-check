@@ -33,8 +33,8 @@ Inspect `prove.sh` without executing it merely to review its commands.
 Missing or mismatched evidence leaves an obligation unresolved; a recorded
 success alone is not enough.
 
-For each `--requirement REQ-001` association, inspect the current record with
-`intent-check requirements show REQ-001` and compare its saved content hash in
+For each `--requirement <uuid>` association, inspect the current record with
+`intent-check requirements show <uuid>` and compare its saved content hash in
 the submission manifest. The ID alone cannot bind an edited or reused record.
 Requirement freshness is independent of source/input freshness. These records
 use the [local requirements schema](../proof-help/SKILL.md#local-requirements),
@@ -261,8 +261,8 @@ review or replay; disclose the assurance measures actually performed.
 ## Write PROOF.md
 
 Write it to the returned `proofDir/PROOF.md`, at repository-root
-`.intent/proofs/<attempt-id>/`, beside `SCOPE.md` and `prove.sh`. Frozen specs
-live in `inputs/`; canonical results/logs remain in `.intent/runs/<run-id>/`.
+`.intent/logs/<run-uuid>/artifacts/`, beside `SCOPE.md` and `prove.sh`. Frozen specs
+live in the operation's `inputs/`; canonical results/logs remain in `.intent/logs/<run-uuid>/`.
 
 Begin with the exact status. Include, in order: what is proven; formal claim;
 proof-extension inventory; exact commands and actual outputs; per-gate results;

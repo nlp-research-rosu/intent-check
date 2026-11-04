@@ -33,11 +33,6 @@ pub enum Command {
     },
     /// Remove a requirement; this never removes check or proof evidence.
     Remove { id: String },
-    /// Read the project brief and applicable structured requirements for local agents/hooks.
-    Context {
-        #[arg(long)]
-        path: Vec<String>,
-    },
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -191,12 +186,12 @@ pub fn read_document(path: &Path, local: Option<&str>) -> Result<Document> {
     );
     let mut ids = BTreeSet::new();
     for record in &doc.requirements {
-        id_number(&record.id)?;
+        uuid::Uuid::parse_str(&record.id).context("Invalid requirement UUID")?;
         ensure!(ids.insert(&record.id), "Duplicate requirement ID");
         validate(&record.content())?;
         ensure!(
             source_scope(&record.targets) == local,
-            "Requirement placement must match its targets: one source file under files/<source-path>, multiple source files in files/requirements.json"
+            "Requirement placement must match its targets: one source file under source/<source-path>, multiple source files in source/requirements.json"
         );
     }
     Ok(doc)
@@ -215,20 +210,6 @@ fn write_document(path: &Path, doc: &Document) -> Result<()> {
     )
 }
 
-fn id_number(id: &str) -> Result<u64> {
-    let suffix = id.strip_prefix("REQ-").context("Invalid requirement ID")?;
-    ensure!(
-        suffix.len() >= 3 && suffix.bytes().all(|b| b.is_ascii_digit()),
-        "Invalid requirement ID"
-    );
-    let number: u64 = suffix.parse().context("Invalid requirement ID")?;
-    ensure!(
-        number > 0 && id == format!("REQ-{number:03}"),
-        "Invalid requirement ID"
-    );
-    Ok(number)
-}
-
 fn store_record(
     root: &Path,
     docs: &mut Vec<(PathBuf, Option<String>, Document)>,
@@ -236,9 +217,9 @@ fn store_record(
 ) -> Result<()> {
     let local = source_scope(&record.targets).map(str::to_owned);
     let target = local.as_ref().map_or_else(
-        || root.join(".intent/files/requirements.json"),
+        || root.join(".intent/source/requirements.json"),
         |path| {
-            root.join(".intent/files")
+            root.join(".intent/source")
                 .join(path)
                 .join("requirements.json")
         },
@@ -272,6 +253,7 @@ fn store_record(
         doc.requirements.retain(|r| r.id != record.id);
         write_document(path, doc)?;
     }
+    crate::storage::place_property(root, &record.id, &record.targets)?;
     Ok(())
 }
 
@@ -294,7 +276,7 @@ fn collect(
             if file.exists() {
                 let local = entry
                     .path()
-                    .strip_prefix(root.join(".intent/files"))?
+                    .strip_prefix(root.join(".intent/source"))?
                     .to_string_lossy()
                     .replace('\\', "/");
                 relative_path(&local)?;
@@ -304,7 +286,11 @@ fn collect(
                     read_document(&file, Some(&local))?,
                 ));
             }
-            collect(root, &entry.path(), out)?;
+            if !entry.path().join("requirements.json").exists()
+                && !entry.path().join("index.json").exists()
+            {
+                collect(root, &entry.path(), out)?;
+            }
         }
     }
     Ok(())
@@ -312,13 +298,13 @@ fn collect(
 
 pub fn documents(root: &Path) -> Result<Vec<(PathBuf, Option<String>, Document)>> {
     crate::storage::intent(root, false)?;
-    crate::storage::safe_parent(root, &root.join(".intent/files"))?;
+    crate::storage::safe_parent(root, &root.join(".intent/source"))?;
     let mut docs = Vec::new();
-    let file = root.join(".intent/files/requirements.json");
+    let file = root.join(".intent/source/requirements.json");
     if file.exists() {
         docs.push((file.clone(), None, read_document(&file, None)?));
     }
-    collect(root, &root.join(".intent/files"), &mut docs)?;
+    collect(root, &root.join(".intent/source"), &mut docs)?;
     for (file, _, _) in &docs {
         crate::storage::safe_parent(root, file)?;
     }
@@ -353,6 +339,14 @@ pub fn brief(root: &Path) -> Result<Option<String>> {
 
 pub fn dispatch(command: Command) -> CommandResult {
     let root = session::project_root(&std::env::current_dir()?)?;
+    let _lock = if matches!(
+        &command,
+        Command::Add { .. } | Command::Update { .. } | Command::Remove { .. }
+    ) {
+        Some(crate::storage::lock(&root)?)
+    } else {
+        None
+    };
     let mut docs = documents(&root)?;
     match command {
         Command::List { file } => {
@@ -369,20 +363,6 @@ pub fn dispatch(command: Command) -> CommandResult {
                 .collect();
             Ok((0, json!({"schema_version":1,"requirements":requirements})))
         }
-        Command::Context { path } => {
-            for source in &path {
-                relative_path(source)?;
-            }
-            let requirements: Vec<_> = docs
-                .iter()
-                .flat_map(|(_, _, doc)| &doc.requirements)
-                .filter(|r| path.is_empty() || r.targets.iter().any(|t| path.contains(&t.path)))
-                .collect();
-            Ok((
-                0,
-                json!({"schema_version":1,"brief":brief(&root)?,"requirements":requirements}),
-            ))
-        }
         Command::Show { id } => {
             let record = docs
                 .iter()
@@ -395,17 +375,7 @@ pub fn dispatch(command: Command) -> CommandResult {
             let content: Content = serde_json::from_slice(&fs::read(input)?)?;
             validate(&content)?;
             validate_sources(&root, &content)?;
-            let next = docs
-                .iter()
-                .flat_map(|(_, _, doc)| &doc.requirements)
-                .map(|r| id_number(&r.id))
-                .collect::<Result<Vec<_>>>()?
-                .into_iter()
-                .max()
-                .unwrap_or(0)
-                .checked_add(1)
-                .context("Requirement ID limit reached")?;
-            let id = format!("REQ-{next:03}");
+            let id = uuid::Uuid::new_v4().to_string();
             let record = Requirement::new(id, content);
             store_record(&root, &mut docs, record.clone())?;
             Ok((0, json!({"requirement":record})))
@@ -430,6 +400,7 @@ pub fn dispatch(command: Command) -> CommandResult {
                 .context("Unknown requirement ID")?;
             doc.requirements.retain(|r| r.id != id);
             write_document(path, doc)?;
+            crate::storage::remove_property(&root, &id)?;
             Ok((0, json!({"removed":id})))
         }
     }

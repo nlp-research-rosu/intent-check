@@ -145,43 +145,24 @@ fn collect_files(root: &Path, dir: &Path, snapshot: &mut Snapshot) -> Result<()>
             snapshot.warnings.push(format!("Skipped symlink: {rel}"));
         } else if kind.is_dir() {
             // Never embed private input copies or the session authoring workspace.
-            if name == "inputs"
-                && rel.split('/').count() == 3
-                && (rel.starts_with("proofs/") || rel.starts_with("runs/"))
+            if name == "inputs" && rel.split('/').count() == 3 && rel.starts_with("logs/")
                 || rel == "prove/sessions"
             {
                 continue;
             }
             collect_files(root, &path, snapshot)?;
         } else if kind.is_file() {
-            let review_artifact = rel.starts_with("files/")
-                && rel.rsplit('/').nth(2) == Some("checks")
-                && matches!(
-                    name.to_str(),
-                    Some(
-                        "meta.json"
-                            | "INTENT.md"
-                            | "SPEC.k"
-                            | "VERIFICATION.k"
-                            | "SEMANTICS.k"
-                            | "REASONING.md"
-                            | "VERDICT.md"
-                    )
-                );
-            let requirement = rel.starts_with("files/") && rel.ends_with("/requirements.json");
+            let current = rel.starts_with("source/")
+                && (rel.contains("/specs/") || rel.ends_with("/index.json"));
+            let requirement = rel.starts_with("source/") && rel.ends_with("/requirements.json");
             let run = rel.split('/').count() == 3
-                && rel.starts_with("runs/")
-                && matches!(
-                    name.to_str(),
-                    Some("request.json" | "result.json" | "report.json")
-                );
-            let proof = rel.split('/').count() == 3
-                && rel.starts_with("proofs/")
-                && matches!(name.to_str(), Some("SCOPE.md" | "PROOF.md" | "prove.sh"));
-            if !(review_artifact
+                && rel.starts_with("logs/")
+                && matches!(name.to_str(), Some("request.json" | "result.json"));
+            let artifact = rel.starts_with("logs/") && rel.split('/').nth(2) == Some("artifacts");
+            if !(current
                 || requirement
                 || run
-                || proof
+                || artifact
                 || matches!(rel.as_str(), "README.md" | "REQUIREMENTS.md"))
             {
                 continue;
@@ -203,7 +184,7 @@ fn collect_files(root: &Path, dir: &Path, snapshot: &mut Snapshot) -> Result<()>
                 Ok(text) => {
                     if name == "requirements.json" {
                         let local = rel
-                            .strip_prefix("files/")
+                            .strip_prefix("source/")
                             .and_then(|p| p.strip_suffix("/requirements.json"));
                         if crate::requirements::read_document(&path, local).is_err() {
                             snapshot
@@ -254,7 +235,7 @@ fn snapshot(root: &Path, name: &str, data_dirs: &[PathBuf]) -> Result<Snapshot> 
     // Validate all structured scopes, including files that were not eligible for export.
     let current_requirements = crate::requirements::documents(root);
     if current_requirements.is_err() {
-        snapshot.warnings.push("Local requirements are invalid; requirement freshness is unknown. Run intent-check requirements context to inspect the error.".into());
+        snapshot.warnings.push("Local requirements are invalid; requirement freshness is unknown. Run intent-check requirements list to inspect the error.".into());
     }
     let current_hashes = current_requirements
         .as_ref()
@@ -267,13 +248,13 @@ fn snapshot(root: &Path, name: &str, data_dirs: &[PathBuf]) -> Result<Snapshot> 
         })
         .transpose()?;
     for (path, text) in &snapshot.files {
-        if path.starts_with("files/") && path.ends_with("/meta.json") {
+        if path.starts_with("logs/") && path.ends_with("/meta.json") {
             let meta: Value = serde_json::from_str(text)?;
             snapshot
                 .freshness
                 .insert(path.clone(), source_freshness(root, &meta));
         }
-        if path.starts_with("runs/") && path.ends_with("/request.json") {
+        if path.starts_with("logs/") && path.ends_with("/request.json") {
             let request: Value = serde_json::from_str(text)?;
             let mut observations = Vec::new();
             for source in request["targets"]
@@ -343,6 +324,95 @@ fn snapshot(root: &Path, name: &str, data_dirs: &[PathBuf]) -> Result<Snapshot> 
                 "unchecked"
             };
             snapshot.assurance.insert(path.clone(), level.into());
+        }
+    }
+    match crate::storage::indexes(root) {
+        Err(error) => snapshot
+            .warnings
+            .push(format!("Current property selections are invalid: {error}")),
+        Ok(indexes) => {
+            for (owner, index) in indexes {
+                for (id, selection) in index.properties {
+                    let key = format!("source/{owner}/index.json#{id}");
+                    let mut freshness = "unknown";
+                    if let Some(run) = selection.last_run {
+                        let request_path = format!("logs/{run}/request.json");
+                        let result_path = format!("logs/{run}/result.json");
+                        let request = snapshot
+                            .files
+                            .get(&request_path)
+                            .and_then(|text| serde_json::from_str::<Value>(text).ok());
+                        let result = snapshot
+                            .files
+                            .get(&result_path)
+                            .and_then(|text| serde_json::from_str::<Value>(text).ok());
+                        if let (Some(request), Some(result)) = (request, result) {
+                            let bound = request["properties"]
+                                .as_array()
+                                .into_iter()
+                                .flatten()
+                                .find(|p| p["id"] == id.to_string());
+                            if let Some(bound) = bound {
+                                let sources: Vec<_> = bound["sources"]
+                                    .as_array()
+                                    .into_iter()
+                                    .flatten()
+                                    .map(|s| {
+                                        source_freshness(
+                                            root,
+                                            &json!({"path":s["path"],"source_sha256":s["sha256"]}),
+                                        )
+                                    })
+                                    .collect();
+                                let specs =
+                                    result["properties"][id.to_string()]["specs"].as_array();
+                                let specs_match = specs.is_some_and(|specs| {
+                                    specs.len() == selection.specs.len()
+                                        && selection.specs.iter().all(|path| {
+                                            specs.iter().any(|spec| {
+                                                spec["path"] == *path
+                                                    && crate::storage::spec_path(root, path)
+                                                        .ok()
+                                                        .and_then(|p| fs::read(p).ok())
+                                                        .map(crate::storage::hash)
+                                                        .as_deref()
+                                                        == spec["sha256"].as_str()
+                                            })
+                                        })
+                                });
+                                let requirement_matches = current_hashes
+                                    .as_ref()
+                                    .and_then(|hashes| hashes.get(&id.to_string()))
+                                    .map(String::as_str)
+                                    == bound["record_sha256"].as_str();
+                                freshness = if sources.iter().any(|s| s == "stale")
+                                    || !specs_match
+                                    || !requirement_matches
+                                {
+                                    "stale"
+                                } else if !sources.is_empty()
+                                    && sources.iter().all(|s| s == "current")
+                                {
+                                    "current"
+                                } else {
+                                    "missing_or_unknown"
+                                };
+                            }
+                        }
+                    }
+                    if selection
+                        .specs
+                        .iter()
+                        .any(|p| !snapshot.files.contains_key(p))
+                    {
+                        freshness = "missing_or_unknown";
+                        snapshot.warnings.push(format!(
+                            "Missing current specification for property {id} in {owner}"
+                        ));
+                    }
+                    snapshot.freshness.insert(key, freshness.into());
+                }
+            }
         }
     }
     for entry in entries(&intent.join(".queue"))? {
