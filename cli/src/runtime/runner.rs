@@ -526,22 +526,47 @@ fn failure(rt: &Runtime, key: &str, r: &Reply, used: &str) -> Result<()> {
     })
 }
 pub(super) fn run_dir(root: &Path, id: &str) -> Result<PathBuf> {
-    anyhow::ensure!(protocol::valid_id(id), "Invalid run ID");
+    anyhow::ensure!(crate::storage::valid_id(id), "Invalid local run ID");
     anyhow::ensure!(root.is_dir(), "Project folder no longer exists");
     crate::storage::intent(root, true)?;
-    let dir = root.join(".intent/runs").join(id);
+    let dir = root.join(".intent/logs").join(id);
     crate::storage::safe_parent(root, &dir)?;
     fs::create_dir_all(&dir)?;
     Ok(dir)
 }
-fn request_record(root: &Path, id: &str, built: &payload::Built) -> Result<()> {
+pub(super) fn freeze_input(root: &Path, run: &str, name: &str, bytes: &[u8]) -> Result<Value> {
+    crate::requirements::relative_path(name)?;
+    let file = run_dir(root, run)?.join("inputs").join(name);
+    crate::storage::safe_parent(root, &file)?;
+    fs::create_dir_all(file.parent().context("Input folder")?)?;
+    fs::write(&file, bytes)?;
+    Ok(json!({"path":format!("logs/{run}/inputs/{name}"),"sha256":hash(bytes)}))
+}
+fn request_record(root: &Path, task: &str, built: &payload::Built) -> Result<String> {
+    let _lock = crate::storage::lock(root)?;
+    let id = crate::storage::new_id(root)?;
     let request = &built.request;
-    let dir = run_dir(root, id)?;
+    let dir = run_dir(root, &id)?;
+    let mut inputs = vec![freeze_input(
+        root,
+        &id,
+        "units.json",
+        &serde_json::to_vec(&request["units"])?,
+    )?];
+    if let Some(notes) = request["intent"]["notes"].as_str() {
+        inputs.push(freeze_input(
+            root,
+            &id,
+            "requirements.txt",
+            notes.as_bytes(),
+        )?);
+    }
     state::write(
         &dir.join("request.json"),
-        &json!({"version":1,"operation":"check","trigger":if request["mode"]=="request"{"request"}else if request["per_edit"]==true{"edit"}else{"turn"},"submitted_at":now(),"host":request["host"],"session_id":request["session_id"],"partial":request["truncated"],"submitted_context_sha256":request["intent"]["notes"].as_str().map(hash),"requirement_binding":built.binding,"sources":array(&request["units"]).iter().map(|u|json!({"path":u["path"],"source_sha256":u["sha256"],"submitted_sha256":hash(string(&u["content"])),"content_truncated":u["content_truncated"],"regions":u["regions"]})).collect::<Vec<_>>()}),
+        &json!({"version":1,"operation":"review","task_id":task,"inputs":inputs,"trigger":if request["mode"]=="request"{"request"}else if request["per_edit"]==true{"edit"}else{"turn"},"submitted_at":now(),"host":request["host"],"session_id":request["session_id"],"partial":request["truncated"],"submitted_context_sha256":request["intent"]["notes"].as_str().map(hash),"requirement_binding":built.binding,"sources":array(&request["units"]).iter().map(|u|json!({"path":u["path"],"source_sha256":u["sha256"],"submitted_sha256":hash(string(&u["content"])),"content_truncated":u["content_truncated"],"regions":u["regions"],"specs":array(&built.sent).iter().find(|s|s["rel"]==u["path"]).map(|s|&s["specs"])})).collect::<Vec<_>>()}),
         false,
-    )
+    )?;
+    Ok(id)
 }
 pub(super) fn audit(root: &Path, entry: Value) {
     let _ = (|| -> Result<()> {
@@ -588,10 +613,14 @@ fn submit(rt: &Runtime, api: &Api, submission: Submission<'_>) -> Result<Reply> 
         "job.submitted",
         json!({"job":id,"mode":built.request["mode"],"units":array(&built.sent).len()}),
     );
-    if let Err(error) = request_record(root, id, built) {
-        rt.log("intentdir.write_failed", json!({"error":error.to_string()}));
-    }
-    let mut job = json!({"job_id":id,"url":api.report(id),"repo":root,"mode":built.request["mode"],"sent":built.sent,"permission_mode":payload::permission(rt,payload),"host":rt.host,"turn_id":built.request["turn_id"],"submitted_at":now(),"wake":wake,"edit":edit});
+    let run = match request_record(root, id, built) {
+        Ok(run) => Some(run),
+        Err(error) => {
+            rt.log("intentdir.write_failed", json!({"error":error.to_string()}));
+            None
+        }
+    };
+    let mut job = json!({"job_id":id,"run_id":run,"url":api.report(id),"repo":root,"mode":built.request["mode"],"sent":built.sent,"permission_mode":payload::permission(rt,payload),"host":rt.host,"turn_id":built.request["turn_id"],"submitted_at":now(),"wake":wake,"edit":edit});
     rt.session_mut(key, |s| {
         if edit {
             job["rel"] = built.sent[0]["rel"].clone();
@@ -921,10 +950,13 @@ fn settle(rt: &Runtime, key: &str, job: &Value, status: &Value, can_wake: bool) 
                 .any(|s| s["rel"] == u["path"] && s["sha256"] == u["checked_sha256"])
         });
     let saved = (|| -> Result<()> {
-        let dir = run_dir(root, id)?;
+        let run = job["run_id"]
+            .as_str()
+            .context("Review has no saved local operation")?;
+        let dir = run_dir(root, run)?;
         state::write(
             &dir.join("result.json"),
-            &json!({"version":1,"operation":"check","status":status["status"],"result":result,"error":status["error"],"bindings_valid":bound,"evidence_level":if bound{"llm_reviewed"}else{"unchecked"}}),
+            &json!({"version":1,"operation":"review","task_id":id,"status":status["status"],"result":result,"error":status["error"],"bindings_valid":bound,"evidence_level":if bound{"llm_reviewed"}else{"unchecked"}}),
             false,
         )?;
         for unit in array(&result["units"]) {
@@ -936,11 +968,7 @@ fn settle(rt: &Runtime, key: &str, job: &Value, status: &Value, can_wake: bool) 
             }
             let path = string(&unit["path"]);
             crate::requirements::relative_path(path)?;
-            let dir = root
-                .join(".intent/files")
-                .join(path)
-                .join("checks")
-                .join(id);
+            let dir = dir.join("artifacts").join(path);
             crate::storage::safe_parent(root, &dir)?;
             fs::create_dir_all(&dir)?;
             for name in protocol::ART {
@@ -954,7 +982,7 @@ fn settle(rt: &Runtime, key: &str, job: &Value, status: &Value, can_wake: bool) 
             }
             state::write(
                 &dir.join("meta.json"),
-                &json!({"version":1,"path":path,"source_sha256":unit["checked_sha256"],"reviewed_at":result["checked_at"],"review_id":id,"submitted_at":job["submitted_at"],"result_ref":format!("runs/{id}/result.json"),"url":job["url"],"evidence_level":if unit["partial"]==true{"unchecked"}else{"llm_reviewed"},"verdict":unit["verdict"],"partial":unit["partial"]==true,"task_partial":result["partial"]==true,"claims":unit["claims"],"versions":{"plugin":rt.version,"contract":"1"}}),
+                &json!({"version":1,"path":path,"source_sha256":unit["checked_sha256"],"reviewed_at":result["checked_at"],"review_id":id,"run_id":run,"submitted_at":job["submitted_at"],"result_ref":format!("logs/{run}/result.json"),"url":job["url"],"evidence_level":if unit["partial"]==true{"unchecked"}else{"llm_reviewed"},"verdict":unit["verdict"],"partial":unit["partial"]==true,"task_partial":result["partial"]==true,"claims":unit["claims"],"versions":{"plugin":rt.version,"contract":"1"}}),
                 false,
             )?;
         }
@@ -1345,13 +1373,14 @@ mod tests {
         let mut status = example(stub);
         status["result"]["units"][0]["path"] = json!(rel);
         let unit = &status["result"]["units"][0];
-        let job = json!({"repo":f.root,"job_id":id,"url":"https://x.test/report","submitted_at":submitted,"sent":[{"rel":rel,"sha256":unit["checked_sha256"]}]});
+        let run = hash(id)[..6].to_owned();
+        let job = json!({"repo":f.root,"job_id":id,"run_id":run,"url":"https://x.test/report","submitted_at":submitted,"sent":[{"rel":rel,"sha256":unit["checked_sha256"]}]});
         settle(&f.rt, "storage", &job, &status, false).expect("settle review fixture");
         f.root
-            .join(".intent/files")
+            .join(".intent/logs")
+            .join(run)
+            .join("artifacts")
             .join(rel)
-            .join("checks")
-            .join(id)
     }
 
     #[test]
@@ -1407,12 +1436,12 @@ mod tests {
         );
         assert_eq!(
             fs::read_to_string(f.root.join(".intent/.gitignore")).expect("git ignore"),
-            ".sent.log\n.queue\n"
+            ".sent.log\n.queue\n.storage.lock\n"
         );
         let readme = f.root.join(".intent/README.md");
         assert_eq!(
             fs::read_to_string(&readme).expect("readme"),
-            include_str!("../evidence-readme.md")
+            include_str!("../../../intent-storage.md")
         );
         let modified = fs::metadata(&readme)
             .expect("readme metadata")
@@ -1470,7 +1499,7 @@ mod tests {
             assert!(!dir.join("meta.json").exists(), "{path}");
         }
         let gone = f.root.join("gone");
-        assert!(run_dir(&gone, REVIEW_ID).is_err());
+        assert!(run_dir(&gone, "abc123").is_err());
         audit(&gone, json!({"time":"t"}));
         assert!(!gone.exists());
         assert!(
@@ -1496,7 +1525,8 @@ mod tests {
         );
         let status = f.git(&["status", "--porcelain", "-uall"]);
         assert!(status.contains(&format!(
-            ".intent/files/pricing.py/checks/{REVIEW_ID}/SPEC.k"
+            ".intent/logs/{}/artifacts/pricing.py/SPEC.k",
+            &hash(REVIEW_ID)[..6]
         )));
         assert!(status.contains(".intent/README.md"));
         assert!(!status.contains(".sent.log"));
@@ -1521,8 +1551,13 @@ mod tests {
     fn planted_source_folder_symlink_cannot_redirect_evidence() {
         let f = Fixture::new();
         let outside = Fixture::new();
-        fs::create_dir_all(f.root.join(".intent/files")).expect("evidence parent");
-        std::os::unix::fs::symlink(&outside.root, f.root.join(".intent/files/src"))
+        let artifacts = f
+            .root
+            .join(".intent/logs")
+            .join(&hash(REVIEW_ID)[..6])
+            .join("artifacts");
+        fs::create_dir_all(&artifacts).expect("evidence parent");
+        std::os::unix::fs::symlink(&outside.root, artifacts.join("src"))
             .expect("source folder link");
         save(&f, "src/pricing.py", REVIEW_ID, false, 1);
         assert_eq!(
@@ -1563,10 +1598,10 @@ mod tests {
         let old = outside.write("gone.py/VERDICT.md", "x");
         std::os::unix::fs::symlink(&outside.root, f.root.join(".intent"))
             .expect("link intent folder");
-        let error = run_dir(&f.root, REVIEW_ID).expect_err("symlinked intent must be refused");
+        let error = run_dir(&f.root, "abc123").expect_err("symlinked intent must be refused");
         assert!(error.to_string().contains("real directory"), "{error}");
         assert_eq!(fs::read_to_string(old).expect("preserved history"), "x");
-        assert!(!outside.root.join("runs/new").exists());
+        assert!(!outside.root.join("logs/abc123").exists());
     }
 
     #[test]

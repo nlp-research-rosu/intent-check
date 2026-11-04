@@ -145,7 +145,7 @@ pub fn task(command: TaskCommand) -> CommandResult {
             session: session_id,
         } => {
             let proof_session = session::load(session_id)?;
-            let root = proof_session.project_root.join(".intent/runs");
+            let root = proof_session.project_root.join(".intent/logs");
             crate::storage::intent(&proof_session.project_root, false)?;
             crate::storage::safe_parent(&proof_session.project_root, &root)?;
             let id = id.to_string();
@@ -233,8 +233,10 @@ fn finish(
     let mut response = json!({"task": task, "sessionId": proof_session.session_id,
         "budget": budget, "evidenceDir": evidence});
     let manifest: Value = serde_json::from_slice(&std::fs::read(evidence.join("request.json"))?)?;
-    if let Some(id) = manifest["proof_attempt_id"].as_str() {
-        response["proofDir"] = json!(proof_session.project_root.join(".intent/proofs").join(id));
+    if manifest["operation"] == "prove" {
+        let artifacts = evidence.join("artifacts");
+        std::fs::create_dir_all(&artifacts)?;
+        response["proofDir"] = json!(artifacts);
     }
     if exit.is_none() {
         response["exitCode"] = Value::Null;

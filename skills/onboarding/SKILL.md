@@ -39,7 +39,7 @@ CLI. Do not select main, a pull request or a prerelease automatically.
 
 For automatic reviews or DeepScan, run `intent-check runtime` and verify that
 `capabilities` includes `hooks-v1`, `requirements-context-v1`, `reviews-v1` and
-`deepscan-v1`. For requirements, also check `intent-check requirements context --help`.
+`deepscan-v1`. For requirements, also check `intent-check requirements --help`.
 If the installed CLI is missing, outdated or lacks a required capability, explain
 what installation/update is needed and obtain authorization unless the user already
 requested it. Then use the published checksum-verifying installer below. If the latest

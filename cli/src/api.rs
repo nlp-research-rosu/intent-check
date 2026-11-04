@@ -1,5 +1,5 @@
 use crate::{ProofArgs, RunArgs, auth, config::Config, inputs, session::Session};
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use reqwest::{
     StatusCode,
     blocking::{Client, RequestBuilder, Response, multipart},
@@ -27,6 +27,7 @@ pub struct Upload {
     inputs: Vec<(String, Vec<u8>)>,
     targets: Vec<Value>,
     requirements: Vec<Value>,
+    specification_id: Option<String>,
 }
 
 struct UploadFile {
@@ -133,6 +134,7 @@ impl Api {
             inputs: vec![(file_name, bytes)],
             targets: Vec::new(),
             requirements: Vec::new(),
+            specification_id: None,
         })
     }
 
@@ -211,6 +213,17 @@ impl Api {
             let message = stop["message"].as_str().unwrap_or("Task wait stopped");
             bail!("{message}; evidence: {}", evidence.display());
         }
+        let successful = task["status"] == "completed"
+            && task["error"].is_null()
+            && matches!(
+                task["result"].as_str(),
+                Some("proved" | "valid" | "success")
+            )
+            && task["toolRuns"]
+                .as_array()
+                .and_then(|runs| runs.last())
+                .is_none_or(|run| run["exitCode"] == 0);
+        crate::storage::finish_properties(&session.project_root, &evidence, successful)?;
         Ok(task)
     }
 
@@ -235,16 +248,18 @@ impl Api {
             let (file, _) = inputs::resolve(&proof_session.project_root, Path::new(path))?;
             targets.push(json!({"path":path,"symbol":symbol,"source_sha256":crate::storage::hash(fs::read(file)?)}));
         }
-        let docs = crate::requirements::documents(&proof_session.project_root)?;
+        let context = crate::storage::collect(&proof_session.project_root, &[])?;
         let mut requirements = Vec::new();
         for id in &args.requirement {
-            let record = docs
+            let record = context["requirements"]
+                .as_array()
+                .context("Missing requirements")?
                 .iter()
-                .flat_map(|(_, _, doc)| &doc.requirements)
-                .find(|r| &r.id == id)
+                .find(|r| r["id"] == *id)
                 .ok_or_else(|| anyhow!("Unknown requirement ID: {id}"))?;
-            requirements
-                .push(json!({"id":id,"record_sha256":crate::requirements::record_hash(record)?}));
+            requirements.push(
+                json!({"id":id,"record_sha256":crate::storage::hash(serde_json::to_vec(record)?)}),
+            );
         }
         crate::semantics::require(&semantics, args.semantics.as_deref())?;
         let (_, spec_name) = inputs::resolve_proof(root, &args.spec)?;
@@ -259,6 +274,12 @@ impl Api {
             sources.push(file);
         }
         let files = inputs::load(root, &sources)?;
+        if let Some(id) = &args.spec_id {
+            anyhow::ensure!(
+                crate::storage::valid_id(id),
+                "Expected a six-character specification ID"
+            );
+        }
         let mut fields = vec![
             ("semanticsId", semantics.id),
             ("semanticsCommit", semantics.commit),
@@ -302,6 +323,7 @@ impl Api {
                 bytes: archive.finish()?.into_inner(),
             },
             inputs: files.into_iter().collect(),
+            specification_id: args.spec_id,
             targets,
             requirements,
         })
@@ -619,16 +641,18 @@ pub fn record_submission(accepted: &Value, evidence: &Path) -> Result<()> {
 
 pub fn record_request(upload: &Upload, session: &Session, operation: &str) -> Result<PathBuf> {
     let root = &session.project_root;
+    let _lock = crate::storage::lock(root)?;
     let intent = crate::storage::intent(root, true)?;
-    let id = uuid::Uuid::new_v4().to_string();
-    let evidence = intent.join("runs").join(&id);
+    let id = crate::storage::new_id(root)?;
+    let evidence = intent.join("logs").join(&id);
     crate::storage::safe_parent(root, &evidence)?;
     fs::create_dir_all(&evidence)?;
-    let inputs = if operation == "prove" {
-        intent.join("proofs").join(&id).join("inputs")
-    } else {
-        evidence.join("inputs")
-    };
+    let specification = crate::storage::specification(
+        root,
+        &upload.requirements,
+        upload.specification_id.as_deref(),
+    )?;
+    let inputs = evidence.join("inputs");
     crate::storage::safe_parent(root, &inputs)?;
     let mut manifest = Vec::new();
     for (name, bytes) in &upload.inputs {
@@ -654,7 +678,8 @@ pub fn record_request(upload: &Upload, session: &Session, operation: &str) -> Re
             "version":1,"operation":operation,"session_id":session.session_id,"semantics":session.semantics,
             "api_url":crate::config::load()?.server_url,
             "submitted_at":std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_millis(),
-            "proof_attempt_id":(operation == "prove").then_some(&id),"inputs":manifest,
+            "inputs":manifest,"specification":specification,
+            "properties":crate::storage::property_snapshot(root, &upload.requirements, &upload.inputs, &specification)?,
             "upload_sha256":crate::storage::hash(&upload.file.bytes),"controls":controls,
             "targets":upload.targets,"requirements":upload.requirements,
             "requirement_binding":{"version":1,"kind":"declared_association_not_uploaded","brief":null,"records":upload.requirements,"excluded":[]}

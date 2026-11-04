@@ -52,9 +52,9 @@ test("2. history stays when git reports deletion or rename but the old file exis
   ctx.git("mv", "back.py", "moved.py");
   fs.writeFileSync(path.join(repo, "back.py"), "X = 1\n");
   await runHook("stop", fixture("stop", repo), ctx.env);
-  assert.ok(fs.existsSync(path.join(repo, ".intent/files/kept.py/checks/j/SPEC.k")));
-  assert.ok(fs.existsSync(path.join(repo, ".intent/files/back.py/checks/j/SPEC.k")));
-  assert.equal(fs.existsSync(path.join(repo, ".intent/files/moved.py/checks/j")), false, "old evidence must not be rebound to the renamed source");
+  assert.ok(fs.existsSync(path.join(repo, ".intent/logs/abc123/artifacts/kept.py/SPEC.k")));
+  assert.ok(fs.existsSync(path.join(repo, ".intent/logs/abc123/artifacts/back.py/SPEC.k")));
+  assert.equal(fs.existsSync(path.join(repo, ".intent/logs/abc123/artifacts/moved.py")), false, "old evidence must not be rebound to the renamed source");
 });
 
 test("3. queued reviews survive a transient submit failure and go out at the next Stop", async () => {

@@ -56,50 +56,65 @@ pub(super) fn notes(
     }
     ((!text.is_empty()).then_some(text), binding, count)
 }
-fn prior(root: &Path, rel: &str, redactor: &redact::Redactor) -> Option<Value> {
-    let base = crate::storage::intent(root, false).ok()?;
-    let checks = base.join("files").join(rel).join("checks");
-    crate::storage::safe_parent(root, &checks).ok()?;
-    let mut candidates = Vec::new();
-    for entry in fs::read_dir(&checks).ok()?.flatten() {
-        if !entry.file_type().ok()?.is_dir() {
+fn prior(
+    root: &Path,
+    rel: &str,
+    redactor: &redact::Redactor,
+) -> Result<(Option<Value>, Vec<Value>, u64)> {
+    let context = crate::requirements::context(root, &[rel.to_owned()])?;
+    let ids: std::collections::BTreeSet<_> = array(&context["requirements"])
+        .iter()
+        .filter_map(|record| record["id"].as_str())
+        .collect();
+    let mut paths = std::collections::BTreeSet::new();
+    for (_, index) in crate::storage::indexes(root)? {
+        for (id, selection) in index.properties {
+            if ids.contains(id.as_str()) {
+                paths.extend(selection.specs);
+            }
+        }
+    }
+    let mut groups = std::collections::BTreeMap::<&str, String>::new();
+    let mut bindings = Vec::new();
+    let mut redactions = 0;
+    for path in paths {
+        if !path.ends_with(".k") {
             continue;
         }
-        let path = entry.path().join("meta.json");
-        let meta = fs::symlink_metadata(&path).ok()?;
+        let file = crate::storage::spec_path(root, &path)?;
+        let Ok(meta) = fs::symlink_metadata(&file) else {
+            continue;
+        };
         if !meta.is_file() || meta.len() > 65536 {
             continue;
         }
-        let value = state::read(&path);
-        if value["path"] == rel
-            && value["review_id"] == entry.file_name().to_string_lossy().as_ref()
-        {
-            candidates.push((number(&value["submitted_at"]), entry.path(), value));
+        let Ok(raw) = fs::read_to_string(file) else {
+            continue;
+        };
+        let (text, count) = redactor.text(&raw);
+        let name = path.rsplit('/').next().unwrap_or("").to_ascii_lowercase();
+        let key = if name.contains("verification") {
+            "verification_k"
+        } else if name.contains("semantics") {
+            "semantics_k"
+        } else {
+            "spec_k"
+        };
+        let group = groups.entry(key).or_default();
+        if group.len() + text.len() + 2 > 65536 {
+            continue;
         }
+        if !group.is_empty() {
+            group.push_str("\n\n");
+        }
+        group.push_str(&text);
+        redactions += count;
+        bindings
+            .push(json!({"path":path,"source_sha256":hash(&raw),"submitted_sha256":hash(&text)}));
     }
-    candidates.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1)));
-    let (_, folder, meta) = candidates.first()?;
-    let mut value = json!({"source_sha256":meta["source_sha256"]});
-    let mut any = false;
-    for (key, file) in [
-        ("intent_md", "INTENT.md"),
-        ("spec_k", "SPEC.k"),
-        ("semantics_k", "SEMANTICS.k"),
-        ("verification_k", "VERIFICATION.k"),
-    ] {
-        let path = folder.join(file);
-        let text = (|| {
-            crate::storage::safe_parent(root, &path).ok()?;
-            let meta = fs::symlink_metadata(&path).ok()?;
-            if !meta.is_file() || meta.len() > 65536 {
-                return None;
-            }
-            Some(redactor.text(&fs::read_to_string(path).ok()?).0)
-        })();
-        any |= text.is_some();
-        value[key] = json!(text);
-    }
-    any.then_some(value)
+    let value = (!bindings.is_empty()).then(|| json!({"intent_md":null,"source_sha256":null,
+        "spec_k":groups.get("spec_k"),"semantics_k":groups.get("semantics_k"),"verification_k":groups.get("verification_k")}));
+    Ok((value, bindings, redactions))
 }
 fn unit_content(content: &str, diff: Option<&str>) -> (String, bool, Option<Value>) {
     let lines: Vec<_> = content.lines().collect();
@@ -217,12 +232,15 @@ pub(super) fn build(
             text
         });
         let (content, cut, regions) = unit_content(&text, f.diff.as_deref());
-        let mut unit = json!({"path":f.rel,"language":filter::language(&f.rel),"sha256":hash(&f.bytes),"diff":diff,"content":content,"content_truncated":cut,"prior":prior(root,&f.rel,&redactor)});
+        let (prior, specs, n) = prior(root, &f.rel, &redactor)?;
+        count += n;
+        let mut unit = json!({"path":f.rel,"language":filter::language(&f.rel),"sha256":hash(&f.bytes),"diff":diff,"content":content,"content_truncated":cut,"prior":prior});
         if let Some(regions) = regions {
             unit["regions"] = regions;
         }
         units.push(unit);
-        let mut s = json!({"rel":f.rel,"sha256":hash(&f.bytes),"bytes":f.bytes.len()});
+        let mut s =
+            json!({"rel":f.rel,"sha256":hash(&f.bytes),"bytes":f.bytes.len(),"specs":specs});
         s["touch_token"] = snap["flags"]["touched_at"][f.abs.to_string_lossy().as_ref()].clone();
         if f.worktree {
             s["abs"] = json!(f.abs);
@@ -237,7 +255,7 @@ pub(super) fn build(
         .iter()
         .map(|u| string(&u["path"]).to_owned())
         .collect();
-    let context=crate::requirements::context(root,&paths).context("Local requirements could not be validated; run intent-check requirements context in this project")?;
+    let context=crate::requirements::context(root,&paths).context("Local requirements could not be validated; run intent-check requirements list in this project")?;
     let (notes, binding, n) = notes(&context, &paths, &redactor);
     count += n;
     let mut clean = |value: &Value, max: usize| -> Value {
@@ -543,7 +561,7 @@ mod tests {
     }
 
     #[test]
-    fn prior_reads_latest_generation_and_optional_verification() {
+    fn prior_reads_selected_formal_files_and_optional_verification() {
         let f = Fixture::new();
         for (i, name) in ["status-done-concerns.json", "status-done-no-concerns.json"]
             .iter()
@@ -557,15 +575,22 @@ mod tests {
             .expect("read fixture");
             let ex: Value = serde_json::from_slice(&raw).expect("parse fixture");
             let unit = &ex["result"]["units"][0];
-            let dir = format!(".intent/files/pricing.py/checks/{}", string(&ex["job_id"]));
+            let dir = format!(".intent/source/pricing.py/specs/def45{i}");
             crate::storage::intent(&f.root, true).expect("scaffold");
-            f.write(&format!("{dir}/meta.json"),&json!({"path":"pricing.py","review_id":ex["job_id"],"source_sha256":unit["checked_sha256"],"submitted_at":i+1}).to_string());
+            f.write(".intent/source/pricing.py/requirements.json",r#"{"schema_version":1,"requirements":[{"id":"abc123","statement":"Prices stay nonnegative","targets":[{"path":"pricing.py"}]}]}"#);
+            let mut specs = Vec::new();
             for (name, text) in unit["artifacts"].as_object().expect("fixture artifacts") {
                 f.write(&format!("{dir}/{name}"), string(text));
+                if name.ends_with(".k") && !string(text).starts_with("// Not generated") {
+                    specs.push(format!("{}/{name}", dir.trim_start_matches(".intent/")));
+                }
             }
-            let p =
+            f.write(".intent/source/pricing.py/index.json",&json!({"schema_version":1,"properties":{"abc123":{"specs":specs,"last_run":null}}}).to_string());
+            let (p, bindings, _) =
                 prior(&f.root, "pricing.py", &redact::Redactor::new()).expect("prior artifacts");
-            assert_eq!(p["source_sha256"], unit["checked_sha256"]);
+            let p = p.expect("selected specs");
+            assert!(p["source_sha256"].is_null());
+            assert!(!bindings.is_empty());
             assert!(string(&p["spec_k"]).contains("PRICING-SPEC"));
             if i == 0 {
                 assert!(p["verification_k"].is_null());
@@ -578,25 +603,34 @@ mod tests {
                 .expect("request");
             assert_eq!(b.request["units"][0]["prior"], p);
         }
-        assert!(prior(&f.root, "other.py", &redact::Redactor::new()).is_none());
+        assert!(
+            prior(&f.root, "other.py", &redact::Redactor::new())
+                .expect("unrelated prior")
+                .0
+                .is_none()
+        );
     }
 
     #[test]
     fn prior_artifacts_ignore_oversized_and_symlinked_files_and_redact_contents() {
         let f = Fixture::new();
         f.write(
-            ".intent/files/app.py/checks/j/meta.json",
-            r#"{"path":"app.py","review_id":"j","submitted_at":1}"#,
+            ".intent/source/app.py/requirements.json",
+            r#"{"schema_version":1,"requirements":[{"id":"abc123","statement":"App property","targets":[{"path":"app.py"}]}]}"#,
         );
+        f.write(".intent/source/app.py/index.json",r#"{"schema_version":1,"properties":{"abc123":{"specs":["source/app.py/specs/def456/SPEC.k","source/app.py/specs/def456/SEMANTICS.k"],"last_run":null}}}"#);
         f.write(
-            ".intent/files/app.py/checks/j/SPEC.k",
+            ".intent/source/app.py/specs/def456/SPEC.k",
             &"x".repeat(70 * 1024),
         );
         f.write(
-            ".intent/files/app.py/checks/j/SEMANTICS.k",
+            ".intent/source/app.py/specs/def456/SEMANTICS.k",
             "token = \"Xk29fLq8Zr4Tw7Vb\"\n",
         );
-        let p = prior(&f.root, "app.py", &redact::Redactor::new()).expect("prior semantics");
+        let p = prior(&f.root, "app.py", &redact::Redactor::new())
+            .expect("prior semantics")
+            .0
+            .expect("selected semantics");
         assert!(p["intent_md"].is_null());
         assert!(p["spec_k"].is_null());
         assert!(!string(&p["semantics_k"]).contains("Xk29fLq8Zr4Tw7Vb"));
@@ -607,34 +641,34 @@ mod tests {
                 outside.write("credentials", "aws_secret_access_key = Xk29fLq8Zr4Tw7Vb\n");
             std::os::unix::fs::symlink(
                 credentials,
-                f.root.join(".intent/files/app.py/checks/j/INTENT.md"),
+                f.root.join(".intent/source/app.py/specs/def456/INTENT.md"),
             )
             .expect("symlink prior artifact");
-            let p = prior(&f.root, "app.py", &redact::Redactor::new()).expect("prior semantics");
+            let p = prior(&f.root, "app.py", &redact::Redactor::new())
+                .expect("prior semantics")
+                .0
+                .expect("selected semantics");
             assert!(p["intent_md"].is_null());
             std::os::unix::fs::symlink(f.root.join(".intent"), outside.root.join(".intent"))
                 .expect("symlink intent root");
-            assert!(prior(&outside.root, "app.py", &redact::Redactor::new()).is_none());
+            assert!(prior(&outside.root, "app.py", &redact::Redactor::new()).is_err());
         }
     }
 
     #[test]
-    fn prior_chooses_newest_submission_even_when_older_evidence_arrives_late() {
+    fn prior_uses_current_selection_instead_of_historical_arrival() {
         let f = Fixture::new();
-        for (id, submitted, content) in [
-            ("N", Some(2000), "new"),
-            ("O", Some(1000), "old"),
-            ("L", None, "legacy"),
-        ] {
-            let dir = format!(".intent/files/a.py/checks/{id}");
-            f.write(
-                &format!("{dir}/meta.json"),
-                &json!({"path":"a.py","review_id":id,"submitted_at":submitted}).to_string(),
-            );
-            f.write(&format!("{dir}/INTENT.md"), content);
+        f.write(".intent/source/a.py/requirements.json",r#"{"schema_version":1,"requirements":[{"id":"abc123","statement":"A property","targets":[{"path":"a.py"}]}]}"#);
+        f.write(".intent/source/a.py/index.json",r#"{"schema_version":1,"properties":{"abc123":{"specs":["source/a.py/specs/def456/spec.k"],"last_run":null}}}"#);
+        f.write(".intent/source/a.py/specs/def456/spec.k", "current");
+        for (id, content) in [("111111", "new"), ("222222", "old")] {
+            f.write(&format!(".intent/logs/{id}/artifacts/a.py/SPEC.k"), content);
             assert_eq!(
-                prior(&f.root, "a.py", &redact::Redactor::new()).expect("latest prior")["intent_md"],
-                "new"
+                prior(&f.root, "a.py", &redact::Redactor::new())
+                    .expect("current prior")
+                    .0
+                    .expect("selected spec")["spec_k"],
+                "current"
             );
         }
     }
@@ -686,7 +720,7 @@ mod tests {
         assert!(!string(&b.request["intent"]["notes"]).contains("Zq8Zq8Zq8"));
         f.write("pricing.py", "a\nb\nc\n");
         f.write(".intent/REQUIREMENTS.md", &"x".repeat(5000));
-        f.write(".intent/files/pricing.py/requirements.json",r#"{"schema_version":1,"requirements":[{"id":"REQ-001","statement":"Prices remain nonnegative","targets":[{"path":"pricing.py","symbol":"apply_discount"}]}]}"#);
+        f.write(".intent/source/pricing.py/requirements.json",r#"{"schema_version":1,"requirements":[{"id":"abc123","statement":"Prices remain nonnegative","targets":[{"path":"pricing.py","symbol":"apply_discount"}]}]}"#);
         let b = build_files(&f, &[file(&f, "pricing.py", "a\nb\nc\n", None)])
             .expect("limited brief")
             .expect("request");
@@ -696,7 +730,7 @@ mod tests {
         assert_eq!(b.binding["records"], json!([]));
         assert_eq!(
             b.binding["excluded"],
-            json!([{"id":"REQ-001","reason":"context_limit"}])
+            json!([{"id":"abc123","reason":"context_limit"}])
         );
         for text in [None, Some("")] {
             let f = Fixture::new();

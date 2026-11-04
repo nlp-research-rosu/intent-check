@@ -89,7 +89,7 @@ The plugin and CLI share endpoint settings in `~/.config/intent-check/config.tom
 
 `/intent:prove [what to prove]` proves a program correct with K: partial correctness (if it terminates and the precondition holds, the postcondition holds). The agent follows the proof skills (`using-prove` and the skills it points to), calling the global `intent-check` CLI directly. If setup is missing, it uses `onboarding`. On Codex, ask the agent to prove something.
 
-All proof bundles go under `.intent/proofs/<attempt-id>/`, even for single-function targets. Each submission freezes the actual uploaded inputs there. Use the returned `proofDir` for `SCOPE.md`, `PROOF.md` and `prove.sh`. Canonical requests/results/logs are stored once under `.intent/runs/<run-id>/`. The session's `.intent/prove/sessions/` is ignored authoring scratch, not proof evidence. `--target path[::symbol]` declares covered source; supporting inputs and `--trusted` claims are not additional verified targets. `--requirement <id>` records a declared association, not an automatic proof of a requirement. All `.intent/` paths resolve from the detected repository root; outside Git, the CLI uses the project directory.
+Each operation freezes its uploaded inputs under `.intent/logs/<run-id>/inputs/` and saves `request.json` and `result.json` beside that folder. Use the returned `proofDir` (`logs/<run-id>/artifacts/`) for `SCOPE.md`, `PROOF.md` and `prove.sh`. There is no separate proof store. The session's `.intent/prove/sessions/` is ignored authoring scratch, not proof evidence. `--target path[::symbol]` declares covered source; supporting inputs and `--trusted` claims are not additional verified targets. `--requirement <id>` explicitly associates the submitted formal files with an existing property, not an automatic proof of it. All `.intent/` paths resolve from the detected repository root; outside Git, the CLI uses the project directory.
 
 ## Local requirements and evidence
 
@@ -97,8 +97,8 @@ All proof bundles go under `.intent/proofs/<attempt-id>/`, even for single-funct
 
 The CLI owns structured `requirements.json` writes and derives placement from the targets:
 
-- All targets in one exact source file, including multiple methods: `.intent/files/<source-path>/requirements.json`.
-- Targets spanning multiple source files: `.intent/files/requirements.json`.
+- All targets in one exact source file, including multiple methods: `.intent/source/<source-path>/requirements.json`.
+- Targets spanning multiple source files: `.intent/source/requirements.json`.
 
 For example, write this transport payload as `requirement-input.json` (outside the managed `.intent/` paths):
 
@@ -112,22 +112,21 @@ For example, write this transport payload as `requirement-input.json` (outside t
 
 ```sh
 intent-check requirements add --input requirement-input.json
-intent-check requirements show REQ-001
+intent-check requirements show <id>
 # Edit the transport payload, then replace the record while retaining its ID:
-intent-check requirements update REQ-001 --input requirement-input.json
+intent-check requirements update <id> --input requirement-input.json
 intent-check requirements list
-intent-check requirements context --path src/pricing.py
-intent-check requirements remove REQ-001
+intent-check requirements remove <id>
 ```
 
-The first add in an empty project stores `.intent/files/src/pricing.py/requirements.json`:
+An add stores `.intent/source/src/pricing.py/requirements.json` with a generated ID, for example:
 
 ```json
 {
   "schema_version": 1,
   "requirements": [
     {
-      "id": "REQ-001",
+      "id": "k7m2qx",
       "statement": "Reject negative input prices.",
       "targets": [{"path": "src/pricing.py", "symbol": "calculate_total"}],
       "reason": "Negative prices are invalid."
@@ -136,11 +135,13 @@ The first add in an empty project stores `.intent/files/src/pricing.py/requireme
 }
 ```
 
-Documents require exactly `schema_version` and `requirements`. Records require `id`, `statement` and nonempty `targets`; `reason` is optional. Targets contain an exact repository-relative `path` and optional function/method qualified name `symbol`; omit `symbol` for the whole file. There is no variable targeting or symbol analysis. Unknown fields and invalid IDs/paths are rejected on reads and writes. IDs are sequential and unique across project scopes (`REQ-001`, `REQ-002`, …, `REQ-1000`), and remain stable on update. If an update changes the target files, the CLI relocates the record without duplication. `--input` reads a transport payload, not an arbitrary store destination; add/update have no `--file` scope flag. Requirement commands cannot create check/proof outcomes. There is no hosted schema dependency or competing `properties.json` store.
+Documents require exactly `schema_version` and `requirements`. Records require `id`, `statement` and nonempty `targets`; `reason` is optional. Targets contain an exact repository-relative `path` and optional function/method qualified name `symbol`; omit `symbol` for the whole file. Local requirement, specification bundle and operation IDs contain six lowercase letters/digits, with project-local collision checking; requirement and bundle IDs remain stable on update. Backend task and auth/session IDs are unchanged. If targets change, the CLI relocates the record without duplication and maintains its owning index. Removal detaches its index entry without deleting historical evidence or formal files. `--input` reads a transport payload, not a store destination; add/update have no `--file` scope flag. Requirement commands do not create proof outcomes.
 
-The plugin requires the CLI from the same release with `requirements context` support, first on `PATH`; `--version` alone does not establish that capability. Verify `intent-check requirements context --help` after installing the matching CLI. An older or missing CLI stops requirement-dependent reviews with an actionable note; queued named-file requests remain queued. Invalid requirements also stop submission rather than silently dropping context.
+Agents read requirements, specifications, indexes and logs directly with their normal file tools. Request construction collects applicable requirements internally; there is no public context command. Use the CLI for structured requirement mutations and edit `REQUIREMENTS.md` directly. Editing conventions are instructions, not filesystem access restrictions. Internal hook and worker entry points are host lifecycle interfaces, not supported agent-facing commands.
 
-Turn, live, shell and named-file reviews save isolated generations under `.intent/files/<source-path>/checks/<run-id>/`, with actual returned artifacts and metadata referencing canonical `runs/<run-id>/result.json`. Partial runs never borrow an older spec or reasoning file. Submission timestamps determine the latest saved review; older runs remain independently readable. Renamed/deleted source does not rewrite historical evidence.
+Each source has `source/<source-path>/index.json` and `specs/<spec-id>/` for actual current formal files. The index contains `schema_version: 1` and a `properties` map keyed by requirement ID; each entry has only `specs` (paths relative to `.intent`) and `last_run` (local operation ID or null). A property can have no specs yet; several properties can share files or runs. A cross-file requirement has one owning per-file index, initially its first target; that owner is retained while it remains a target. There is no global index/spec folder.
+
+Operation outputs remain in `logs/<run-id>/artifacts/`. File reviews retain their per-source artifacts there without guessing property associations. Explicit proof associations copy applicable submitted formal files into a new independent bundle and select them in the index. Use `--spec-id <id>` to update or intentionally share an existing bundle, never a matching filename. Relative paths are preserved within each bundle. Copies are not symlinks. Source, requirement, specification and selection versions must still match; late results cannot overwrite newer work. Partial/no-spec output does not delete existing specifications. See [the folder contract](intent-storage.md) for the complete structure. Renamed/deleted source does not rewrite history.
 
 Check/DeepScan outcomes are LLM-reviewed, not formal proof. Successful concrete execution or validation is not proof either. Formal results apply only to selected non-trusted claims under recorded semantics, inputs, controls and assumptions; review soundness and scope separately. Source/input freshness is independent of confidence. Request manifests record exact input hashes and controls, but omit captured prompts/transcripts. Frozen input copies are not included in offline exports.
 
@@ -216,10 +217,10 @@ Both hosts launch the global native CLI through full command strings. Claude hoo
 For a whole-repo or folder scan:
 
 - What is sent: a snapshot of the files git tracks plus untracked files that are not ignored, as one compressed upload. Left out: files git ignores, binary files, lockfiles, vendored and generated folders (node_modules, vendor, dist, build, ...), files over 512 KB, and anything that looks like a secrets file. Obvious secrets inside the files are masked first. The limits are 3000 files and 15 MB of text; when a repo is larger, the least relevant files are dropped first and the command says so. Name a folder to scan one part of a big repo.
-- DeepScan reads your code, not generated `.intent/` results. The brief and applicable structured requirements are explicitly validated and included as requirements context.
+- DeepScan reads your code, the brief, applicable structured requirements and their selected current formal files. Historical `.intent/` results are not uploaded.
 - The upload is listed in `.intent/.sent.log` (paths and sizes, never contents). Intent Check must be on and signed in; `INTENT_DISABLED=1` stops DeepScan too.
 - The command prints the report link and returns. When the scan finishes, a short summary with the top findings appears at your next message in that repo (also in a new session), once. The link shows the full report and live progress.
-- The plugin saves the final report as `.intent/runs/<task-id>/report.json`, after checking its size and SHA-256 against the task response. Beside it, `request.json` binds scope, snapshot and per-file hashes; `result.json` records task and report collection status. `source_sha256` identifies local bytes; `submitted_sha256` identifies redacted upload text. No source contents are copied into this folder.
+- The plugin saves the final report as `.intent/logs/<run-id>/artifacts/report.json`, after checking its size and SHA-256 against the task response. The six-character local run ID is separate from the backend task ID recorded in the manifest. The operation's `request.json` binds scope, snapshot and per-file hashes; `result.json` records task and report collection status. `source_sha256` identifies local bytes; `submitted_sha256` identifies redacted upload text. The exact uploaded snapshot is retained under `inputs/` and excluded from automatic export.
 - Report collection runs in the background and resumes on a later message if interrupted, even after the summary has been delivered. `result.json` distinguishes a saved report from pending, expired or unavailable data. Saved reports are not removed when plugin state or server files expire. Supporting files linked from the report remain on the service; the plugin does not download the sandbox workspace.
 - Findings are flagged, not reproduced. Ask the agent to reproduce the ones you care about.
 
@@ -250,8 +251,7 @@ supporting files remain remote. Offline exports do not refresh.
 ## Development
 
 - The native Rust CLI owns hooks, capture, reviews, DeepScan and detached workers. Browser JavaScript powers the local viewer; Node.js is only needed for development tooling.
-- `npm test` (node:test). `npm run test:integration` runs the real `claude -p` and `codex exec` against a mock model API and a fake Intent Check service (no LLM, no secrets; skips a CLI that is not installed); CI runs it on Linux, macOS and Windows. `test/e2e/claude-e2e.sh` drives a real Claude Code session through tmux; `test/e2e/codex-e2e.sh` runs `codex exec` in an isolated `CODEX_HOME`.
-- The legacy JavaScript runtime suites still import the removed `lib/` modules and launch `bin/hooks.js`; they need native-entrypoint migration before they can validate this runtime.
+- `npm test` (node:test). Ordinary CI runs `npm run test:smoke` on Linux. `npm run test:integration` runs the real `claude -p` and `codex exec` against a mock model API and a fake Intent Check service (no LLM, no secrets; skips a CLI that is not installed); release/manual workflows run it on Linux, macOS and Windows. `test/e2e/claude-e2e.sh` drives a real Claude Code session through tmux; `test/e2e/codex-e2e.sh` runs `codex exec` in an isolated `CODEX_HOME`.
 - Backend: the Intent Check service API (`nlp-research-rosu/prover`). Its `openapi.yaml` is the contract; `test/helpers/fake-prover.js` mirrors it for tests.
 - CLI: `cli/` (Rust). `cargo fmt --check`, `cargo clippy --locked -- -D warnings`, `cargo test --locked`, and the scripts in `cli/tests/` (each takes the binary path).
 - `INTENT_DEBUG=1` adds one line per hook call to `intent.log` in the plugin data folder. Test-only: `INTENT_PIPELINE=llm|canned` (honoured only where the server allows overrides), `INTENT_DEEPSCAN_POLL_MS` and `INTENT_DEEPSCAN_BUSY_MS` (waits in tests).

@@ -90,9 +90,8 @@ Session counters live in sessions/<ID>/session.json beside config.toml; shared
 language sources live in semantics/<id>/<commit>/ there too.
 The same XDG_CONFIG_HOME / APPDATA / home-directory rules apply to all three.
 Authoring scratch lives in <project>/.intent/prove/sessions/<ID>/.
-Canonical request/result records live in <project>/.intent/runs/<run-id>/.
-Proof uploads are frozen once in <project>/.intent/proofs/<attempt-id>/inputs/;
-standalone run/validate uploads are frozen under their run's inputs/.
+Canonical request/result records live in <project>/.intent/logs/<run-id>/.
+Every operation freezes uploads under its inputs/ and keeps artifacts under artifacts/.
 Inside a repository, <project> is always its root, not the working directory.
 Existing project-local descriptors are left untouched and are not imported.
 
@@ -114,19 +113,18 @@ Cancellation:
 
 pub const REQUIREMENTS: &str = r#"Local requirements (no service calls):
   intent-check requirements list [--file src/pricing.py]
-  intent-check requirements show REQ-001
+  intent-check requirements show <id>
   intent-check requirements add --input requirement-input.json
-  intent-check requirements update REQ-001 --input requirement-input.json
-  intent-check requirements remove REQ-001
-  intent-check requirements context [--path src/pricing.py]
+  intent-check requirements update <id> --input requirement-input.json
+  intent-check requirements remove <id>
 
 requirement-input.json (add/update input omits the assigned ID):
   {"statement":"Reject negative input prices.",
    "targets":[{"path":"src/pricing.py","symbol":"calculate_total"}],
    "reason":"Negative prices are invalid."}
 
-The first add in an empty project stores .intent/files/src/pricing.py/requirements.json:
-  {"schema_version":1,"requirements":[{"id":"REQ-001",
+An add stores .intent/source/src/pricing.py/requirements.json with a generated ID:
+  {"schema_version":1,"requirements":[{"id":"k7m2qx",
    "statement":"Reject negative input prices.",
    "targets":[{"path":"src/pricing.py","symbol":"calculate_total"}],
    "reason":"Negative prices are invalid."}]}
@@ -137,18 +135,25 @@ exact repository-relative source path. Optional symbol is a function/method
 qualified name; omit it for the whole file. No variable targets or symbol analysis.
 Unknown fields and invalid IDs/paths are rejected on reads and writes.
 
-The CLI assigns project-unique sequential IDs: REQ-001, REQ-002, ... REQ-1000.
+The CLI assigns six-character lowercase letter/digit IDs, unique within the project.
+Requirements, specification bundles and local operations use these IDs; backend task
+and auth/session IDs stay unchanged. Retain requirement and bundle IDs on update.
 Placement is derived from targets, not an output flag: all targets in one source
-file use .intent/files/<source-path>/requirements.json, even for multiple methods;
-targets in multiple files use .intent/files/requirements.json. Update retains the ID
+file use .intent/source/<source-path>/requirements.json, even for multiple methods;
+targets in multiple files use .intent/source/requirements.json. Update retains the ID
 and relocates the record when needed, without leaving a duplicate. --input is
 only a transport payload, not a store destination. Do not edit managed JSON.
 
 REQUIREMENTS.md starts with # Project requirements and empty Purpose, Expected
 behavior, Constraints, Out of scope and Open questions sections. It is one directly
 editable project brief, not synchronized with JSON; no per-file Markdown is made.
-Requirements context is validated before checks and DeepScan use it.
-Requirements are not evidence. prove --requirement REQ-001 records a versioned
+Read .intent files directly with normal tools. Request collection is internal code,
+not a public context command. Per-source index.json selects current specs paths and
+last_run for each property. Paths are relative to .intent; last_run is a local ID or null.
+Cross-file properties have one owning per-file index. There is no global index/specs.
+Associated proofs create independent specs/<spec-id>/ bundles. Use --spec-id <id>
+to update or intentionally share an existing bundle, not a matching filename.
+Requirements are not evidence. prove --requirement <id> records a versioned
 local association, not uploaded requirement context or proof of that requirement.
 "#;
 
@@ -222,7 +227,7 @@ Run, validation, and proof limits are independent. At the limit, the next run
 is refused with local status exhausted and exit 20; the last run's backend
 result and exit code are not overwritten.
 task.result is success or error; the configuration is in saved stdout.
-Evidence is stored under <projectRoot>/.intent/runs/<run-id>/result.json, with inline
+Evidence is stored under <projectRoot>/.intent/logs/<run-id>/result.json, with inline
 stdout and stderr. The snapshot is updated from acceptance to completion.
 See `intent-check config --help` for timeout and cancellation behavior."#;
 
@@ -357,7 +362,7 @@ Validation results:
   task.result (valid or invalid), task.toolRuns, and task.error for evidence.
   Neither compilation nor a valid result establishes proof or non-vacuity.
   Accepted submissions increment validationsUsed and are retained under
-  <projectRoot>/.intent/runs/<run-id>/, including failed tasks. The response includes
+  <projectRoot>/.intent/logs/<run-id>/, including failed tasks. The response includes
   budget (used, limit, remaining) and evidenceDir. At the limit, the next
   validation is refused with local status exhausted and exit 20; the last
   validation's backend result and exit code are not overwritten.\n\n{EVIDENCE}"
@@ -370,7 +375,7 @@ pub fn prove() -> String {
 Proof results and attempts:
   Each server-accepted proof consumes one attempt, including interruption,
   timeout, replay, and audit mutation. Evidence is stored under
-  <projectRoot>/.intent/runs/<run-id>/. The response includes the backend task unchanged,
+  <projectRoot>/.intent/logs/<run-id>/. The response includes the backend task unchanged,
   sessionId, budget (used, limit, remaining), evidenceDir, and proofDir.
   Exit code: the last task.toolRuns entry's exitCode when a tool ran. A completed
   reused result with no tool runs exits 0, whether proved or notProved.
@@ -412,7 +417,7 @@ credentials, plugin prompts or transcripts. Symlinks and hidden files are not
 exported; queued requests are represented by task metadata only.
 
 The name comes from the origin repository name, falling back to the root folder.
-File reviews, DeepScan reports and proof sessions come from this project's
+Current properties/specifications, DeepScan reports and operation history come from this project's
 .intent directory. Active file checks come from installed Claude Code/Codex
 plugin data; set --plugin-data for a custom or isolated plugin installation.
 Submitted means the plugin is awaiting a result, not a confirmed server status.

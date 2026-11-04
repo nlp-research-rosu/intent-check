@@ -4,6 +4,7 @@
 Usage: python3 cli/tests/check-cli-cancellation.py /absolute/path/to/intent-check
 """
 
+import hashlib
 import json
 import os
 import signal
@@ -191,12 +192,19 @@ class CancellationTests(unittest.TestCase):
                             proc.communicate()
                 self.assertLess(time.monotonic() - started, 9)
                 result = json.loads(stdout)
-                evidence = next((root / ".intent/runs").glob("*/result.json")).parent
+                evidence = next((root / ".intent/logs").glob("*/result.json")).parent
                 snapshot = json.loads((evidence / "result.json").read_text())
                 task = snapshot["task"]
                 wait = snapshot["wait"]
                 self.assertEqual({p.name for p in evidence.iterdir()},
-                                 {"request.json", "result.json"})
+                                 {"request.json", "result.json", "inputs"})
+                frozen = evidence / "inputs/spec.k"
+                self.assertEqual(frozen.read_bytes(), b"module TEST endmodule\n")
+                request = json.loads((evidence / "request.json").read_text())
+                self.assertEqual(request["inputs"], [{
+                    "path": frozen.relative_to(root / ".intent").as_posix(),
+                    "sha256": hashlib.sha256(frozen.read_bytes()).hexdigest(),
+                }])
                 state = json.loads((config / "sessions" / session_id / "session.json").read_text())
                 self.assertEqual(task["id"], "cancel-task")
                 self.assertEqual(wait["taskId"], "cancel-task")

@@ -10,14 +10,17 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 export const BIN = path.join(ROOT, "cli", "target", "debug", process.platform === "win32" ? "intent-check.exe" : "intent-check");
 export const FIXTURES = path.join(ROOT, "test", "fixtures", "claude");
 
-// Resolve assertions against the latest saved generation, not the removed mutable unit folder.
+// Resolve result assertions against the latest logged review of this source.
 export function reviewPath(repo, source, artifact) {
-  const dir = path.join(repo, ".intent", "files", source, "checks");
+  const dir = path.join(repo, ".intent", "logs");
   try {
-    const generations = fs.readdirSync(dir).map(id => ({ id, meta: JSON.parse(fs.readFileSync(path.join(dir, id, "meta.json"), "utf8")) }))
+    const generations = fs.readdirSync(dir).flatMap(id => {
+      try { return [{ id, meta: JSON.parse(fs.readFileSync(path.join(dir, id, "artifacts", source, "meta.json"), "utf8")) }]; }
+      catch { return []; }
+    })
       .sort((a, b) => (b.meta.submitted_at || 0) - (a.meta.submitted_at || 0) || b.id.localeCompare(a.id));
-    return path.join(dir, generations[0]?.id || "missing", ...(artifact ? [artifact] : []));
-  } catch { return path.join(dir, "missing", ...(artifact ? [artifact] : [])); }
+    return path.join(dir, generations[0]?.id || "missing", "artifacts", source, ...(artifact ? [artifact] : []));
+  } catch { return path.join(dir, "missing", "artifacts", source, ...(artifact ? [artifact] : [])); }
 }
 
 // Raw fixture JSON with its project dir rewritten to `dir`, escaped because a Windows path has backslashes.
@@ -145,7 +148,7 @@ export function seedGlobal(dataDir, obj) {
 
 // Seed retained evidence for tests of subsequent capture; this does not exercise persistence.
 export function seedReview(repo, unit, job, result) {
-  const dir = path.join(repo, ".intent", "files", unit.path, "checks", job.job_id);
+  const dir = path.join(repo, ".intent", "logs", "abc123", "artifacts", unit.path);
   fs.mkdirSync(dir, { recursive: true });
   for (const [name, text] of Object.entries(unit.artifacts)) fs.writeFileSync(path.join(dir, name), text);
   fs.writeFileSync(path.join(dir, "meta.json"), JSON.stringify({ version: 1, path: unit.path, source_sha256: unit.checked_sha256, review_id: job.job_id, submitted_at: Date.now(), reviewed_at: result.checked_at, url: job.url, verdict: unit.verdict }));

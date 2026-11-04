@@ -347,8 +347,8 @@ pub(super) fn concern_text(
         paths
             .iter()
             .map(|p| format!(
-                ".intent/files/{p}/checks/{}/VERDICT.md",
-                string(&job["job_id"])
+                ".intent/logs/{}/artifacts/{p}/VERDICT.md",
+                string(&job["run_id"])
             ))
             .collect::<Vec<_>>()
             .join(", ")
