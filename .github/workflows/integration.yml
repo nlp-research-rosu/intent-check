@@ -1,7 +1,7 @@
 name: integration
 # The real `claude -p` and `codex exec` load the hook-free plugin against a mock model API and the fake
 # prover (test/integration). LLM-free: no Anthropic/OpenAI secrets, nothing here reads a secret.
-# Called from ci.yml (PRs that touch hooks/bin/lib/commands/.github, pushes to main, manual runs) and
+# Called from ci.yml (PRs that touch bin/lib/commands/.github, pushes to main, manual runs) and
 # from release.yml before it releases; also runnable by hand from the Actions tab.
 on:
   workflow_call:

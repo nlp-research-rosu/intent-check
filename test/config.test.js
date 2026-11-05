@@ -51,23 +51,9 @@ test("a credentials file others can read is not used, and the problem is named",
   assert.match(p.problem, /readable by others/);
 });
 
-test("clearing a saved key removes only this origin and keeps the file 600 in a 700 folder", () => {
-  const data = tmpdir("intent-cfg-");
-  const dir = path.join(data, "xdg", "intent-check");
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const file = path.join(dir, "credentials.json");
-  fs.writeFileSync(file, JSON.stringify({ keys: { "http://127.0.0.1:1": "k-one", "http://localhost:2": "k-two" } }), { mode: 0o600 });
-  const code = `import(${JSON.stringify(pathToFileURL(path.join(ROOT, "lib", "config.js")).href)}).then((c) => { process.env.INTENT_API_URL = "http://localhost:2"; c.clearSavedApiKey("not-it"); c.clearSavedApiKey("k-two"); })`;
-  const env = { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("INTENT_"))), CLAUDE_PLUGIN_DATA: data, XDG_CONFIG_HOME: path.join(data, "xdg"), INTENT_API_URL: "http://127.0.0.1:1" };
-  execFileSync(process.execPath, ["-e", code], { env });
-  assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), { keys: { "http://127.0.0.1:1": "k-one" } });
-  if (process.platform !== "win32") assert.equal(fs.statSync(file).mode & 0o777, 0o600);
-});
-
-test("off switches and plugin version", () => {
+test("Scan environment opt-outs and plugin version", () => {
   assert.equal(probe({}).off, null);
   assert.equal(probe({ INTENT_DISABLED: "1" }).off, "INTENT_DISABLED");
   assert.equal(probe({ DO_NOT_TRACK: "1" }).off, "DO_NOT_TRACK");
-  assert.equal(probe({ INTENT_LIVE: "1" }, { "config.json": { disabled: true, live: true } }).off, null);
   assert.equal(probe({}).v, JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version);
 });

@@ -1,7 +1,7 @@
 // Integration: the real `claude -p` loads the hook-free plugin against a
 // mock Anthropic API and the fake prover. LLM-free: no real model, no secrets. Run on every OS in CI
 // (see .github/workflows/ci.yml); skips cleanly when the `claude` CLI is not installed.
-//   node --test test/integration/claude-hooks.test.js
+//   node --test test/integration/claude-plugin.test.js
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";

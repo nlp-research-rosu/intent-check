@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 // `npm test`: every unit test file under test/, on any OS and shell (the file list is built here, so
 // nothing depends on the shell or Node expanding a glob).
-// On Windows the files run one at a time. Starting a process is several times slower there, and
-// with every file spawning hooks at once the tests that bound a hook's wall-clock time fail.
+// On Windows the files run one at a time to keep process-start overhead bounded.
 // Extra arguments go to `node --test` (for example --test-name-pattern).
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";

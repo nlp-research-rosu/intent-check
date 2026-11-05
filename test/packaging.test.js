@@ -21,8 +21,8 @@ test("marketplace and manifests share one plugin version", () => {
 });
 
 test("plugins register no automatic hooks", () => {
-  assert.equal(fs.existsSync(path.join(ROOT, "hooks", "hooks.json")), false);
-  assert.equal(fs.existsSync(path.join(ROOT, "hooks", "codex-hooks.json")), false);
+  assert.equal(fs.existsSync(path.join(ROOT, "hooks")), false);
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "bin")).sort(), ["intent", "intent.js"]);
   assert.equal(read(".codex-plugin/plugin.json").skills, "./skills/");
 });
 
@@ -31,7 +31,6 @@ test("only Scan, Prove and diagnostics are callable commands", () => {
   for (const command of ["deepscan", "doctor"]) {
     const text = fs.readFileSync(path.join(ROOT, "commands", `${command}.md`), "utf8");
     assert.match(text, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent\.js"/);
-    assert.doesNotMatch(text, /bin\/hooks\.js/);
   }
   assert.match(fs.readFileSync(path.join(ROOT, "commands", "prove.md"), "utf8"), /allowed-tools: Bash\(intent-check:\*\)/);
 });

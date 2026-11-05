@@ -4,7 +4,7 @@ use clap::Args;
 use serde::Serialize;
 use serde_json::{Value, json};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     env, fs,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
@@ -29,7 +29,7 @@ pub struct ViewArgs {
     /// Loopback port; by default the OS selects a free port.
     #[arg(long, default_value_t = 0)]
     port: u16,
-    /// Plugin data directory for active file checks; repeat for multiple hosts.
+    /// Plugin data directory for explicit Scans; repeat for multiple hosts.
     /// Defaults to installed Claude Code and Codex plugin data directories.
     #[arg(long)]
     plugin_data: Vec<PathBuf>,
@@ -51,7 +51,7 @@ struct Snapshot {
 struct ActiveCheck {
     id: String,
     kind: &'static str,
-    status: &'static str,
+    status: String,
     paths: Vec<String>,
     url: Option<String>,
     submitted_at: Value,
@@ -169,14 +169,6 @@ fn collect_files(root: &Path, dir: &Path, snapshot: &mut Snapshot) -> Result<()>
     Ok(())
 }
 
-fn matches_project(job: &Value, root: &Path) -> bool {
-    job["repo"]
-        .as_str()
-        .and_then(|repo| Path::new(repo).canonicalize().ok())
-        .as_deref()
-        == Some(root)
-}
-
 fn snapshot(root: &Path, name: &str, data_dirs: &[PathBuf]) -> Result<Snapshot> {
     let mut snapshot = Snapshot {
         name: name.into(),
@@ -194,28 +186,6 @@ fn snapshot(root: &Path, name: &str, data_dirs: &[PathBuf]) -> Result<Snapshot> 
         anyhow::bail!(".intent must not be a symlink");
     }
     collect_files(&intent, &intent, &mut snapshot)?;
-    for entry in entries(&intent.join(".queue"))? {
-        if let Some(item) = read_json(&entry.path()) {
-            snapshot.active.push(ActiveCheck {
-                id: entry.file_name().to_string_lossy().into_owned(),
-                kind: "File review",
-                status: "queued",
-                paths: item["paths"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(Value::as_str)
-                    .map(str::to_owned)
-                    .collect(),
-                url: None,
-                submitted_at: item["at"].clone(),
-            });
-        }
-    }
-    let mut seen = BTreeSet::new();
-    if !data_dirs.iter().any(|dir| dir.join("sessions").is_dir()) {
-        snapshot.warnings.push("Active plugin checks are unavailable: no plugin session state found. Use --plugin-data for a custom installation.".into());
-    }
     for dir in data_dirs {
         for entry in entries(&dir.join("deepscans"))? {
             let Some(scan) = read_json(&entry.path()) else {
@@ -233,49 +203,42 @@ fn snapshot(root: &Path, name: &str, data_dirs: &[PathBuf]) -> Result<Snapshot> 
                 );
             }
         }
-        for entry in entries(&dir.join("sessions"))? {
+        for entry in entries(&dir.join("file-scans"))? {
             if entry.path().extension().is_none_or(|ext| ext != "json") {
                 continue;
             }
-            let Some(state) = read_json(&entry.path()) else {
+            let Some(scan) = read_json(&entry.path()) else {
                 continue;
             };
-            let jobs = state["pending"].as_array().into_iter().flatten().chain(
-                state["edit_jobs"]
-                    .as_object()
-                    .into_iter()
-                    .flat_map(|jobs| jobs.values()),
-            );
-            for job in jobs {
-                if !matches_project(job, root) || job["settled"] == true {
-                    continue;
-                }
-                let Some(id) = job["job_id"].as_str() else {
-                    continue;
-                };
-                if !seen.insert(id.to_owned()) {
-                    continue;
-                }
-                // Select task metadata only. Session prompts, patches and transcripts never leave this process.
-                snapshot.active.push(ActiveCheck {
-                    id: id.into(),
-                    kind: if job["edit"] == true {
-                        "Live check"
-                    } else {
-                        "File review"
-                    },
-                    status: "submitted",
-                    paths: job["sent"]
-                        .as_array()
-                        .into_iter()
-                        .flatten()
-                        .filter_map(|sent| sent["rel"].as_str())
-                        .map(str::to_owned)
-                        .collect(),
-                    url: job["url"].as_str().map(str::to_owned),
-                    submitted_at: job["submitted_at"].clone(),
-                });
+            let matches = scan["repo_root"]
+                .as_str()
+                .and_then(|repo| Path::new(repo).canonicalize().ok())
+                .as_deref()
+                == Some(root);
+            let (Some(id), Some(status)) = (scan["job_id"].as_str(), scan["status"].as_str())
+            else {
+                continue;
+            };
+            if !matches
+                || matches!(status, "done" | "failed" | "superseded")
+                || snapshot.active.iter().any(|active| active.id == id)
+            {
+                continue;
             }
+            snapshot.active.push(ActiveCheck {
+                id: id.into(),
+                kind: "File Scan",
+                status: status.into(),
+                paths: scan["sent"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|sent| sent["rel"].as_str())
+                    .map(str::to_owned)
+                    .collect(),
+                url: scan["url"].as_str().map(str::to_owned),
+                submitted_at: scan["created_at"].clone(),
+            });
         }
     }
     snapshot.active.sort_by(|a, b| a.id.cmp(&b.id));

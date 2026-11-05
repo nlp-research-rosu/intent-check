@@ -1,9 +1,6 @@
 #!/bin/sh
 # Optional POSIX launcher for explicitly requested plugin commands.
 set -eu
-case "${1:-}" in
-  session-start|prompt|post-tool|stop|stop-detached|edit-detached|shell-scan-detached|finish|deepscan-wait) exit 0 ;;
-esac
 dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if command -v node >/dev/null 2>&1; then
   exec node "$dir/intent.js" "$@"

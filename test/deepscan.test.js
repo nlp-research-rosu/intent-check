@@ -110,25 +110,19 @@ test("explicit file Scan submits immediately without prompts, and collect saves 
   assert.equal(fp.jobRequests().length, 1);
 });
 
-test("upgrade retains settings, evidence and old queues without consuming automatic work", async () => {
+test("Scan leaves unrelated local state and existing evidence untouched", async () => {
   const ctx = setup();
-  const config = '{"live":true,"disabled":true}\n';
+  const config = '{"user_setting":"retained"}\n';
   fs.writeFileSync(path.join(ctx.data, "config.json"), config);
   write(ctx.repo, ".intent/.queue/1-12345678.json", '{"mode":"request","paths":["private.py"]}');
   write(ctx.repo, ".intent/old/VERDICT.md", "retained evidence");
   write(ctx.repo, "pricing.py", "x = 1\n");
-  const result = await cli(["pricing.py"], ctx, { INTENT_LIVE: "1" });
+  const result = await cli(["pricing.py"], ctx);
   assert.equal(result.code, 0, result.err);
   assert.equal(fs.readFileSync(path.join(ctx.data, "config.json"), "utf8"), config);
   assert.ok(fs.existsSync(path.join(ctx.repo, ".intent/.queue/1-12345678.json")));
   assert.equal(fs.readFileSync(path.join(ctx.repo, ".intent/old/VERDICT.md"), "utf8"), "retained evidence");
   assert.deepEqual(fp.jobRequests()[0].units.map((unit) => unit.path), ["pricing.py"]);
-  // A pre-update DeepScan record remains usable without its waiter/delivery machinery.
-  const deep = await cli([], ctx);
-  const id = idOf(deep.out);
-  const file = path.join(ctx.data, "deepscans", `${id}.json`);
-  fs.writeFileSync(file, JSON.stringify({ ...read(file), waiter: { pid: null, token: "old", at: 0 }, delivered: true }));
-  assert.match((await cli(["collect", id], ctx)).out, /Saved report:/);
 });
 
 test("collection is project/service scoped and never resubmits code", async () => {

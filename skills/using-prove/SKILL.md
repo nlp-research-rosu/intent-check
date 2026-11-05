@@ -41,7 +41,7 @@ matching the target, and inspect its pinned sources and backend capabilities.
 Start one bounded session before construction and reuse its
 session ID for concrete runs, validation, proofs, and repairs. Follow the
 [semantics selection contract](../shared/running-k.md#semantics-descriptor).
-Live prove mode uses bundled semantics, not user-authored semantics files. If no
+Prove uses bundled semantics, not user-authored semantics files. If no
 supported ID matches, report the model gap rather than inventing a live
 semantics or silently narrowing the target.
 

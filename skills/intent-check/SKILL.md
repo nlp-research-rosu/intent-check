@@ -48,4 +48,4 @@ When the user confirms intended behaviour, append a concise bullet to `.intent/N
 
 Use [onboarding](../onboarding/SKILL.md) if setup is missing. Sign in explicitly with `intent-check login`; show its approval link and keep the command running until it completes. Never read credentials into chat.
 
-Run `doctor` for connection or configuration problems. It reports status without deleting credentials, starting login or updating the plugin. `INTENT_DISABLED=1` or `DO_NOT_TRACK=1` blocks plugin Scan commands; legacy Check `live`/`disabled` settings are retained but no longer control explicit commands.
+Run `doctor` for connection or configuration problems. It reports status without deleting credentials, starting login or updating the plugin. `INTENT_DISABLED=1` or `DO_NOT_TRACK=1` blocks plugin Scan commands.

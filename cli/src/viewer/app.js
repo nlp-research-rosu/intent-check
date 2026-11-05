@@ -148,7 +148,7 @@ function reviewFindings(review) {
   return `<ul class="review-findings">${findings.map(([, title, description]) => `<li>${inline(description)}<span class="subline">${inline(title)}</span></li>`).join('')}</ul>`;
 }
 function reviewsPage(r) {
-  const active = activeChecks({ active: r.active.filter(a => ['File review', 'Live check'].includes(a.kind)) });
+  const active = activeChecks({ active: r.active.filter(a => a.kind === 'File Scan') });
   const review = r.reviews.find(x => x.path === state.review);
   if (!review) {
     return heading('File reviews', 'Files and findings.') + `<div class="stack">${active}`

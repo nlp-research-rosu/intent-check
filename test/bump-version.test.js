@@ -15,9 +15,9 @@ test("patch, minor, major from a plain version", () => {
 });
 
 test("bumps operate on the base of a prerelease", () => {
-  assert.equal(nextVersion("0.1.1-peredit.2", "patch", null, none), "0.1.2");
-  assert.equal(nextVersion("0.1.1-peredit", "minor", null, none), "0.2.0");
-  assert.equal(nextVersion("0.1.1-peredit.2", "major", null, none), "1.0.0");
+  assert.equal(nextVersion("0.1.1-preview.2", "patch", null, none), "0.1.2");
+  assert.equal(nextVersion("0.1.1-preview", "minor", null, none), "0.2.0");
+  assert.equal(nextVersion("0.1.1-preview.2", "major", null, none), "1.0.0");
 });
 
 test("explicit versions pass through; junk is rejected", () => {
@@ -29,12 +29,12 @@ test("explicit versions pass through; junk is rejected", () => {
 });
 
 test("--pre: bumps the base the first time, then numbers on from the highest tag", () => {
-  const tags = ["v0.1.2-per-edit.1", "v0.1.2-per-edit.3", "v0.1.2-other.9"];
+  const tags = ["v0.1.2-preview.1", "v0.1.2-preview.3", "v0.1.2-other.9"];
   const list = (pat) => tags.filter((t) => t.startsWith(pat.slice(0, -1)));
-  assert.equal(nextVersion("0.1.1", "patch", "per-edit", list), "0.1.2-per-edit.4");
-  assert.equal(nextVersion("0.1.2-per-edit.3", "patch", "per-edit", list), "0.1.2-per-edit.4");
-  assert.equal(nextVersion("0.1.2-per-edit.3", "minor", "per-edit", list), "0.1.2-per-edit.4");
-  assert.equal(nextVersion("0.1.2-other.9", "patch", "per-edit", none), "0.1.3-per-edit.1");
+  assert.equal(nextVersion("0.1.1", "patch", "preview", list), "0.1.2-preview.4");
+  assert.equal(nextVersion("0.1.2-preview.3", "patch", "preview", list), "0.1.2-preview.4");
+  assert.equal(nextVersion("0.1.2-preview.3", "minor", "preview", list), "0.1.2-preview.4");
+  assert.equal(nextVersion("0.1.2-other.9", "patch", "preview", none), "0.1.3-preview.1");
   assert.equal(nextVersion("0.1.1", "0.5.0", "x", none), "0.5.0-x.1");
 });
 
@@ -62,10 +62,10 @@ test("CLI: writes all version files consistently, keeps formatting, prints only 
 test("CLI: --pre numbers from git tags", () => {
   const { dir, git, run } = sandbox();
   run("1.4.0");
-  git("tag", "v1.4.1-per-edit.1");
-  assert.equal(run("patch", "--pre", "per-edit"), "1.4.1-per-edit.2\n");
-  assert.equal(run("patch", "--pre", "per-edit"), "1.4.1-per-edit.2\n");
-  assert.deepEqual(readVersions(dir).map(([, v]) => v), Array(FILES.length).fill("1.4.1-per-edit.2"));
+  git("tag", "v1.4.1-preview.1");
+  assert.equal(run("patch", "--pre", "preview"), "1.4.1-preview.2\n");
+  assert.equal(run("patch", "--pre", "preview"), "1.4.1-preview.2\n");
+  assert.deepEqual(readVersions(dir).map(([, v]) => v), Array(FILES.length).fill("1.4.1-preview.2"));
 });
 
 test("CLI: plain release also sets docs/install.json's top-level version", () => {
@@ -83,9 +83,9 @@ test("CLI: prerelease bump leaves docs/install.json untouched", () => {
   run("0.1.1"); // pin the base so the test doesn't depend on the repo's current release
   const p = path.join(dir, INSTALL_JSON);
   const before = fs.readFileSync(p, "utf8");
-  assert.equal(run("patch", "--pre", "per-edit"), "0.1.2-per-edit.1\n");
+  assert.equal(run("patch", "--pre", "preview"), "0.1.2-preview.1\n");
   assert.equal(fs.readFileSync(p, "utf8"), before);
-  assert.deepEqual(readVersions(dir).map(([, v]) => v), Array(FILES.length).fill("0.1.2-per-edit.1"));
+  assert.deepEqual(readVersions(dir).map(([, v]) => v), Array(FILES.length).fill("0.1.2-preview.1"));
 });
 
 test("CLI: plain release refuses when install.json lacks exactly one version field, writing nothing", () => {
@@ -144,7 +144,7 @@ test("CLI: a plain release rolls CHANGELOG.md and --notes prints the section; a 
   const p = path.join(dir, CHANGELOG);
   run("0.2.4"); // pin the base before there is a changelog to roll
   fs.writeFileSync(p, LOG);
-  assert.equal(run("patch", "--pre", "per-edit"), "0.2.5-per-edit.1\n");
+  assert.equal(run("patch", "--pre", "preview"), "0.2.5-preview.1\n");
   assert.equal(fs.readFileSync(p, "utf8"), LOG, "prerelease: untouched");
   assert.equal(run("minor"), "0.3.0\n");
   assert.match(fs.readFileSync(p, "utf8"), /## \[Unreleased\]\n\n## \[0\.3\.0\] - \d{4}-\d\d-\d\d\n\n### Added\n\n- A new thing\./);

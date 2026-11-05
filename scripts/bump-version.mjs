@@ -15,7 +15,7 @@ const PATTERNS = {
   "cli/Cargo.lock": /(name = "intent-check"\nversion = ")([^"]*)(")/g,
 };
 // The install picker shows this version and test/install-json.test.js pins it to package.json, so plain releases bump it too.
-// Prerelease bumps leave it alone: the per-edit branch requires install.json to stay plain semver.
+// Prerelease bumps leave it alone so the install picker stays on the stable version.
 export const INSTALL_JSON = "docs/install.json";
 // A plain release also turns the changelog's Unreleased section into the section for that version.
 export const CHANGELOG = "CHANGELOG.md";

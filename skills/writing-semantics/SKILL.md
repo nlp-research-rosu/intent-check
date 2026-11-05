@@ -13,7 +13,7 @@ live `semantics.json` at an unbundled source tree.
 
 | State | Action |
 |---|---|
-| A suitable bundled ID exists | Stop; live prove mode must use that immutable ID |
+| A suitable bundled ID exists | Stop; Prove must use that immutable ID |
 | A candidate gets stuck in maintainer testing | Extend only the unmodeled construct |
 | A bundled ID gets stuck | Preserve it and record the witnessed boundary |
 | None exists | Create the smallest executable semantics in a dedicated source root |

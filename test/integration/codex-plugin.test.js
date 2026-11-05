@@ -1,7 +1,7 @@
 // Integration: the real `codex exec` loads the hook-free plugin against a mock
 // Responses API (custom model provider) and the fake prover. LLM-free: no real model, no secrets.
 // The plugin is installed from this checkout into a throwaway CODEX_HOME.
-//   node --test test/integration/codex-hooks.test.js
+//   node --test test/integration/codex-plugin.test.js
 // Skips cleanly when `codex` is not installed.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";

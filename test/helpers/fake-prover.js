@@ -163,9 +163,8 @@ export function createFakeProver(opts = {}) {
         const replay = !!id;
         if (!id) {
           id = newId();
-          // Server behavior: a check supersedes the caller's unfinished checks of the same files
-          // unless it is a per-edit check (per_edit: true).
-          if (body && body.per_edit !== true && Array.isArray(body.units)) {
+          // A file Scan supersedes unfinished scans from the same request context and files.
+          if (body && Array.isArray(body.units)) {
             const paths = new Set(body.units.map((u) => u.path));
             for (const j of st.jobs.values()) {
               if (!j.superseded && j.request && j.request.session_id === body.session_id && j.request.units.some((u) => paths.has(u.path))) j.superseded = true;

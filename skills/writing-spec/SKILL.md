@@ -18,7 +18,7 @@ by the session ID. Inspect it with `intent-check session show` first:
 |---|---|
 | ID appears in the Intent Check service registry and the target program runs | Proceed |
 | ID appears, but the target program gets stuck | Record the model boundary |
-| ID is absent | Stop as BLOCKED; do not author semantics inside live prove mode |
+| ID is absent | Stop as BLOCKED; do not author semantics inside Prove |
 
 Also confirm that concrete program identifiers used by the claims parse as
 identifiers rather than K rule variables. See

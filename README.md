@@ -89,7 +89,7 @@ On Windows, download `install-intent-check.ps1` from the same release and run it
 
 Update the plugin marketplace and plugin, then reload or restart the host. Claude Code: `claude plugin marketplace update intentcomputing`, then `claude plugin update intent@intentcomputing`, then `/reload-plugins`. Codex: `codex plugin marketplace upgrade intentcomputing`, then restart. See [CHANGELOG.md](CHANGELOG.md) for release changes.
 
-Updating does not change an already-running old version or stop its existing workers. Close old sessions and let old workers finish before using the updated plugin. The updated package registers no hooks; cached calls to its retired `bin/hooks.js` are inert. Existing credentials, config, queues, captured sessions and evidence are retained, but old automatic work is not resumed. `INTENT_LIVE` and saved Check `live`/`disabled` choices no longer control explicit Scan commands. Existing DeepScan records can be collected explicitly using their task IDs; already-submitted legacy file reviews remain available through their console links and `intent-check task show <id>`. Old unsubmitted queues are not uploaded.
+Reload or restart the host after updating. Close sessions using an older plugin and let their workers finish first; updating files does not stop already-running code. The plugin has no hook entrypoint or compatibility layer. Existing credentials and evidence are retained; unrelated local state is not read or removed. Collect submitted DeepScans using their task IDs; other submitted tasks remain available through their console links and `intent-check task show <id>`.
 
 Claude Code updates a plugin only when its version changes. Third-party marketplace auto-update is optional; enable it under `/plugin` → Marketplaces → intentcomputing. A running session needs `/reload-plugins` or a restart to use a new version.
 
@@ -125,7 +125,7 @@ If collection is interrupted or a report is still pending, repeat `collect`; it 
 
 ## Local HTML viewer
 
-`intent-check view` serves the local evidence viewer on `127.0.0.1` until Ctrl-C. It reads `.intent/` evidence and can display retained legacy Check state, but never submits code or contacts the service. `--project <directory>` selects a project; `--plugin-data <directory>` includes custom legacy state.
+`intent-check view` serves the local evidence viewer on `127.0.0.1` until Ctrl-C. It reads `.intent/` evidence and explicit Scan records, but never submits code or contacts the service. `--project <directory>` selects a project; `--plugin-data <directory>` selects a custom plugin data directory.
 
 `intent-check view --output intent-report.html` exports an offline HTML snapshot without overwriting an existing file. Review evidence before sharing. Credentials, transcripts and source workspaces are not included; symlinks, hidden/temporary/binary files and files over 16 MiB are excluded. Offline exports do not refresh.
 
