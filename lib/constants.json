@@ -1,19 +1,9 @@
 {
-  "contract_version": "1",
   "headers": {
     "auth": "Authorization",
     "plugin_version": "X-Intent-Version",
     "idempotency_key": "Idempotency-Key",
     "pipeline_override": "X-Intent-Pipeline"
-  },
-  "limits": {
-    "max_payload_bytes": 1048576,
-    "max_units_files": 10,
-    "notes_chars": 4000,
-    "content_full_lines": 1500,
-    "max_agent_concerns_shown": 3,
-    "concern_title_chars": 120,
-    "concern_text_chars": 400
   },
   "deepscan": {
     "max_files": 3000,

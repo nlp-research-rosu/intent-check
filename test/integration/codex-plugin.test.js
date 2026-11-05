@@ -19,7 +19,7 @@ const CODE = Array.from({ length: 6 }, (_, i) => `export const v${i} = ${i} * 2;
 let fp;
 before(async () => {
   if (skip) return;
-  fp = createFakeProver({ pollsBeforeDone: 0, scenario: "no_concerns" });
+  fp = createFakeProver();
   await fp.listen();
 });
 after(async () => {

@@ -7,14 +7,14 @@ import zlib from "node:zlib";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
 import { tmpdir, makeRepo, baseEnv, saveKey, BIN, symlink, SKIP_FILE_SYMLINKS } from "./helpers/env.js";
-import { validateDeepscan, validateDef } from "./helpers/schema.js";
+import { validateDeepscan } from "./helpers/schema.js";
 import { buildSnapshot, normaliseRemote, pathReason, decodeText } from "../lib/snapshot.js";
 import { takeDepth, renderScan } from "../lib/deepscan.js";
 
 let fp;
-before(async () => { fp = createFakeProver({ pollsBeforeDone: 0 }); await fp.listen(); });
+before(async () => { fp = createFakeProver(); await fp.listen(); });
 after(() => fp.close());
-beforeEach(() => { fp.state.deepscan = {}; fp.state.scans = new Map(); fp.state.requests.length = 0; fp.state.submitStatus = null; fp.state.pollsBeforeDone = 0; });
+beforeEach(() => { fp.state.deepscan = {}; fp.state.scans = new Map(); fp.state.requests.length = 0; });
 
 function setup({ key = true } = {}) {
   const data = tmpdir("intent-data-");
@@ -93,28 +93,28 @@ test("repository Scan submits once, polls through running and saves the report b
   assert.match((await cli(["collect"], ctx)).out, /No uncollected scans/);
 });
 
-test("explicit file Scan submits without prompts, waits and saves file evidence before returning", async () => {
+test("a file-scoped DeepScan uses the snapshot API and saves its report before returning", async () => {
   const ctx = setup();
-  fp.state.pollsBeforeDone = 1;
   write(ctx.repo, "pricing.py", "def f():\n    return 1\n");
-  const result = await cli(["pricing.py"], ctx);
+  write(ctx.repo, "unrelated.py", "private = 1\n");
+  const result = await cli(["pricing.py", "full"], ctx);
   assert.equal(result.code, 0, result.err);
   const id = idOf(result.out);
-  const jobs = fp.jobRequests();
-  assert.equal(jobs.length, 1);
-  assert.deepEqual(validateDef(jobs[0], "JobRequest"), []);
-  assert.equal(jobs[0].mode, "request");
-  assert.deepEqual(jobs[0].intent.prompts, []);
-  assert.equal(jobs[0].intent.agent_message, null);
-  assert.deepEqual(jobs[0].units.map((unit) => unit.path), ["pricing.py"]);
-  assert.match(result.out, /File Scan finished/);
-  assert.ok(fs.existsSync(path.join(ctx.repo, ".intent", "pricing.py", "VERDICT.md")));
-  assert.equal(read(path.join(ctx.data, "file-scans", `${id}.json`)).status, "done");
+  const uploads = fp.deepscanUploads();
+  assert.equal(uploads.length, 1);
+  assert.deepEqual(validateDeepscan(uploads[0], "DeepscanUpload"), []);
+  assert.deepEqual(uploads[0].files.map((file) => file.path), ["pricing.py"]);
+  assert.equal(uploads[0].meta.scope, "pricing.py");
+  assert.equal(uploads[0].depth, "full");
+  assert.match(result.out, /DeepScan finished/);
+  assert.ok(fs.existsSync(path.join(ctx.repo, ".intent", "deepscan", id, "report.json")));
+  assert.equal(read(path.join(ctx.data, "deepscans", `${id}.json`)).status, "done");
+  assert.equal(fs.existsSync(path.join(ctx.data, "file-scans")), false);
+  assert.deepEqual([...new Set(fp.state.requests.filter((request) => request.method === "POST").map((request) => request.path))], ["/deepscans"]);
   const collected = await cli(["collect", id], ctx);
   assert.equal(collected.code, 0, collected.err);
-  assert.match(collected.out, /File Scan finished/);
-  assert.ok(fs.existsSync(path.join(ctx.repo, ".intent", "pricing.py", "VERDICT.md")));
-  assert.equal(fp.jobRequests().length, 1);
+  assert.match(collected.out, /DeepScan finished/);
+  assert.equal(fp.deepscanUploads().length, 1);
 });
 
 test("Scan leaves unrelated local state and existing evidence untouched", async () => {
@@ -129,7 +129,7 @@ test("Scan leaves unrelated local state and existing evidence untouched", async 
   assert.equal(fs.readFileSync(path.join(ctx.data, "config.json"), "utf8"), config);
   assert.ok(fs.existsSync(path.join(ctx.repo, ".intent/.queue/1-12345678.json")));
   assert.equal(fs.readFileSync(path.join(ctx.repo, ".intent/old/VERDICT.md"), "utf8"), "retained evidence");
-  assert.deepEqual(fp.jobRequests()[0].units.map((unit) => unit.path), ["pricing.py"]);
+  assert.deepEqual(fp.deepscanUploads()[0].files.map((file) => file.path), ["pricing.py"]);
 });
 
 test("collection is project/service scoped and never resubmits code", async () => {
@@ -137,7 +137,7 @@ test("collection is project/service scoped and never resubmits code", async () =
   const id = idOf((await cli([], ctx)).out);
   const other = { ...ctx, repo: makeRepo().dir };
   const requests = fp.state.requests.length;
-  assert.match((await cli(["collect", id], other)).out, /No local Scan record/);
+  assert.match((await cli(["collect", id], other)).out, /No local DeepScan record/);
   assert.equal(fp.state.requests.length, requests);
   assert.equal((await cli(["collect", "invalid"], ctx)).code, 1);
   await cli(["collect", id], ctx);
@@ -176,8 +176,9 @@ test("missing auth, environment opt-outs and invalid targets never submit", asyn
   assert.equal((await cli([], connected, { INTENT_DISABLED: "1" })).code, 1);
   assert.match((await cli(["missing.py"], connected)).out, /not found/);
   assert.match((await cli(["--scope"], connected)).out, /not a DeepScan option/);
+  assert.match((await cli(["a.py", "b.py"], connected)).out, /one file or folder/);
   assert.deepEqual(fp.deepscanUploads(), []);
-  assert.deepEqual(fp.jobRequests(), []);
+  assert.equal(fp.state.requests.filter((request) => request.method === "POST").length, 0);
 });
 
 test("busy uploads retry once with the same idempotency key", async () => {

@@ -41,20 +41,8 @@ struct Snapshot {
     name: String,
     generated: u64,
     files: BTreeMap<String, String>,
-    active: Vec<ActiveCheck>,
     scan_states: BTreeMap<String, Value>,
     warnings: Vec<String>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ActiveCheck {
-    id: String,
-    kind: &'static str,
-    status: String,
-    paths: Vec<String>,
-    url: Option<String>,
-    submitted_at: Value,
 }
 
 fn project_name(root: &Path) -> String {
@@ -177,7 +165,6 @@ fn snapshot(root: &Path, name: &str, data_dirs: &[PathBuf]) -> Result<Snapshot> 
             .as_millis()
             .try_into()?,
         files: BTreeMap::new(),
-        active: Vec::new(),
         scan_states: BTreeMap::new(),
         warnings: Vec::new(),
     };
@@ -203,45 +190,7 @@ fn snapshot(root: &Path, name: &str, data_dirs: &[PathBuf]) -> Result<Snapshot> 
                 );
             }
         }
-        for entry in entries(&dir.join("file-scans"))? {
-            if entry.path().extension().is_none_or(|ext| ext != "json") {
-                continue;
-            }
-            let Some(scan) = read_json(&entry.path()) else {
-                continue;
-            };
-            let matches = scan["repo_root"]
-                .as_str()
-                .and_then(|repo| Path::new(repo).canonicalize().ok())
-                .as_deref()
-                == Some(root);
-            let (Some(id), Some(status)) = (scan["job_id"].as_str(), scan["status"].as_str())
-            else {
-                continue;
-            };
-            if !matches
-                || matches!(status, "done" | "failed" | "superseded")
-                || snapshot.active.iter().any(|active| active.id == id)
-            {
-                continue;
-            }
-            snapshot.active.push(ActiveCheck {
-                id: id.into(),
-                kind: "File Scan",
-                status: status.into(),
-                paths: scan["sent"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|sent| sent["rel"].as_str())
-                    .map(str::to_owned)
-                    .collect(),
-                url: scan["url"].as_str().map(str::to_owned),
-                submitted_at: scan["created_at"].clone(),
-            });
-        }
     }
-    snapshot.active.sort_by(|a, b| a.id.cmp(&b.id));
     Ok(snapshot)
 }
 

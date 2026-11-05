@@ -4,18 +4,17 @@ const boot = JSON.parse(document.getElementById('data').textContent);
 const refreshInterval = 10_000;
 let data = boot.snapshot;
 let connected = true;
-const initialState = { view: 'overview', review: null, reviewTab: 'VERDICT.md', scan: null, scanTab: 'report', proof: null, proofTab: 'report', file: null, filter: '' };
+const initialState = { view: 'overview', scan: null, scanTab: 'report', proof: null, proofTab: 'report', file: null, filter: '' };
 const state = { ...initialState };
 const page = document.getElementById('page');
-const reviewFiles = ['INTENT.md', 'SPEC.k', 'VERIFICATION.k', 'SEMANTICS.k', 'REASONING.md', 'VERDICT.md', 'meta.json'];
 const terminal = new Set(['completed', 'done', 'failed', 'cancelled', 'canceled', 'timed_out', 'superseded']);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const human = value => String(value ?? 'unknown').replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2');
 const date = value => value ? new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 const badge = (text, tone = '') => `<span class="badge ${tone}">${escape(text)}</span>`;
 function status(value) {
-  const tone = ['proved', 'success', 'valid', 'saved', 'no_concerns'].includes(value) ? 'success'
-    : ['concerns', 'expired', 'unavailable', 'not_proved'].includes(value) ? 'warning'
+  const tone = ['proved', 'success', 'valid', 'saved'].includes(value) ? 'success'
+    : ['expired', 'unavailable', 'not_proved'].includes(value) ? 'warning'
     : ['failed', 'error', 'invalid', 'timed_out'].includes(value) ? 'danger'
     : ['queued', 'submitted', 'running', 'pending'].includes(value) ? 'running' : '';
   return badge(human(value), tone);
@@ -99,15 +98,13 @@ function fileView(path) {
 }
 function records() {
   const paths = Object.keys(data.files).sort();
-  const reviews = paths.filter(p => p.endsWith('/meta.json') && !p.startsWith('prove/') && !p.startsWith('deepscan/'))
-    .map(p => ({ path: p.slice(0, -10), meta: json(p) })).filter(r => r.meta?.review_id);
   const scans = paths.filter(p => /^deepscan\/[^/]+\/meta.json$/.test(p))
     .map(p => ({ path: p, meta: json(p), report: json(p.replace(/meta.json$/, 'report.json')) })).filter(s => s.meta);
   for (const scan of scans) scan.progress = data.scanStates[scan.meta.task_id] || { status: scan.meta.task?.status || scan.meta.status };
   const operations = paths.filter(p => /^prove\/sessions\/[^/]+\/[^/]+\/result.json$/.test(p))
     .map(p => ({ path: p, evidence: json(p) })).filter(o => o.evidence?.task);
   const targets = [...new Set(paths.filter(p => /^prove\/(?!sessions\/)/.test(p) && /\/(PROOF|SCOPE)\.md$/.test(p)).map(p => p.slice(0, p.lastIndexOf('/') + 1)))];
-  const active = [...data.active];
+  const active = [];
   for (const s of scans) {
     if (!terminal.has(s.progress.status)) active.push({ id: s.meta.task_id, kind: 'DeepScan', status: s.progress.status, paths: [s.meta.scope || 'Whole repository'], url: s.meta.url, submittedAt: s.meta.created_at });
   }
@@ -116,10 +113,10 @@ function records() {
     if (!terminal.has(task.status)) active.push({ id: task.id, kind: human(task.kind), status: task.status, paths: [], submittedAt: task.createdAt });
   }
   const artifacts = paths.filter(p => !p.startsWith('prove/sessions/'));
-  return { paths, artifacts, reviews, scans, operations, targets, active };
+  return { paths, artifacts, scans, operations, targets, active };
 }
 function navigation(r) {
-  const tabs = [['overview', 'Overview', ''], ['reviews', 'File reviews', r.reviews.length], ['scans', 'DeepScan', r.scans.length], ['proofs', 'Proofs', r.targets.length], ['artifacts', 'All artifacts', r.artifacts.length]];
+  const tabs = [['overview', 'Overview', ''], ['scans', 'DeepScan', r.scans.length], ['proofs', 'Proofs', r.targets.length], ['artifacts', 'All artifacts', r.artifacts.length]];
   document.getElementById('nav').innerHTML = tabs.map(([id, label, count]) => `<button data-view="${id}" class="${state.view === id ? 'active' : ''}" ${state.view === id ? 'aria-current="page"' : ''}><span>${label}</span><span class="count">${count}</span></button>`).join('');
 }
 function activeChecks(r) {
@@ -131,34 +128,13 @@ function scanOutcome(s) {
   return s.report ? badge(`${count} findings`, count ? 'warning' : '') : status(s.meta.report?.status || s.meta.status);
 }
 function overview(r) {
-  const rows = r.reviews.map(r => `<tr><td><button class="link-button mono" data-review="${escape(r.path)}">${escape(r.path)}</button><span class="subline">File review · last saved result</span></td><td>${status(r.meta.verdict)}</td><td class="mono small muted">${escape(r.meta.review_id.slice(0, 8))}</td><td class="small muted">${date(r.meta.reviewed_at)}</td></tr>`);
-  rows.push(...r.scans.map(s => `<tr><td><button class="link-button" data-scan="${escape(s.path)}">${escape(s.meta.scope || 'Whole repository')}</button><span class="subline">DeepScan · ${escape(s.meta.depth)}</span></td><td>${scanOutcome(s)}</td><td class="mono small muted">${escape(s.meta.task_id?.slice(0, 8))}</td><td class="small muted">${date(s.meta.created_at)}</td></tr>`));
+  const rows = r.scans.map(s => `<tr><td><button class="link-button" data-scan="${escape(s.path)}">${escape(s.meta.scope || 'Whole repository')}</button><span class="subline">DeepScan · ${escape(s.meta.depth)}</span></td><td>${scanOutcome(s)}</td><td class="mono small muted">${escape(s.meta.task_id?.slice(0, 8))}</td><td class="small muted">${date(s.meta.created_at)}</td></tr>`);
   rows.push(...r.operations.filter(o => o.evidence.task.kind === 'proof').map(o => `<tr><td><button class="link-button" data-file="${escape(o.path)}">Proof attempt</button><span class="subline">${escape(o.path.split('/').at(-2))}</span></td><td>${status(o.evidence.task.result || o.evidence.task.status)}</td><td class="mono small muted">${escape(o.evidence.task.id.slice(0, 8))}</td><td class="small muted">${date(o.evidence.task.finishedAt || o.evidence.task.createdAt)}</td></tr>`));
-  return heading(data.name, 'Reviews, scans and proof results for this repository.')
-    + `<div class="stack"><div class="metrics">${[[r.active.length, 'Active checks'], [r.reviews.length, 'Files reviewed'], [r.scans.length, 'DeepScans'], [r.paths.length, 'Local artifacts']].map(([n, label]) => `<div class="card metric"><div class="label">${label}</div><div class="value">${n}</div></div>`).join('')}</div>`
+  return heading(data.name, 'DeepScan and proof results for this repository.')
+    + `<div class="stack"><div class="metrics">${[[r.active.length, 'Active checks'], [r.scans.length, 'DeepScans'], [r.paths.length, 'Local artifacts']].map(([n, label]) => `<div class="card metric"><div class="label">${label}</div><div class="value">${n}</div></div>`).join('')}</div>`
     + activeChecks(r)
     + (rows.length ? `<section><div class="section-heading"><h2>Saved results</h2></div><div class="card table-wrap"><table><thead><tr><th>Target</th><th>Result</th><th>Task</th><th>Recorded</th></tr></thead><tbody>${rows.join('')}</tbody></table></div></section>` : empty('No saved results yet', 'Run Intent Check in this repository.'))
     + '</div>';
-}
-function reviewFindings(review) {
-  const verdict = data.files[`${review.path}/VERDICT.md`];
-  if (!verdict) return '<span class="muted">No verdict saved</span>';
-  const findings = [...verdict.replace(/\r\n/g, '\n').matchAll(/^\d+\.\s+([^\n]+)\n\s*\n([\s\S]*?)(?=\n\s*\n|$)/gm)];
-  if (!findings.length) return markdown(verdict);
-  return `<ul class="review-findings">${findings.map(([, title, description]) => `<li>${inline(description)}<span class="subline">${inline(title)}</span></li>`).join('')}</ul>`;
-}
-function reviewsPage(r) {
-  const active = activeChecks({ active: r.active.filter(a => a.kind === 'File Scan') });
-  const review = r.reviews.find(x => x.path === state.review);
-  if (!review) {
-    return heading('File reviews', 'Files and findings.') + `<div class="stack">${active}`
-      + (r.reviews.length ? `<div class="card table-wrap"><table><thead><tr><th>File</th><th>Findings</th><th>Reviewed</th></tr></thead><tbody>${r.reviews.map(review => `<tr><td><button class="link-button mono" data-review="${escape(review.path)}">${escape(review.path)}</button><span class="subline">${status(review.meta.verdict)}</span></td><td>${reviewFindings(review)}</td><td class="small muted">${date(review.meta.reviewed_at)}</td></tr>`).join('')}</tbody></table></div>` : empty('No completed file reviews', 'Run Intent Check in this repository.'))
-      + '</div>';
-  }
-  const files = reviewFiles.filter(f => Object.hasOwn(data.files, `${review.path}/${f}`));
-  const tab = files.includes(state.reviewTab) ? state.reviewTab : files[0];
-  return heading(review.path, 'Last completed review saved for this source path.', status(review.meta.verdict) + serviceLink(review.meta.url))
-    + `<div class="stack">${active}<div class="row small muted"><span>Reviewed ${date(review.meta.reviewed_at)}</span><span class="mono">SHA-256 ${escape(review.meta.source_sha256)}</span></div><div class="card"><div class="file-tabs" aria-label="Review artifacts">${files.map(f => `<button data-review-tab="${f}" class="${tab === f ? 'active' : ''}">${f}</button>`).join('')}</div>${fileView(`${review.path}/${tab}`)}</div></div>`;
 }
 function finding(card) {
   const level = String(card.severity || '').toLowerCase();
@@ -212,7 +188,7 @@ function artifactsPage(r) {
   if (!r.artifacts.includes(state.file)) state.file = r.artifacts[0];
   const groups = new Map();
   for (const path of r.artifacts) {
-    const group = path.startsWith('prove/') ? 'Formal proof' : path.startsWith('deepscan/') ? 'DeepScan' : path.includes('/') ? 'File reviews' : 'Workspace';
+    const group = path.startsWith('prove/') ? 'Formal proof' : path.startsWith('deepscan/') ? 'DeepScan' : 'Workspace';
     if (!groups.has(group)) groups.set(group, []);
     groups.get(group).push(path);
   }
@@ -237,14 +213,14 @@ function render() {
   document.title = `${data.name} · Intent Check`;
   navigation(r);
   document.getElementById('warnings').innerHTML = data.warnings.length ? `<div class="callout"><strong>Some artifacts could not be included</strong>${data.warnings.map(escape).join('<br>')}</div>` : '';
-  page.innerHTML = ({ overview, reviews: reviewsPage, scans: scansPage, proofs: proofsPage, artifacts: artifactsPage })[state.view](r);
+  page.innerHTML = ({ overview, scans: scansPage, proofs: proofsPage, artifacts: artifactsPage })[state.view](r);
   filterArtifacts();
   connection();
 }
 function readLocation() {
   const params = new URLSearchParams(location.hash.slice(1));
   for (const [key, value] of Object.entries(initialState)) state[key] = params.get(key) ?? value;
-  if (!['overview', 'reviews', 'scans', 'proofs', 'artifacts'].includes(state.view)) state.view = 'overview';
+  if (!['overview', 'scans', 'proofs', 'artifacts'].includes(state.view)) state.view = 'overview';
 }
 function navigate() {
   render();
@@ -254,7 +230,7 @@ function navigate() {
 }
 window.addEventListener('hashchange', () => { readLocation(); render(); });
 document.addEventListener('click', async event => {
-  const button = event.target.closest('[data-view],[data-review],[data-review-tab],[data-scan],[data-scan-tab],[data-proof-tab],[data-file],[data-artifact],[data-copy],[data-download]');
+  const button = event.target.closest('[data-view],[data-scan],[data-scan-tab],[data-proof-tab],[data-file],[data-artifact],[data-copy],[data-download]');
   if (!button) return;
   const d = button.dataset;
   if (d.copy) {
@@ -275,9 +251,7 @@ document.addEventListener('click', async event => {
     navigate();
     return;
   }
-  if (d.view) { state.view = d.view; if (d.view === 'reviews') state.review = null; }
-  if (d.review) { state.view = 'reviews'; state.review = d.review; state.reviewTab = 'VERDICT.md'; }
-  if (d.reviewTab) state.reviewTab = d.reviewTab;
+  if (d.view) state.view = d.view;
   if (d.scan) { state.view = 'scans'; state.scan = d.scan; state.scanTab = 'report'; }
   if (d.scanTab) state.scanTab = d.scanTab;
   if (d.proofTab) state.proofTab = d.proofTab;
@@ -309,7 +283,7 @@ render();
 
 // Refresh only local data, never the service. An export has no dataUrl and no timer.
 function signature(snapshot) {
-  return JSON.stringify([snapshot.name, snapshot.files, snapshot.active, snapshot.scanStates, snapshot.warnings]);
+  return JSON.stringify([snapshot.name, snapshot.files, snapshot.scanStates, snapshot.warnings]);
 }
 async function refresh() {
   try {

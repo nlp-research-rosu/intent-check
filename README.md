@@ -2,7 +2,7 @@
 
 The `intent` plugin for Claude Code and Codex provides two explicitly requested workflows:
 
-- **Scan** (`/intent:deepscan`): review named files, a folder or the whole repository.
+- **DeepScan** (`/intent:deepscan`): analyze a file, a folder or the whole repository.
 - **Prove** (`/intent:prove`): formal proofs with K for properties a review cannot settle.
 
 There are no automatic hooks or reviews. Ordinary chats and edits do not capture or upload code, start sign-in, poll jobs or deliver results.
@@ -11,8 +11,7 @@ There are no automatic hooks or reviews. Ordinary chats and edits do not capture
 
 Before starting a remote Scan or Prove operation, the agent explains what will be uploaded to the configured Intent Check service. A local review does not require a remote submission.
 
-- **File Scan:** the named files (at most 10), prior file evidence from `.intent/`, `.intent/NOTES.md` if present, and plugin/host/OS metadata. Files over 1 MB are excluded; content above 1,500 lines is truncated to the first 1,500 lines. Chat prompts, plans, todos and transcripts are not read or uploaded.
-- **Repository/folder Scan:** a compressed snapshot of tracked and non-ignored untracked text files, repository metadata and `.intent/NOTES.md`. It excludes other `.intent/` evidence, secrets files, binaries, lockfiles and generated/vendored code. Caps: 512 KB per file, 3,000 files and 15 MB of text. Larger snapshots are trimmed with a coverage notice.
+- **DeepScan:** a compressed snapshot of tracked and non-ignored untracked text files within the selected file, folder or repository, plus repository metadata. `.intent/NOTES.md` is included when it falls within the selected scope. It excludes other `.intent/` evidence, secrets files, binaries, lockfiles and generated/vendored code. Caps: 512 KB per file, 3,000 files and 15 MB of text. Larger snapshots are trimmed with a coverage notice. Chat prompts, plans, todos and transcripts are not read or uploaded.
 - **Prove:** the program/specification/helper files selected through the explicit CLI commands. See the proof skills and CLI help for their inputs.
 
 Scan masks obvious secrets locally and never sends files such as `.env*`, private keys or credential files. Redaction is not a substitute for reviewing the requested scope. Scan upload metadata is listed in `.intent/.sent.log`; it does not contain source contents.
@@ -45,7 +44,7 @@ Restart Claude Code or run `/reload-plugins`. Use `onboarding` to install the CL
 
 | Command | What it does |
 |---|---|
-| `/intent:deepscan [files or a folder] [fast\|balanced\|full]` | Submit a remote Scan, wait for completion, save evidence and return findings. |
+| `/intent:deepscan [file or folder] [fast\|balanced\|full]` | Submit a DeepScan, wait for completion, save evidence and return findings. |
 | `/intent:deepscan collect [task-id]` | Resume an interrupted Scan without submitting source. No ID: outstanding scans in this project. |
 | `/intent:prove [what to prove]` | Formal proof with K through the global CLI. |
 | `/intent:doctor` | Read connection/configuration diagnostics; does not log in, clear credentials or update the plugin. |
@@ -107,11 +106,11 @@ Restart Codex. The desktop app and VS Code extension use the same installed plug
 ## DeepScan
 
 ```
-/intent:deepscan [files or a folder] [fast|balanced|full]
+/intent:deepscan [file or folder] [fast|balanced|full]
 /intent:deepscan collect [task-id]
 ```
 
-Named files use the fast file-review API and submit immediately, without waiting for a turn to end. A folder or no path uses repository Scan. Depth applies only to repository/folder scans:
+Run from inside a Git repository. With no path, DeepScan snapshots the repository; one file or folder limits the snapshot to that path. Every submission uses `POST /deepscans`. Choose a depth:
 
 | Depth | Expected time |
 |---|---|
@@ -119,7 +118,7 @@ Named files use the fast file-review API and submit immediately, without waiting
 | `balanced` | 30–35 minutes |
 | `full` | 40–45 minutes |
 
-The command prints a report link, then polls until the task finishes, saves its evidence and returns findings. Keep it running, as with Prove. Polling uses the shared `poll_interval_seconds` setting (default 10 seconds); transient status-request failures retry after 1, 2 and 4 seconds. No detached worker or later-message hook is involved. Collection saves file-review artifacts under `.intent/<source-path>/` and final repository/folder reports under `.intent/deepscan/<task-id>/report.json`, with task/source metadata in `meta.json`. Report downloads are checked against their stated size and SHA-256. No source contents are copied into the DeepScan evidence folder.
+The command prints a report link, then polls until the task finishes, saves its evidence and returns findings. Keep it running, as with Prove. Polling uses the shared `poll_interval_seconds` setting (default 10 seconds); transient status-request failures retry after 1, 2 and 4 seconds. No detached worker or later-message hook is involved. Collection saves reports under `.intent/deepscan/<task-id>/report.json`, with task/source metadata in `meta.json`. Report downloads are checked against their stated size and SHA-256. No source contents are copied into the DeepScan evidence folder.
 
 Interrupting Scan stops local waiting; the remote task may continue. If interrupted, polling fails or a report is still pending, use `collect <task-id>` to resume waiting and collection; it does not resubmit the scan. Saved reports remain available after service files expire. Supporting files remain remote. Findings are flagged, not reproduced; request reproduction or fixes separately.
 
@@ -133,7 +132,7 @@ Interrupting Scan stops local waiting; the remote task may continue. If interrup
 
 - Zero runtime dependencies; plain ESM JavaScript, Node 18+.
 - `npm test` runs existing unit checks. `npm run test:integration` loads the real Claude/Codex plugins against local mock APIs, without paid inference.
-- `lib/file-scan.js` handles explicit file submission/collection; `lib/snapshot.js` builds repository snapshots; `lib/deepscan.js` submits and collects repository/folder scans. No host session capture or worker spawning remains.
+- `lib/snapshot.js` builds scoped repository snapshots; `lib/deepscan.js` submits, waits for and collects DeepScans. No host session capture or worker spawning remains.
 - Backend contract: the Intent Check service API (`nlp-research-rosu/prover`); `test/helpers/fake-prover.js` provides a controlled service for checks.
 - CLI: `cli/` (Rust). CI runs formatting, clippy, build and existing tests.
 - `NOTICE` retains attribution for code derived from Anthropic's security-guidance plugin.

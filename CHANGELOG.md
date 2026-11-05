@@ -8,11 +8,11 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ### Removed
 
-- Automatic Check/Live, all plugin hooks, and the On/Live/Off commands. Chats and edits no longer capture or upload code. Existing credentials, settings and evidence are retained.
+- Check/Live submission, collection and artifact handling, all plugin hooks, and the On/Live/Off commands. Chats and edits no longer capture or upload code. Existing credentials, settings and evidence are retained.
 
 ### Changed
 
-- Scan is explicit: file reviews submit immediately; file and repository/folder commands poll until completion, save evidence and return findings. Use `/intent:deepscan collect [task-id]` to resume an interrupted Scan without resubmitting source. No hooks or detached workers run. Sign in with `intent-check login`. Prove remains a separate explicit workflow.
+- DeepScan is explicit: a file, folder or repository snapshot is submitted to `/deepscans`; the command polls until completion, saves evidence and returns findings. Use `/intent:deepscan collect [task-id]` to resume an interrupted DeepScan without resubmitting source. No hooks or detached workers run. Sign in with `intent-check login`. Prove remains a separate explicit workflow.
 
 ## [1.0.3] - 2026-11-02
 

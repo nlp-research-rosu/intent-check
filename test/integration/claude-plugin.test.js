@@ -19,7 +19,7 @@ let fp;
 let mock;
 before(async () => {
   if (skip) return;
-  fp = createFakeProver({ pollsBeforeDone: 0, scenario: "no_concerns" });
+  fp = createFakeProver();
   await fp.listen();
 });
 after(async () => {
