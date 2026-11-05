@@ -197,7 +197,9 @@ test("failed scans and malformed summaries do not claim clean results", async ()
   assert.equal(result.code, 1);
   assert.match(result.err, /could not finish/);
   const id = idOf(result.err);
-  assert.match((await cli(["collect", id], ctx)).out, /could not finish/);
+  const collected = await cli(["collect", id], ctx);
+  assert.equal(collected.code, 1);
+  assert.match(collected.err, /could not finish/);
   const rendered = renderScan({ status: "done", url: "https://example.test/report", summary: {} });
   assert.doesNotMatch(rendered.context, /no findings/);
   assert.match(rendered.context, /open the report/);
