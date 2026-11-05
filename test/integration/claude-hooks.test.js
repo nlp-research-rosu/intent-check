@@ -1,4 +1,4 @@
-// Integration: the real `claude -p` runs the plugin's hooks (hooks/hooks.json, exec form) against a
+// Integration: the real `claude -p` loads the hook-free plugin against a
 // mock Anthropic API and the fake prover. LLM-free: no real model, no secrets. Run on every OS in CI
 // (see .github/workflows/ci.yml); skips cleanly when the `claude` CLI is not installed.
 //   node --test test/integration/claude-hooks.test.js
@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createMockAnthropic } from "../helpers/mock-anthropic.js";
 import { createFakeProver, TEST_KEY } from "../helpers/fake-prover.js";
-import { ROOT, tmpdir, makeRepo, waitFor } from "../helpers/env.js";
+import { ROOT, tmpdir, makeRepo } from "../helpers/env.js";
 import { findCli, runCli, cleanEnv } from "./helpers.js";
 
 const CLAUDE = findCli("claude");
@@ -60,36 +60,24 @@ const EVENTS = ["SessionStart", "UserPromptSubmit", "PostToolUse", "Stop"];
 const toolResults = (s) => JSON.stringify(s.events.filter((e) => e.type === "user").map((e) => (e.message && e.message.content) || []).flat().filter((b) => b && b.type === "tool_result").map((b) => b.content)).slice(0, 800);
 const note = (s, what) => `${what}\ntool results: ${toolResults(s)}\nwrote: ${fs.existsSync(path.join(s.repo, "src", "a.js"))}\nstderr: ${s.r.stderr.slice(-1500)}\nhook events: ${JSON.stringify(s.hooks("hook_response").map((e) => [e.hook_event, e.outcome, e.exit_code, String(e.stderr || "").slice(0, 200)]))}`;
 
-function assertHooksRan(s) {
+function assertNoHooks(s) {
   for (const ev of EVENTS) {
-    assert.ok(s.hooks("hook_started").some((e) => e.hook_event === ev), note(s, `no hook_started for ${ev}`));
-    const resp = s.hooks("hook_response").filter((e) => e.hook_event === ev);
-    assert.ok(resp.length, note(s, `no hook_response for ${ev}`));
-    for (const e of resp) assert.ok(e.outcome === "success" && e.exit_code === 0, note(s, `${ev} hook did not finish successfully`));
+    assert.equal(s.hooks("hook_started").filter((e) => e.hook_event === ev).length, 0, note(s, `unexpected ${ev} hook`));
   }
-  assert.equal(s.hooks("hook_started").filter((e) => e.hook_event === "Stop").length, 1, note(s, "one review Stop hook starts"));
-  assert.equal(s.hooks("hook_response").filter((e) => e.hook_event === "Stop").length, 1, note(s, "one review Stop hook responds"));
+  assert.equal(s.r.code, 0, note(s, "turn completes"));
+  assert.ok(fs.existsSync(path.join(s.repo, "src", "a.js")), note(s, "edit happened"));
+  assert.equal(fs.existsSync(path.join(s.repo, ".intent")), false, "ordinary edit creates no evidence/capture folder");
   assert.ok(!s.r.timedOut, note(s, "claude -p timed out"));
 }
 
-test("claude -p without a global CLI: hooks give setup guidance without sending a job", { skip, timeout: 60000 }, async () => {
+test("claude -p without sign-in: ordinary edits trigger no hooks, login or uploads", { skip, timeout: 60000 }, async () => {
   const s = await session();
-  assertHooksRan(s);
-  assert.match(s.mockBodies, /onboarding/, note(s, "setup guidance missing from the model request"));
-  assert.doesNotMatch(s.mockBodies, /do not start on their request until they reply/, "headless gets the soft note, not the wait gate");
-  assert.equal(fp.jobRequests().length, 0);
-  assert.equal(fp.state.requests.some((q) => q.method === "POST" && q.path === "/api/cli-connect"), false, "no sign-in is started without the global CLI");
+  assertNoHooks(s);
+  assert.equal(fp.state.requests.length, 0);
 });
 
-test("claude -p with a seeded key: the edit is uploaded to the prover as a job", { skip, timeout: 60000 }, async () => {
-  const before = fp.jobRequests().length;
+test("claude -p with a seeded key: ordinary edits still cause no service requests", { skip, timeout: 60000 }, async () => {
   const s = await session({ key: TEST_KEY });
-  assertHooksRan(s);
-  assert.doesNotMatch(s.mockBodies, /Intent Check is not connected/);
-  // claude -p never renders asyncRewake, so Stop hands the upload to a detached process that can
-  // outlive the session: wait for it.
-  await waitFor(() => fp.jobRequests().length > before, { timeoutMs: 20000 });
-  assert.ok(fp.jobRequests().length > before, note(s, "no POST /intent-checks reached the fake prover"));
-  const job = fp.jobRequests().at(-1);
-  assert.ok(job.units.some((u) => /a\.js$/.test(u.path)), "the written file is in the job");
+  assertNoHooks(s);
+  assert.equal(fp.state.requests.length, 0);
 });

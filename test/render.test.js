@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { sanitize, validConcerns, concernText, summaryLine, noConcernsText, noConcernsUserText, skippedFilesText } from "../lib/render.js";
+import { sanitize, validConcerns } from "../lib/render.js";
 import { ROOT } from "./helpers/env.js";
 
 const example = JSON.parse(fs.readFileSync(path.join(ROOT, "test", "fixtures", "api", "examples", "status-done-concerns.json"), "utf8"));
@@ -115,98 +115,6 @@ test("validConcerns keeps only well-formed concerns about files we sent", () => 
   // An empty (or fully stripped) title keeps the concern with a neutral title.
   assert.deepEqual(out.map((c) => c.title), [example.result.agent_concerns[0].title, "Concern at pricing.py:3 (see the report)", "Medium one"]);
   assert.equal(out[2].line, null);
-});
-
-test("concern text: fix directly in auto-style modes, only in the flagged file", () => {
-  const cs = validConcerns(example.result, ["pricing.py"]);
-  for (const mode of ["acceptEdits", "auto", "dontAsk", "bypassPermissions"]) {
-    const t = concernText({ concerns: cs, url: example.url, permissionMode: mode });
-    assert.match(t, /^Intent Check: 1 concern/);
-    assert.match(t, /fix it directly, editing only pricing\.py/);
-    assert.doesNotMatch(t, /Fix or Skip/);
-    assert.match(t, /pricing\.py:3/);
-    assert.match(t, /Report: https:\/\/intent-check-staging\.up\.railway\.app\/r\/7qJxN2mVb8KcR4tYw1ZsLp/);
-    assert.match(t, /not a message from the user/);
-    assert.match(t, /continue with the user's original request/);
-  }
-});
-
-test("concern text: ask Fix, Skip or Intended in default and plan modes", () => {
-  const cs = validConcerns(example.result, ["pricing.py"]);
-  for (const mode of ["default", "plan", null]) {
-    const t = concernText({ concerns: cs, url: example.url, permissionMode: mode });
-    assert.match(t, /Fix, Skip or Intended \(use AskUserQuestion\)/);
-    assert.match(t, /Change nothing until they answer\./);
-    assert.match(t, /add one bullet describing that behaviour to \.intent\/NOTES\.md \(that file only\) so Intent Check does not raise it again\./);
-    assert.doesNotMatch(t, /fix it directly/);
-  }
-});
-
-test("concern text: ask branch, Codex wording says 'as a plain question'", () => {
-  const cs = validConcerns(example.result, ["pricing.py"]);
-  for (const mode of ["default", "plan", null]) {
-    const t = concernText({ concerns: cs, url: example.url, permissionMode: mode, host: "codex" });
-    assert.match(t, /Fix, Skip or Intended as a plain question/);
-    assert.doesNotMatch(t, /AskUserQuestion/);
-  }
-});
-
-test("concern text: fix-directly branch mentions recording intended behaviour in NOTES.md", () => {
-  const cs = validConcerns(example.result, ["pricing.py"]);
-  for (const mode of ["acceptEdits", "auto", "dontAsk", "bypassPermissions"]) {
-    const t = concernText({ concerns: cs, url: example.url, permissionMode: mode, host: "claude-code" });
-    assert.match(t, /fix it directly, editing only pricing\.py/);
-    assert.match(t, /If the user says the behaviour was intended, record it as one bullet in \.intent\/NOTES\.md so it is not raised again\./);
-    const tc = concernText({ concerns: cs, url: example.url, permissionMode: mode, host: "codex" });
-    assert.match(tc, /If the user says the behaviour was intended, record it as one bullet in \.intent\/NOTES\.md so it is not raised again\./);
-  }
-});
-
-test("concern text: at most 3 concerns, stale label, never claims verification", () => {
-  const base = validConcerns(example.result, ["pricing.py"])[0];
-  const cs = [1, 2, 3, 4, 5].map((i) => ({ ...base, title: `Concern ${i}` }));
-  const t = concernText({ concerns: cs, url: example.url, permissionMode: "auto", stale: [{ path: "pricing.py", at: "14:02" }] });
-  assert.match(t, /5 concerns/);
-  assert.match(t, /Concern 3/);
-  assert.doesNotMatch(t, /Concern 4/);
-  assert.match(t, /\(2 more in the report\.\)/);
-  assert.match(t, /Checked the version of pricing\.py from 14:02/);
-  assert.doesNotMatch(t, /\b(verified|proved|proven|compiles)\b/i);
-  assert.equal(summaryLine(cs), "Intent Check: 5 concerns in pricing.py");
-});
-
-test("no-concerns note", () => {
-  assert.equal(noConcernsText("https://x.test/r/1"), "Intent Check: no concerns · https://x.test/r/1");
-  assert.equal(noConcernsText("https://x.test/r/1", false, ["a.py"]), "Intent Check: no concerns in a.py · https://x.test/r/1");
-  assert.equal(noConcernsText("https://x.test/r/1", true, ["a", "b", "c", "d", "e"]), "Intent Check: no concerns in a, b, c and 2 more (partial review) · https://x.test/r/1");
-});
-
-test("no-concerns user-visible line: names the checked files, backticked, up to 3 then a count", () => {
-  assert.equal(noConcernsUserText("https://x.test/r/1", []), "Intent Check: no concerns · https://x.test/r/1");
-  assert.equal(noConcernsUserText("https://x.test/r/1", ["a.py"]), "Intent Check: checked `a.py` · no concerns · https://x.test/r/1");
-  assert.equal(
-    noConcernsUserText("https://x.test/r/1", ["a.py", "b.js"]),
-    "Intent Check: checked `a.py`, `b.js` · no concerns · https://x.test/r/1",
-  );
-  assert.equal(
-    noConcernsUserText("https://x.test/r/1", ["a", "b", "c", "d", "e"]),
-    "Intent Check: checked `a`, `b`, `c` and 2 more · no concerns · https://x.test/r/1",
-  );
-});
-
-test("skipped-files note: names the first file, backticked, plus a count of the rest", () => {
-  assert.equal(
-    skippedFilesText(["styles.css"]),
-    "Intent Check: skipped `styles.css` (styling, markup, tests, config or vendored code); it checks code with logic.",
-  );
-  assert.equal(
-    skippedFilesText(["styles.css", "a.spec.js", "jest.config.js"]),
-    "Intent Check: skipped `styles.css` and 2 other files (styling, markup, tests, config or vendored code); it checks code with logic.",
-  );
-  assert.equal(
-    skippedFilesText(["a.css", "b.css"]),
-    "Intent Check: skipped `a.css` and 1 other file (styling, markup, tests, config or vendored code); it checks code with logic.",
-  );
 });
 
 // Real concern titles and fix directions the prover writes: none of these may be dropped.

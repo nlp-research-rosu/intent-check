@@ -6,6 +6,14 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+### Removed
+
+- Automatic Check/Live, all plugin hooks, and the On/Live/Off commands. Chats and edits no longer capture or upload code. Existing credentials, settings and evidence are retained.
+
+### Changed
+
+- Scan is explicit: file reviews submit immediately; repository/folder scans still return a report link. Use `/intent:deepscan collect [task-id]` to fetch status and save results; no background polling or automatic delivery runs. Sign in with `intent-check login`. Prove remains a separate explicit workflow.
+
 ## [1.0.3] - 2026-11-02
 
 ### Added

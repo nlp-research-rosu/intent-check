@@ -5,7 +5,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { tmpdir, ROOT } from "./helpers/env.js";
-import { isInteractiveEntrypoint } from "../lib/config.js";
 
 // Evaluate config in a child process so env changes do not leak between cases.
 function probe({ XDG, ...env }, files = {}, setup = null) {
@@ -69,31 +68,6 @@ test("off switches and plugin version", () => {
   assert.equal(probe({}).off, null);
   assert.equal(probe({ INTENT_DISABLED: "1" }).off, "INTENT_DISABLED");
   assert.equal(probe({ DO_NOT_TRACK: "1" }).off, "DO_NOT_TRACK");
-  assert.equal(probe({}, { "config.json": { disabled: true } }).off, "off");
+  assert.equal(probe({ INTENT_LIVE: "1" }, { "config.json": { disabled: true, live: true } }).off, null);
   assert.equal(probe({}).v, JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version);
-});
-
-test("isInteractiveEntrypoint: only the SDKs, local-agent and mcp are non-interactive", () => {
-  for (const e of ["sdk-cli", "sdk-ts", "sdk-py", "local-agent", "mcp"]) {
-    assert.equal(isInteractiveEntrypoint(e), false, e);
-  }
-  for (const e of ["cli", "claude-vscode", "claude-desktop", "claude-jetbrains", "", undefined, "anything-else"]) {
-    assert.equal(isInteractiveEntrypoint(e), true, String(e));
-  }
-});
-
-test("live review: INTENT_LIVE, then config live", () => {
-  const live = (env, cfg) => {
-    const data = tmpdir("intent-cfg-");
-    if (cfg) fs.writeFileSync(path.join(data, "config.json"), JSON.stringify(cfg));
-    const code = `import(${JSON.stringify(pathToFileURL(path.join(ROOT, "lib", "config.js")).href)}).then((c) => console.log(c.liveMode()))`;
-    const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("INTENT_")));
-    return execFileSync(process.execPath, ["-e", code], { env: { ...clean, CLAUDE_PLUGIN_DATA: data, ...env } }).toString().trim();
-  };
-  assert.equal(live({}), "false");
-  assert.equal(live({ INTENT_LIVE: "1" }), "true");
-  assert.equal(live({ INTENT_LIVE: "0" }, { live: true }), "false");
-  assert.equal(live({ INTENT_LIVE: "bogus" }, { live: true }), "true");
-  assert.equal(live({}, { live: true }), "true");
-  assert.equal(live({}, { live: false }), "false");
 });

@@ -1,16 +1,19 @@
 ---
-description: Review on demand with DeepScan (the whole repo, a folder, or files; runs in the background)
-argument-hint: "[files or a folder] [fast|balanced|full]"
-allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js":*)
+description: Explicitly scan code remotely, or collect an existing Scan result
+argument-hint: "[files or a folder] [fast|balanced|full] | collect [task-id]"
+allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js":*)
 ---
 
-The user wants a DeepScan: $ARGUMENTS
+The user requested: $ARGUMENTS
 
-Run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" deepscan --data "${CLAUDE_PLUGIN_DATA}"` from the project root, adding what the user named:
+For a new Scan, tell the user before running it that the named files (or a repository/folder snapshot) will be uploaded to the configured Intent Check service, with obvious secrets masked. File scans also include prior file evidence and `.intent/NOTES.md` when present. No chat transcript is uploaded. Do not widen the requested scope.
 
-- nothing: the whole repo is scanned.
-- one folder: only that part of the repo is scanned.
-- one or more files (at most 10): they get the fast review, which runs when this turn ends and takes a few minutes.
-- `fast`, `balanced` or `full`: the depth of a whole-repo or folder scan (fast when they named none).
+Run `node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" deepscan --data "${CLAUDE_PLUGIN_DATA}"` from the project, adding the arguments:
 
-Then tell the user the command's answer in a line or two, with the report link if there is one. Do not wait or poll: a fast scan takes about 15-20 minutes, a balanced one 30-35 and a full one 40-45, and the result arrives as a note at a later message.
+- No path: scan the whole repository.
+- One folder: scan only that folder.
+- Files (at most 10): submit a fast file review immediately.
+- `fast`, `balanced` or `full`: repository/folder depth; default `fast`.
+- `collect [task-id]`: fetch status and save finished results, without submitting code. Without an ID, collect outstanding scans in this project.
+
+Show the result and report link. No hooks, background workers or automatic result delivery run. To fetch a result later, invoke the same command with `collect <task-id>`; do not poll in a loop or resubmit to check progress.

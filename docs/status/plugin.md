@@ -1,4 +1,6 @@
-# Plugin implementation notes
+# Plugin implementation notes (archived)
+
+These notes describe the Check/Live implementation preserved on `archive/check-live-v1.0.3`, not the current plugin. Current usage and hook-free Scan/Prove commands are documented in the [README](../../README.md).
 
 ## Historical rollout (September 2026)
 

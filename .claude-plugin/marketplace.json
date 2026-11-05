@@ -2,13 +2,13 @@
   "name": "intentcomputing",
   "owner": { "name": "Intent Computing" },
   "metadata": {
-    "description": "Intent Check: background intent review for coding agents"
+    "description": "Intent Check: explicit code scans and formal proofs"
   },
   "plugins": [
     {
       "name": "intent",
       "source": "./",
-      "description": "Checks that the code your agent wrote does what you asked, with formal proofs in prove mode",
+      "description": "Explicit code scans and formal proofs with K",
       "version": "1.0.3"
     }
   ]

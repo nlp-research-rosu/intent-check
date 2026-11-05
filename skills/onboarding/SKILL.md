@@ -57,9 +57,8 @@ by the installer, then repeat the detection commands above.
 
 ## Connect to Intent Check
 
-If a hook already showed a sign-in link, reuse it rather than starting another
-login. The global CLI collects approval in the background; a later prompt
-confirms the connection. Check it with `intent-check health`.
+Sign-in runs only when explicitly requested for setup. Reuse an already-running
+login rather than starting another. Check the connection with `intent-check health`.
 
 For first-time setup, run `intent-check login` and show the user its
 `verification_url`. The user signs in and approves. Keep the command running

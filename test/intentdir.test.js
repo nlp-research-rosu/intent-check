@@ -61,9 +61,9 @@ test("scaffold: README, .ignore with *, .gitignore for the local log and queue",
   ensureScaffold(root);
   const d = path.join(root, ".intent");
   assert.equal(fs.readFileSync(path.join(d, ".ignore"), "utf8"), "*\n");
-  assert.equal(fs.readFileSync(path.join(d, ".gitignore"), "utf8"), ".sent.log\n.queue\n");
+  assert.equal(fs.readFileSync(path.join(d, ".gitignore"), "utf8"), ".sent.log\n.queue\n.storage.lock\n");
   const readme = fs.readFileSync(path.join(d, "README.md"), "utf8");
-  assert.match(readme, /\.intent\/\n/);
+  assert.match(readme, /Commit this folder with the source/);
   assert.doesNotMatch(readme, /\b(verified|proved|proven|compiles)\b/i);
 });
 
@@ -123,14 +123,14 @@ test("a late result for a deleted repo does not recreate it", () => {
 });
 
 test("README mentions the NOTES.md exception", () => {
-  assert.match(README, /NOTES\.md.*yours/);
-  assert.match(README, /sent with every check/);
+  assert.match(README, /NOTES\.md.*confirmed intended behaviour/);
+  assert.match(README, /included in later scans/);
 });
 
 test("README describes VERIFICATION.k, REASONING.md and meta.json, not SEMANTICS.k", () => {
-  assert.match(README, /`VERIFICATION\.k`/);
-  assert.match(README, /`REASONING\.md`/);
-  assert.match(README, /`meta\.json`/);
+  assert.match(README, /VERIFICATION\.k/);
+  assert.match(README, /REASONING\.md/);
+  assert.match(README, /meta\.json/);
   assert.doesNotMatch(README, /SEMANTICS\.k/);
   assert.doesNotMatch(README, /\b(verified|proved|proven|compiles)\b/i);
 });

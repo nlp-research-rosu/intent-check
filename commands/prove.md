@@ -6,6 +6,8 @@ allowed-tools: Bash(intent-check:*)
 
 The user wants a formal proof with K: $ARGUMENTS
 
+Before remote execution, validation or proof submission, explain which selected program/specification/helper files will be uploaded to the configured Intent Check service. Stay within the requested scope.
+
 Run `intent-check --version`. If the global CLI is missing or setup is incomplete,
 follow the `onboarding` skill to install and connect it.
 

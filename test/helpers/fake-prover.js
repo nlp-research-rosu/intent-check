@@ -83,13 +83,14 @@ export function createFakeProver(opts = {}) {
     };
   }
 
-  const defaultSummary = (depth) => ({
+  const reportText = JSON.stringify({ version: 1, cards: [], one_liners: [], coverage: {} });
+  const defaultSummary = (depth, id) => ({
     depth,
     budgetSeconds: depth === "fast" ? 1800 : 3600,
     counts: { CRITICAL: 0, HIGH: 1, MODERATE: 0, LOW: 0, MARGINAL: 0 },
     cards: [{ id: "F1", criticality: "HIGH", title: "A discount above 100 percent makes the price negative", property: "Price is never negative.", cause: [{ path: "src/pricing.py", line: 3 }], reproSketch: "Call apply_discount(1000, 150).", control: "apply_discount(1000, 100) returns 0." }],
     oneLiners: [],
-    report: { name: "report.json", size: 2, sha256: "0".repeat(64), url: "/tasks/x/artifacts/report.json" },
+    report: { name: "report.json", size: Buffer.byteLength(reportText), sha256: crypto.createHash("sha256").update(reportText).digest("hex"), url: `/tasks/${id}/artifacts/report.json` },
   });
 
   const server = http.createServer((req, res) => {
@@ -121,7 +122,7 @@ export function createFakeProver(opts = {}) {
         const job = st.jobs.get(fm[1]);
         let t;
         if (unit && job && ART_TEXT[unit[2]]) t = artifactText(job, Number(unit[1]), unit[2]) + (st.corruptArtifact ? "x" : "");
-        else if (!unit && st.scans && st.scans.has(fm[1])) t = "{}";
+        else if (!unit && st.scans && st.scans.has(fm[1])) t = reportText;
         else return json(res, 404, { code: "NOT_FOUND", message: "x" });
         res.writeHead(200, { "content-type": "text/plain", "content-length": Buffer.byteLength(t) });
         return res.end(t);
@@ -238,7 +239,7 @@ export function createFakeProver(opts = {}) {
           if (status === "superseded") return json(res, 200, task(id, "deepscan", "cancelled", { error: { code: "SUPERSEDED", message: "A newer scan replaced this one." } }));
           if (status === "failed") return json(res, 200, task(id, "deepscan", "failed", { error: ds.error || { code: "DEEPSCAN_FAILED", message: "The scan ran out of time." } }));
           scan.done = true;
-          const sum = ds.summary || defaultSummary((scan.request && scan.request.depth) || "balanced");
+          const sum = ds.summary || defaultSummary((scan.request && scan.request.depth) || "balanced", id);
           const budget = ds.getBudget_s === undefined ? ds.budget_s ?? sum.budgetSeconds : ds.getBudget_s;
           const { budgetSeconds, ...rest } = sum;
           return json(res, 200, task(id, "deepscan", "completed", { result: { ...rest, ...(budget === null ? {} : { budgetSeconds: budget }) } }));

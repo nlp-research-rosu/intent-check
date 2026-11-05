@@ -1,6 +1,6 @@
 ---
 name: using-prove
-description: 'Use for formal proofs with K: verify a program with K and the Intent Check service, or choose the relevant proof skill. Not for ordinary code review (the intent-check skill owns that).'
+description: 'Use for formal proofs with K: verify a program with K and the Intent Check service, or choose the relevant proof skill. Explicit remote Scan uses intent-check; ordinary local reviews do not require a remote operation.'
 ---
 
 ## What prove mode establishes
@@ -29,6 +29,8 @@ files are meant to be committed; the CLI's session state in
 ## Start live verification
 
 Live verification is the default. Use the global `intent-check` CLI on `PATH`.
+Before submitting, explain which program, specification and helper files will be
+uploaded to the configured Intent Check service. Do not upload unrelated files.
 See [running-k.md](../shared/running-k.md#shell-setup).
 Use [onboarding](../onboarding/SKILL.md) when setup or authentication
 is incomplete (sign in with `intent-check login`); use command help for
