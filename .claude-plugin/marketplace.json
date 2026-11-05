@@ -2,13 +2,13 @@
   "name": "intentcomputing",
   "owner": { "name": "Intent Computing" },
   "metadata": {
-    "description": "Intent Check: explicit code scans and formal proofs"
+    "description": "Code analysis and verification for AI coding assistants."
   },
   "plugins": [
     {
       "name": "intent",
       "source": "./",
-      "description": "Explicit code scans and formal proofs with K",
+      "description": "Code analysis and verification for AI coding assistants.",
       "version": "1.0.3"
     }
   ]
