@@ -18,10 +18,8 @@ rule sumTo(N) => 0                         requires N  <Int 0
 
 `[function]`, `[total]`, `[simplification]`, `[concrete]`, priorities, and
 evaluator-related attributes change how K treats declarations and rules. These
-attributes do not prove coverage, consistency, or soundness. Establish those
-obligations under the
-[proof-extension soundness contract](proof-extension-soundness.md) before
-using the rules in a proof.
+attributes do not prove coverage, consistency, or soundness. Their equations
+need independent justification; see [proof correctness](proof-correctness.md).
 
 In particular, check total functions for complete guarded coverage and check
 equations for overlap. A simplification rule is a trusted equation wherever its
@@ -64,5 +62,41 @@ claim [loop-inv]:
 
 Use `intent-check prove --help` for label spelling, claim selection, and
 filtering
-errors. See [writing-spec](../writing-spec/SKILL.md#claim-structure-and-reuse)
+errors. See [claim structure](spec-authoring.md#claim-structure-and-reuse)
 for claim reuse attributes.
+
+## Summary and verification modules
+
+Keep definitional summaries separate from proof extensions. A schematic layout
+is below; use the actual module and configuration from the selected semantics.
+
+```k
+requires "semantics.k"
+
+module VERIFICATION-SUMMARIES
+  imports INT
+  syntax Int ::= sumTo(Int) [function, total]
+  rule sumTo(N) => (N +Int 1) *Int N /Int 2 requires N >=Int 0
+  rule sumTo(N) => 0                         requires N  <Int 0
+endmodule
+
+module VERIFICATION
+  imports SEMANTICS
+  imports VERIFICATION-SUMMARIES
+  imports BOOL
+endmodule
+```
+
+Changing a summary's equations changes the theorem's meaning. Recheck scope and
+dependent evidence; do not keep a prior verdict for the changed statement.
+Equations must reduce on concrete arguments as well as symbolic ones: a pattern
+such as `f(A, I +Int 1)` does not match a literal. Use `f(A, I)` with a guard and
+`I -Int 1` in the defining expression when that is the intended recurrence.
+
+## Compiled counter rendering
+
+When comparing a compiled claim and a compiled rule of the same content, K may
+render `<generatedCounter>` as a fresh existential final counter in the claim
+(`_Gen0 => ?_Gen1`) but as a preserved variable in the rule. A difference confined
+to that cell, where the summarized code allocates no fresh variables, is a
+rendering difference, not by itself a different program transition.

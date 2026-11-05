@@ -1,17 +1,12 @@
----
-name: onboarding
-description: 'Set up the global intent-check CLI and shared sign-in for formal proofs with K and code review. Use when the CLI is missing or not connected, or the user requests installation, an update or reconnection. Reuse completed setup.'
----
-
-## Onboarding
+# Onboarding
 
 Complete setup once for this machine and Intent Check service endpoint. A working CLI and
 an accepted saved credential let subsequent Intent Check tasks proceed without repeating
-onboarding. Use this skill when setup is missing or the user requests it.
+onboarding. Use this guide when setup is missing or the user requests it.
 
-The agent installs and connects the CLI; the user only needs to open the login
+Install and connect the CLI; the user only needs to open the login
 link, sign in and approve. Read
-[proof-help](../proof-help/SKILL.md) when
+[CLI help](proof-help.md) when
 answering questions about the components, settings or saved data.
 
 ## Detect the CLI

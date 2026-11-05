@@ -1,7 +1,8 @@
 # K syntax and operational semantics
 
-Use this reference while defining a language's configuration, grammar, and
-rewrite rules.
+Use this reference to read the pinned language's configuration, grammar and
+rewrite rules while constructing a spec. These examples explain K notation;
+do not replace the downloaded semantics with a new configuration or rules.
 
 ## Configuration and cells
 
@@ -15,7 +16,7 @@ configuration <T>
 ```
 
 The `<k>` cell holds the current computation. Additional cells hold only the
-state the modeled constructs need, such as variable bindings, a heap, or output.
+state the semantics models, such as variable bindings, a heap, or output.
 
 ## Grammar
 
@@ -60,6 +61,6 @@ rule <k> X:Id = I:Int ; => .K ...</k>
 - `strict` and `seqstrict` generate evaluation order for subterms.
 - `KResult` identifies fully evaluated values.
 
-When a program stops with an unmatched term at the front of `<k>`, the
-semantics is missing a rule for that term or a required side condition did not
-hold. Treat the residual term as a diagnostic; do not add unrelated rules.
+When a program stops with an unmatched term at the front of `<k>`, inspect
+the pinned rules and side conditions. A malformed entry state or unsupported
+construct may be responsible; do not patch the language semantics to close a claim.

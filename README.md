@@ -38,7 +38,7 @@ claude plugin install intent --marketplace nlp-research-rosu/intent-check
 
 This needs Claude Code 2.1.292 or newer. On older versions, run `claude plugin marketplace add nlp-research-rosu/intent-check`, then `claude plugin install intent@intentcomputing`.
 
-Restart Claude Code or run `/reload-plugins`. Use `onboarding` to install the CLI if needed, then run `intent-check login`. Nothing starts automatically after installation.
+Restart Claude Code or run `/reload-plugins`. Use the Intent Check skill's onboarding guide to install the CLI if needed, then run `intent-check login`. Nothing starts automatically after installation.
 
 ## Commands
 
@@ -61,7 +61,7 @@ Endpoint settings are shared in `config.toml` beside credentials: `server_url` s
 
 ## Prove
 
-`/intent:prove [what to prove]` follows `using-prove` and its proof skills, invoking the global CLI directly. Scan is not a prerequisite. K proofs establish partial correctness: if the program terminates and the precondition holds, the postcondition holds.
+The single `intent-check` skill contains onboarding, DeepScan and Prove guides, with detailed references loaded only as needed. `/intent:prove [what to prove]` follows its Prove guide, invoking the global CLI directly. Scan is not a prerequisite. K proofs establish partial correctness: if the program terminates and the precondition holds, the postcondition holds. Writing or auditing new language semantics is not included.
 
 Proof inputs and documents live in `.intent/prove/<target>/`; commit them. `.intent/prove/sessions/` is local session state. Commands detect the repository root even from subdirectories; outside Git, they use the project directory. Explicit CLI operations collect their results, with task recovery documented in `intent-check task --help`.
 
@@ -101,7 +101,7 @@ codex plugin marketplace add nlp-research-rosu/intent-check
 codex plugin add intent@intentcomputing
 ```
 
-Restart Codex. The desktop app and VS Code extension use the same installed plugins. This plugin has no hooks to approve. Use `onboarding` and explicit `intent-check login` when setup is needed.
+Restart Codex. The desktop app and VS Code extension use the same installed plugins. This plugin has no hooks to approve. Use the Intent Check skill's onboarding guide and explicit `intent-check login` when setup is needed.
 
 ## DeepScan
 
