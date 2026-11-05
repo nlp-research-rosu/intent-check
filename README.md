@@ -45,8 +45,8 @@ Restart Claude Code or run `/reload-plugins`. Use `onboarding` to install the CL
 
 | Command | What it does |
 |---|---|
-| `/intent:deepscan [files or a folder] [fast\|balanced\|full]` | Submit an explicit remote Scan; return its report link and task ID. |
-| `/intent:deepscan collect [task-id]` | Fetch status and save finished Scan results, without submitting source. No ID: outstanding scans in this project. |
+| `/intent:deepscan [files or a folder] [fast\|balanced\|full]` | Submit a remote Scan, wait for completion, save evidence and return findings. |
+| `/intent:deepscan collect [task-id]` | Resume an interrupted Scan without submitting source. No ID: outstanding scans in this project. |
 | `/intent:prove [what to prove]` | Formal proof with K through the global CLI. |
 | `/intent:doctor` | Read connection/configuration diagnostics; does not log in, clear credentials or update the plugin. |
 
@@ -119,9 +119,9 @@ Named files use the fast file-review API and submit immediately, without waiting
 | `balanced` | 30–35 minutes |
 | `full` | 40–45 minutes |
 
-Submission prints a report link. Use it to watch progress, or explicitly invoke `collect <task-id>` to fetch status once. Collection saves file-review artifacts under `.intent/<source-path>/` and final repository/folder reports under `.intent/deepscan/<task-id>/report.json`, with task/source metadata in `meta.json`. Report downloads are checked against their stated size and SHA-256. No source contents are copied into the DeepScan evidence folder.
+The command prints a report link, then polls until the task finishes, saves its evidence and returns findings. Keep it running, as with Prove. Polling uses the shared `poll_interval_seconds` setting (default 10 seconds); transient status-request failures retry after 1, 2 and 4 seconds. No detached worker or later-message hook is involved. Collection saves file-review artifacts under `.intent/<source-path>/` and final repository/folder reports under `.intent/deepscan/<task-id>/report.json`, with task/source metadata in `meta.json`. Report downloads are checked against their stated size and SHA-256. No source contents are copied into the DeepScan evidence folder.
 
-If collection is interrupted or a report is still pending, repeat `collect`; it does not resubmit the scan. Saved reports remain available after service files expire. Supporting files remain remote. Findings are flagged, not reproduced; request reproduction or fixes separately.
+Interrupting Scan stops local waiting; the remote task may continue. If interrupted, polling fails or a report is still pending, use `collect <task-id>` to resume waiting and collection; it does not resubmit the scan. Saved reports remain available after service files expire. Supporting files remain remote. Findings are flagged, not reproduced; request reproduction or fixes separately.
 
 ## Local HTML viewer
 

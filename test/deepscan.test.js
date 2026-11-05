@@ -14,7 +14,7 @@ import { takeDepth, renderScan } from "../lib/deepscan.js";
 let fp;
 before(async () => { fp = createFakeProver({ pollsBeforeDone: 0 }); await fp.listen(); });
 after(() => fp.close());
-beforeEach(() => { fp.state.deepscan = {}; fp.state.scans = new Map(); fp.state.requests.length = 0; fp.state.submitStatus = null; });
+beforeEach(() => { fp.state.deepscan = {}; fp.state.scans = new Map(); fp.state.requests.length = 0; fp.state.submitStatus = null; fp.state.pollsBeforeDone = 0; });
 
 function setup({ key = true } = {}) {
   const data = tmpdir("intent-data-");
@@ -69,16 +69,19 @@ test("snapshot scope is literal, rejects outside paths and does not follow symli
   assert.deepEqual(JSON.parse(zlib.gunzipSync(snapshot.gz)).files.map((file) => file.path), ["src/app.py"]);
 });
 
-test("repository Scan submits once and stays queued until explicit collection saves the report", async () => {
+test("repository Scan submits once, polls through running and saves the report before returning", async () => {
   const ctx = setup();
+  fp.state.deepscan.statuses = ["queued", "running", "done"];
   const result = await cli([], ctx);
   assert.equal(result.code, 0, result.err);
   const id = idOf(result.out);
   const record = path.join(ctx.data, "deepscans", `${id}.json`);
-  assert.equal(read(record).status, "queued");
+  assert.equal(read(record).status, "done");
   assert.equal(read(record).waiter, undefined);
-  assert.equal(fp.state.requests.filter((request) => request.method === "GET").length, 0);
-  assert.match(result.out, /deepscan collect/);
+  assert.equal(fp.state.requests.filter((request) => request.method === "GET" && request.path === `/tasks/${id}`).length, 3);
+  assert.match(result.err, /If interrupted, resume with deepscan collect/);
+  assert.match(result.out, /DeepScan finished/);
+  assert.equal(read(record).report_status, "saved");
   const collected = await cli(["collect", id], ctx);
   assert.equal(collected.code, 0, collected.err);
   assert.match(collected.out, /DeepScan finished/);
@@ -90,8 +93,9 @@ test("repository Scan submits once and stays queued until explicit collection sa
   assert.match((await cli(["collect"], ctx)).out, /No uncollected scans/);
 });
 
-test("explicit file Scan submits immediately without prompts, and collect saves file evidence", async () => {
+test("explicit file Scan submits without prompts, waits and saves file evidence before returning", async () => {
   const ctx = setup();
+  fp.state.pollsBeforeDone = 1;
   write(ctx.repo, "pricing.py", "def f():\n    return 1\n");
   const result = await cli(["pricing.py"], ctx);
   assert.equal(result.code, 0, result.err);
@@ -103,6 +107,9 @@ test("explicit file Scan submits immediately without prompts, and collect saves 
   assert.deepEqual(jobs[0].intent.prompts, []);
   assert.equal(jobs[0].intent.agent_message, null);
   assert.deepEqual(jobs[0].units.map((unit) => unit.path), ["pricing.py"]);
+  assert.match(result.out, /File Scan finished/);
+  assert.ok(fs.existsSync(path.join(ctx.repo, ".intent", "pricing.py", "VERDICT.md")));
+  assert.equal(read(path.join(ctx.data, "file-scans", `${id}.json`)).status, "done");
   const collected = await cli(["collect", id], ctx);
   assert.equal(collected.code, 0, collected.err);
   assert.match(collected.out, /File Scan finished/);
@@ -138,6 +145,29 @@ test("collection is project/service scoped and never resubmits code", async () =
   assert.equal(fp.deepscanUploads().length, 1);
 });
 
+test("an interrupted Scan keeps its task record and collect resumes without another upload", async () => {
+  const ctx = setup();
+  fp.state.deepscan.statuses = ["running"];
+  const child = spawn(process.execPath, [BIN, "deepscan"], { cwd: ctx.repo, env: ctx.env });
+  let err = "";
+  let id;
+  child.stderr.on("data", (bytes) => {
+    err += bytes;
+    if (!id && /\/tasks\/[0-9a-f-]{36}/.test(err)) {
+      id = idOf(err);
+      child.kill("SIGINT");
+    }
+  });
+  await new Promise((resolve) => child.on("close", resolve));
+  assert.ok(id, err);
+  assert.ok(fs.existsSync(path.join(ctx.data, "deepscans", `${id}.json`)));
+  fp.state.deepscan.statuses = ["done"];
+  const recovered = await cli(["collect", id], ctx);
+  assert.equal(recovered.code, 0, recovered.err);
+  assert.match(recovered.out, /Saved report/);
+  assert.equal(fp.deepscanUploads().length, 1);
+});
+
 test("missing auth, environment opt-outs and invalid targets never submit", async () => {
   const ctx = setup({ key: false });
   assert.equal((await cli([], ctx)).code, 1);
@@ -162,7 +192,10 @@ test("busy uploads retry once with the same idempotency key", async () => {
 test("failed scans and malformed summaries do not claim clean results", async () => {
   const ctx = setup();
   fp.state.deepscan.statuses = ["failed"];
-  const id = idOf((await cli([], ctx)).out);
+  const result = await cli([], ctx);
+  assert.equal(result.code, 1);
+  assert.match(result.err, /could not finish/);
+  const id = idOf(result.err);
   assert.match((await cli(["collect", id], ctx)).out, /could not finish/);
   const rendered = renderScan({ status: "done", url: "https://example.test/report", summary: {} });
   assert.doesNotMatch(rendered.context, /no findings/);

@@ -25,7 +25,6 @@
     "max_trimmed": 20000,
     "summary_max_bytes": 8192,
     "summary_max_cards": 8,
-    "summary_max_one_liners": 20,
-    "poll_interval_s": 30
+    "summary_max_one_liners": 20
   }
 }

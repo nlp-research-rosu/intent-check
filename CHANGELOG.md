@@ -12,7 +12,7 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ### Changed
 
-- Scan is explicit: file reviews submit immediately; repository/folder scans still return a report link. Use `/intent:deepscan collect [task-id]` to fetch status and save results; no background polling or automatic delivery runs. Sign in with `intent-check login`. Prove remains a separate explicit workflow.
+- Scan is explicit: file reviews submit immediately; file and repository/folder commands poll until completion, save evidence and return findings. Use `/intent:deepscan collect [task-id]` to resume an interrupted Scan without resubmitting source. No hooks or detached workers run. Sign in with `intent-check login`. Prove remains a separate explicit workflow.
 
 ## [1.0.3] - 2026-11-02
 

@@ -32,11 +32,11 @@ Before submitting, explain that the requested code will be uploaded to the confi
 
 Repository/folder scans upload a redacted snapshot of tracked and non-ignored untracked text files, excluding secrets, binary, generated and vendored files, lockfiles and `.intent/` evidence except `NOTES.md`. No command reads chat transcripts, prompts, plans or edit history. Upload metadata is recorded in `.intent/.sent.log`.
 
-The command returns the report link and task ID. Show them to the user. Do not wait or poll in a loop.
+The command prints the report link and task ID, then polls until the task finishes, saves the evidence and returns findings. Keep it running using the host's long-running command support. Do not start a second Scan or implement an agent-side polling loop.
 
-## Collect results
+## Resume interrupted scans
 
-Use `deepscan collect <task-id>` to fetch the current status and save finished evidence. `deepscan collect` handles outstanding scans in this project. Collection never submits source code. No result appears automatically on a later message.
+If waiting is interrupted or a request fails, the remote task may continue. Use `deepscan collect <task-id>` to resume polling and save its evidence without submitting source again. `deepscan collect` handles outstanding scans in this project. Ordinary messages do not resume a Scan or deliver its results.
 
 Repository/folder reports are saved under `.intent/deepscan/<task-id>/`; file reviews under `.intent/<source-path>/`. All paths are relative to the repository root (the project directory for file scans outside Git). Preserve existing evidence. Commit project knowledge with source; do not blanket-ignore `.intent/`.
 

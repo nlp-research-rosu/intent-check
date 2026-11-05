@@ -1,5 +1,5 @@
 ---
-description: Explicitly scan code remotely, or collect an existing Scan result
+description: Scan code remotely and wait for results, or resume an interrupted Scan
 argument-hint: "[files or a folder] [fast|balanced|full] | collect [task-id]"
 allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js":*)
 ---
@@ -14,6 +14,8 @@ Run `node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" deepscan --data "${CLAUDE_PLUGIN
 - One folder: scan only that folder.
 - Files (at most 10): submit a fast file review immediately.
 - `fast`, `balanced` or `full`: repository/folder depth; default `fast`.
-- `collect [task-id]`: fetch status and save finished results, without submitting code. Without an ID, collect outstanding scans in this project.
+- `collect [task-id]`: resume waiting and save results, without submitting code. Without an ID, collect outstanding scans in this project.
 
-Show the result and report link. No hooks, background workers or automatic result delivery run. To fetch a result later, invoke the same command with `collect <task-id>`; do not poll in a loop or resubmit to check progress.
+The command prints a task/report link, polls the service until the task finishes, saves the evidence and returns findings. Keep the command running; use the host's long-running command support rather than starting another Scan. Show the final result and report link. No hooks or detached workers run.
+
+If the command is interrupted or polling fails, the remote task may continue. Resume with `collect <task-id>`; do not resubmit code or implement an agent-side polling loop.
