@@ -73,13 +73,7 @@ git -C "$REPO" add -A
 git -C "$REPO" -c user.email=e2e@example.com -c user.name=e2e commit -qm init
 
 log "installing the plugin into $CODEX_HOME"
-node --input-type=module - "$PLUGIN_DIR" "$WORK/marketplace" <<'JS'
-import { pathToFileURL } from 'node:url';
-const [root, destination] = process.argv.slice(2);
-const { localMarketplace } = await import(pathToFileURL(`${root}/test/helpers/env.js`));
-localMarketplace(destination, root);
-JS
-codex plugin marketplace add "$WORK/marketplace" >/dev/null
+codex plugin marketplace add "$PLUGIN_DIR" >/dev/null
 codex plugin add intent@intentcomputing >/dev/null
 node "$HERE/codex-trust.mjs" >> "$CODEX_HOME/config.toml"
 ok "plugin installed and hooks trusted (isolated home)"

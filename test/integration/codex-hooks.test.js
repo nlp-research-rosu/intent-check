@@ -10,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createMockResponses } from "../helpers/mock-responses.js";
 import { createFakeProver, TEST_KEY } from "../helpers/fake-prover.js";
-import { tmpdir, makeRepo, waitFor, localMarketplace } from "../helpers/env.js";
+import { ROOT, tmpdir, makeRepo, waitFor } from "../helpers/env.js";
 import { trustEntries } from "../e2e/codex-trust.mjs";
 import { findCli, runCli, cleanEnv, toolsDir } from "./helpers.js";
 
@@ -71,7 +71,7 @@ async function session({ key = null, oldNode = false } = {}) {
       'wire_api = "responses"',
       "",
     ].join("\n"));
-    const m = await cx(["plugin", "marketplace", "add", localMarketplace(path.join(home, "marketplace"))]);
+    const m = await cx(["plugin", "marketplace", "add", ROOT]);
     assert.equal(m.code, 0, `marketplace add: ${m.stdout}${m.stderr}`);
     const a = await cx(["plugin", "add", "intent@intentcomputing"]);
     assert.equal(a.code, 0, `plugin add: ${a.stdout}${a.stderr}`);

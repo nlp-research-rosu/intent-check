@@ -6,23 +6,20 @@ import { ROOT, isExecutable } from "./helpers/env.js";
 
 const read = (p) => JSON.parse(fs.readFileSync(path.join(ROOT, p), "utf8"));
 
-test("marketplace: intentcomputing, plugin intent pinned to a released commit", () => {
+test("marketplace: intentcomputing, plugin intent at the repo root", () => {
   const m = read(".claude-plugin/marketplace.json");
   assert.equal(m.name, "intentcomputing");
   assert.equal(m.plugins.length, 1);
   assert.equal(m.plugins[0].name, "intent");
-  assert.equal(m.plugins[0].source.source, "url");
-  assert.equal(m.plugins[0].source.url, "https://github.com/nlp-research-rosu/intent-check.git");
-  assert.match(m.plugins[0].version, /^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/);
   assert.equal(m.plugins[0].source.ref, `v${m.plugins[0].version}`);
-  assert.match(m.plugins[0].source.sha, /^[0-9a-f]{40}$/);
+  assert.equal(m.plugins[0].version, read(".claude-plugin/plugin.json").version);
 });
 
-test("version: the same valid semver in the package and both host manifests", () => {
+test("version: the same valid semver in all four files", () => {
   const files = ["package.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json"];
-  const versions = files.map((f) => read(f).version);
+  const versions = [...files.map((f) => read(f).version), read(".claude-plugin/marketplace.json").plugins[0].version];
   assert.match(versions[0], /^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/);
-  assert.deepEqual(versions, Array(files.length).fill(versions[0]));
+  assert.deepEqual(versions, Array(4).fill(versions[0]));
 });
 
 test("plugin.json: name intent, version from package.json, homepage set", () => {

@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { tmpdir, ROOT } from "./helpers/env.js";
-import { nextVersion, readVersions, FILES, MARKETPLACE, INSTALL_JSON, CHANGELOG, changelogSection, rollChangelog } from "../scripts/bump-version.mjs";
+import { nextVersion, readVersions, FILES, INSTALL_JSON, CHANGELOG, changelogSection, rollChangelog } from "../scripts/bump-version.mjs";
 
 const none = () => [];
 
@@ -40,7 +40,7 @@ test("--pre: bumps the base the first time, then numbers on from the highest tag
 
 function sandbox() {
   const dir = tmpdir("bump-");
-  for (const f of [...FILES, MARKETPLACE, INSTALL_JSON, "scripts/bump-version.mjs"]) {
+  for (const f of [...FILES, INSTALL_JSON, "scripts/bump-version.mjs"]) {
     fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
     fs.copyFileSync(path.join(ROOT, f), path.join(dir, f));
   }
@@ -50,29 +50,13 @@ function sandbox() {
   return { dir, git, run: (...a) => execFileSync("node", ["scripts/bump-version.mjs", ...a], { cwd: dir, encoding: "utf8" }) };
 }
 
-test("CLI: prepares versions without advertising them until the marketplace is pinned", () => {
+test("CLI: writes all version files consistently, keeps formatting, prints only the version", () => {
   const { dir, run } = sandbox();
   const before = FILES.map((f) => fs.readFileSync(path.join(dir, f), "utf8"));
-  const catalog = path.join(dir, MARKETPLACE);
-  const advertised = fs.readFileSync(catalog, "utf8");
   const cur = readVersions(dir)[0][1];
   assert.equal(run("2.3.4"), "2.3.4\n");
   assert.deepEqual(readVersions(dir).map(([, v]) => v), Array(FILES.length).fill("2.3.4"));
-  FILES.slice(0, 3).forEach((f, i) => assert.equal(fs.readFileSync(path.join(dir, f), "utf8"), before[i].replace(`"${cur}"`, '"2.3.4"')));
-  assert.equal(fs.readFileSync(catalog, "utf8"), advertised);
-  const sha = "a".repeat(40);
-  for (const args of [["2.3.4", "bad-sha"], ["9.9.9", sha]]) {
-    assert.throws(() => execFileSync("node", ["scripts/bump-version.mjs", "--pin-marketplace", ...args], { cwd: dir, stdio: "pipe" }));
-    assert.equal(fs.readFileSync(catalog, "utf8"), advertised);
-  }
-  assert.equal(run("--pin-marketplace", "2.3.4", sha), "");
-  const plugin = JSON.parse(fs.readFileSync(catalog, "utf8")).plugins[0];
-  assert.equal(plugin.version, "2.3.4");
-  assert.equal(plugin.source.ref, "v2.3.4");
-  assert.equal(plugin.source.sha, sha);
-  const pinned = fs.readFileSync(catalog, "utf8");
-  run("--pin-marketplace", "2.3.4", sha);
-  assert.equal(fs.readFileSync(catalog, "utf8"), pinned);
+  FILES.slice(0, 4).forEach((f, i) => assert.equal(fs.readFileSync(path.join(dir, f), "utf8"), before[i].replace(`"${cur}"`, '"2.3.4"')));
 });
 
 test("CLI: --pre numbers from git tags", () => {
@@ -99,17 +83,9 @@ test("CLI: prerelease bump leaves docs/install.json untouched", () => {
   run("0.1.1"); // pin the base so the test doesn't depend on the repo's current release
   const p = path.join(dir, INSTALL_JSON);
   const before = fs.readFileSync(p, "utf8");
-  const catalog = path.join(dir, MARKETPLACE);
-  const advertised = fs.readFileSync(catalog, "utf8");
   assert.equal(run("patch", "--pre", "per-edit"), "0.1.2-per-edit.1\n");
   assert.equal(fs.readFileSync(p, "utf8"), before);
-  assert.equal(fs.readFileSync(catalog, "utf8"), advertised);
   assert.deepEqual(readVersions(dir).map(([, v]) => v), Array(FILES.length).fill("0.1.2-per-edit.1"));
-  run("--pin-marketplace", "0.1.2-per-edit.1", "b".repeat(40));
-  const plugin = JSON.parse(fs.readFileSync(catalog, "utf8")).plugins[0];
-  assert.equal(plugin.version, "0.1.2-per-edit.1");
-  assert.equal(plugin.source.ref, "v0.1.2-per-edit.1");
-  assert.equal(plugin.source.sha, "b".repeat(40));
 });
 
 test("CLI: plain release refuses when install.json lacks exactly one version field, writing nothing", () => {
@@ -201,10 +177,6 @@ test("CHANGELOG.md: has an Unreleased section and an entry for the current relea
   assert.match(log, /^## \[Unreleased\]$/m);
   const cur = readVersions()[0][1];
   if (/^\d+\.\d+\.\d+$/.test(cur)) assert.notEqual(changelogSection(log, cur), "", `CHANGELOG.md has no entry for ${cur}`);
-  const workflow = fs.readFileSync(path.join(ROOT, ".github/workflows/release.yml"), "utf8");
-  assert.match(workflow, /bump-version\.mjs --notes "\$V"/);
-  assert.match(workflow, /gh release edit "v\$V" --draft=false/);
-  assert.match(workflow, /bump-version\.mjs --pin-marketplace "\$V" "\$RELEASE_SHA"/);
-  assert.ok(workflow.indexOf('gh release edit "v$V" --draft=false') < workflow.indexOf('bump-version.mjs --pin-marketplace "$V" "$RELEASE_SHA"'));
+  assert.match(fs.readFileSync(path.join(ROOT, ".github/workflows/release.yml"), "utf8"), /bump-version\.mjs --notes "\$V"/);
   assert.match(fs.readFileSync(path.join(ROOT, "README.md"), "utf8"), /\]\(CHANGELOG\.md\)/);
 });

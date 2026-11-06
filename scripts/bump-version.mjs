@@ -10,7 +10,6 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const FILES = ["package.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "cli/Cargo.toml", "cli/Cargo.lock"];
-export const MARKETPLACE = ".claude-plugin/marketplace.json";
 // The CLI ships in the same release, so its crate version follows the plugin's. Only the package's own entry counts.
 const PATTERNS = {
   "cli/Cargo.toml": /(\[package\][^[]*?\nversion = ")([^"]*)(")/g,
@@ -88,11 +87,11 @@ export function writeVersion(v, root = ROOT, date = new Date().toISOString().sli
   if (rolled !== null) fs.writeFileSync(log, rolled);
 }
 
-export function pinMarketplace(v, sha, root = ROOT) {
+function pinMarketplace(v, sha) {
   parse(v);
   if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error("marketplace pin needs a full lowercase commit SHA");
-  if (readVersions(root).some(([, version]) => version !== v)) throw new Error("marketplace pin must match the prepared release version");
-  const file = path.join(root, MARKETPLACE);
+  if (readVersions().some(([, version]) => version !== v)) throw new Error("marketplace pin must match the prepared release version");
+  const file = path.join(ROOT, ".claude-plugin/marketplace.json");
   const marketplace = JSON.parse(fs.readFileSync(file, "utf8"));
   const plugin = marketplace.plugins.find((p) => p.name === "intent");
   plugin.version = v;
