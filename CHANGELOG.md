@@ -6,6 +6,8 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-06
+
 ### Removed
 
 - Check/Live submission, collection and artifact handling, all plugin hooks, and the On/Live/Off commands. Chats and edits no longer capture or upload code. Existing credentials, settings and evidence are retained.
