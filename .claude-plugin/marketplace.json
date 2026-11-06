@@ -1,6 +1,8 @@
 {
   "name": "intentcomputing",
-  "owner": { "name": "Intent Computing" },
+  "owner": {
+    "name": "Intent Computing"
+  },
   "metadata": {
     "description": "Code analysis and verification for AI coding assistants."
   },
@@ -10,11 +12,11 @@
       "source": {
         "source": "url",
         "url": "https://github.com/nlp-research-rosu/intent-check.git",
-        "ref": "v1.0.3",
-        "sha": "891d66c5cec0c76c452ac72f611022507693c5c8"
+        "ref": "v1.1.0",
+        "sha": "35504add58468a672fa5c306206ffb62877b6a95"
       },
       "description": "Code analysis and verification for AI coding assistants.",
-      "version": "1.0.3"
+      "version": "1.1.0"
     }
   ]
 }
