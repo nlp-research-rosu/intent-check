@@ -1,5 +1,6 @@
 // node scripts/bump-version.mjs <patch|minor|major|X.Y.Z[-pre]> [--pre <id>]
 // node scripts/bump-version.mjs --notes <X.Y.Z>   prints that version's CHANGELOG.md section (the release notes)
+// node scripts/bump-version.mjs --pin-marketplace <X.Y.Z[-pre]> <sha>   advertises an already-published release
 // patch/minor/major bump the base (prerelease stripped). With --pre <id> the result is <base>-<id>.<N>, N = 1 + the highest
 // tag v<base>-<id>.*; base = the current base if the current version is already a prerelease with that id, else the bumped base.
 import fs from "node:fs";
@@ -8,7 +9,8 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-export const FILES = ["package.json", ".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", ".codex-plugin/plugin.json", "cli/Cargo.toml", "cli/Cargo.lock"];
+export const FILES = ["package.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "cli/Cargo.toml", "cli/Cargo.lock"];
+export const MARKETPLACE = ".claude-plugin/marketplace.json";
 // The CLI ships in the same release, so its crate version follows the plugin's. Only the package's own entry counts.
 const PATTERNS = {
   "cli/Cargo.toml": /(\[package\][^[]*?\nversion = ")([^"]*)(")/g,
@@ -86,6 +88,19 @@ export function writeVersion(v, root = ROOT, date = new Date().toISOString().sli
   if (rolled !== null) fs.writeFileSync(log, rolled);
 }
 
+export function pinMarketplace(v, sha, root = ROOT) {
+  parse(v);
+  if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error("marketplace pin needs a full lowercase commit SHA");
+  if (readVersions(root).some(([, version]) => version !== v)) throw new Error("marketplace pin must match the prepared release version");
+  const file = path.join(root, MARKETPLACE);
+  const marketplace = JSON.parse(fs.readFileSync(file, "utf8"));
+  const plugin = marketplace.plugins.find((p) => p.name === "intent");
+  plugin.version = v;
+  plugin.source.ref = `v${v}`;
+  plugin.source.sha = sha;
+  fs.writeFileSync(file, JSON.stringify(marketplace, null, 2) + "\n");
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const args = process.argv.slice(2);
@@ -93,6 +108,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       if (args.length !== 2 || !SEMVER.test(args[1])) throw new Error("usage: bump-version.mjs --notes <X.Y.Z>");
       const notes = changelogSection(fs.readFileSync(path.join(ROOT, CHANGELOG), "utf8"), args[1]);
       process.stdout.write(notes ? `${notes}\n` : "");
+      process.exit(0);
+    }
+    if (args[0] === "--pin-marketplace") {
+      if (args.length !== 3) throw new Error("usage: bump-version.mjs --pin-marketplace <X.Y.Z[-pre]> <sha>");
+      pinMarketplace(args[1], args[2]);
       process.exit(0);
     }
     const i = args.indexOf("--pre");

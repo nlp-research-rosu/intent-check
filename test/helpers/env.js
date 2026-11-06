@@ -26,6 +26,20 @@ export function tmpdir(prefix = "intent-test-") {
   return fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
 }
 
+// Host tests install checkout code, not the release advertised by the public catalog.
+export function localMarketplace(dir, root = ROOT) {
+  fs.cpSync(root, dir, {
+    recursive: true,
+    filter: (p) => ![".git", "cli"].includes(path.relative(root, p).split(path.sep)[0]),
+  });
+  const file = path.join(dir, ".claude-plugin", "marketplace.json");
+  const marketplace = JSON.parse(fs.readFileSync(file, "utf8"));
+  marketplace.plugins[0].source = "./";
+  marketplace.plugins[0].version = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version;
+  fs.writeFileSync(file, JSON.stringify(marketplace, null, 2) + "\n");
+  return dir;
+}
+
 export function makeRepo({ git = true, commit = true } = {}) {
   const dir = tmpdir("intent-repo-");
   if (git) {

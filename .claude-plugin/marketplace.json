@@ -7,7 +7,12 @@
   "plugins": [
     {
       "name": "intent",
-      "source": "./",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/nlp-research-rosu/intent-check.git",
+        "ref": "v1.0.3",
+        "sha": "891d66c5cec0c76c452ac72f611022507693c5c8"
+      },
       "description": "Checks that the code your agent wrote does what you asked, with formal proofs in prove mode",
       "version": "1.0.3"
     }

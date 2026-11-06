@@ -6,6 +6,10 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+### Fixed
+
+- Claude Code and Codex plugin installs use the last published release rather than unreleased branch contents. The release workflow advances the shared marketplace's tag and commit pin only after publication succeeds.
+
 ## [1.0.3] - 2026-11-02
 
 ### Added
