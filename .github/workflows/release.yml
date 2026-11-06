@@ -101,7 +101,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { runner: macos-14, asset: intent-check-darwin-arm64, windows: false }
+          - { runner: macos-15, asset: intent-check-darwin-arm64, windows: false }
           - { runner: macos-15-intel, asset: intent-check-darwin-x64, windows: false }
           - { runner: ubuntu-latest, asset: intent-check-linux-x64, windows: false }
           - { runner: ubuntu-24.04-arm, asset: intent-check-linux-arm64, windows: false }
