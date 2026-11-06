@@ -14,6 +14,10 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 - DeepScan is explicit: a file, folder or repository snapshot is submitted to `/deepscans`; the command polls until completion, saves evidence and returns findings. Use `/intent:deepscan collect [task-id]` to resume an interrupted DeepScan without resubmitting source. No hooks or detached workers run. Sign in with `intent-check login`. Prove remains a separate explicit workflow.
 
+### Fixed
+
+- Claude Code and Codex plugin installs use the last published release rather than unreleased branch contents. The release workflow advances the shared marketplace's tag and commit pin only after publication succeeds.
+
 ## [1.0.3] - 2026-11-02
 
 ### Added

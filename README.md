@@ -92,7 +92,9 @@ Reload or restart the host after updating. Close sessions using an older plugin 
 
 Claude Code updates a plugin only when its version changes. Third-party marketplace auto-update is optional; enable it under `/plugin` → Marketplaces → intentcomputing. A running session needs `/reload-plugins` or a restart to use a new version.
 
-Maintainers: use the release workflow with a minor bump when removing commands. On `main`, it prepares the version commit from Unreleased, builds CLI assets, publishes the release, then fast-forwards the branch. Other branches publish prereleases. Every user-visible PR needs an Unreleased entry.
+The shared marketplace pins the plugin source to a published tag and exact commit for both Claude Code and Codex. Merging code into a branch does not advertise it as a plugin update. Fresh installs and host updates use the release named by the marketplace, not the checkout's development files.
+
+Maintainers: use the release workflow to choose the branch and version bump (minor when removing or renaming commands). It prepares the version commit and changelog, builds and uploads the CLI assets, then publishes the release. Only after publication does it commit the marketplace's version, tag and SHA and fast-forward the branch. Failed publication leaves the advertised release unchanged; concurrent branch changes prevent the push. Other branches publish prereleases and advance their own marketplace pin. Every user-visible PR needs an Unreleased entry in [CHANGELOG.md](CHANGELOG.md).
 
 ## Install (Codex CLI 0.147 or newer)
 

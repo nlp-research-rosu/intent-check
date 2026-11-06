@@ -1,9 +1,9 @@
 name: release
 # Run from the Actions tab and pick a branch. On main this cuts a release (vX.Y.Z), whose notes are the Unreleased
 # section of CHANGELOG.md; on any other branch it cuts a
-# prerelease (vX.Y.Z-<branch>.N) and commits the bump to that branch, because users install from the branch head.
+# prerelease (vX.Y.Z-<branch>.N). Each branch's marketplace points to its last published release.
 # The release carries the intent-check CLI builds for six targets and the two standalone installers; it is created as a
-# draft and published only after every asset is uploaded. The branch advances only after publication.
+# draft and published only after every asset is uploaded. The branch and marketplace pin advance only after publication.
 # Pushes made with GITHUB_TOKEN do not trigger ci.yml; that is fine because the test job below runs first.
 on:
   workflow_dispatch:
@@ -61,7 +61,11 @@ jobs:
         id: bump
         run: |
           CURRENT=$(node -p 'require("./package.json").version')
-          if [ "$(git log -1 --format=%s)" = "release: v$CURRENT" ]; then
+          if [ "$(git log -1 --format=%s)" = "release: publish v$CURRENT" ]; then
+            # A completed release has a catalog commit after the tagged source commit.
+            V=$CURRENT
+            git checkout --detach "v$V"
+          elif [ "$(git log -1 --format=%s)" = "release: v$CURRENT" ]; then
             # the last commit is already this release's bump (a rerun after a partial failure): do not bump again, only tag if missing
             V=$CURRENT
             if ! git rev-parse -q --verify "refs/tags/v$V" >/dev/null; then
@@ -79,7 +83,7 @@ jobs:
               echo "tag v$V already exists" >&2
               exit 1
             fi
-            git add package.json .claude-plugin/plugin.json .claude-plugin/marketplace.json .codex-plugin/plugin.json cli/Cargo.toml cli/Cargo.lock docs/install.json CHANGELOG.md
+            git add package.json .claude-plugin/plugin.json .codex-plugin/plugin.json cli/Cargo.toml cli/Cargo.lock docs/install.json CHANGELOG.md
             git commit -m "release: v$V"
             git tag "v$V"
           fi
@@ -182,8 +186,13 @@ jobs:
       - name: GitHub release
         run: |
           # Never overwrite branch changes made while the builds were running.
-          head=$(git ls-remote origin "refs/heads/$BRANCH" | cut -f1)
-          test "$head" = "$GITHUB_SHA" || test "$head" = "$RELEASE_SHA"
+          git fetch origin "$BRANCH"
+          head=$(git rev-parse FETCH_HEAD)
+          if [ "$head" != "$GITHUB_SHA" ] && [ "$head" != "$RELEASE_SHA" ]; then
+            # A rerun may find the catalog commit from this same release already pushed.
+            test "$(git log -1 --format=%s FETCH_HEAD)" = "release: publish v$V"
+            test "$(git rev-parse FETCH_HEAD^)" = "$RELEASE_SHA"
+          fi
           git push origin "refs/tags/v$V"
           # gh release view does not find drafts, so look the tag up in the list
           state=$(gh release list --limit 1000 --json tagName,isDraft --jq ".[] | select(.tagName == \"v$V\") | .isDraft")
@@ -217,4 +226,15 @@ jobs:
           diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/uploaded.txt"
           gh release edit "v$V" --draft=false
       - name: Expose published version to plugin installations
-        run: git push origin "HEAD:refs/heads/$BRANCH"
+        run: |
+          git fetch origin "$BRANCH"
+          if [ "$(git log -1 --format=%s FETCH_HEAD)" = "release: publish v$V" ] && [ "$(git rev-parse FETCH_HEAD^)" = "$RELEASE_SHA" ]; then
+            echo "marketplace already points to v$V"
+            exit 0
+          fi
+          node scripts/bump-version.mjs --pin-marketplace "$V" "$RELEASE_SHA"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add .claude-plugin/marketplace.json
+          git commit -m "release: publish v$V"
+          git push origin "HEAD:refs/heads/$BRANCH"
