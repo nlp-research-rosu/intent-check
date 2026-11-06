@@ -1,24 +1,12 @@
-// Test harness: temp data dirs, throwaway git repos, and running bin/hooks.js like Claude Code does.
-import { spawn, execFileSync } from "node:child_process";
+// Test harness: isolated data, throwaway repositories and explicit plugin commands.
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-export const BIN = path.join(ROOT, "bin", "hooks.js");
-export const FIXTURES = path.join(ROOT, "test", "fixtures", "claude");
-
-// Raw fixture JSON with its project dir rewritten to `dir`, escaped because a Windows path has backslashes.
-export function rewriteProjectDir(raw, dir) {
-  return raw.split("/work/proj").join(JSON.stringify(dir).slice(1, -1));
-}
-
-// A captured payload with its project dir rewritten to `dir`.
-export function fixture(name, dir = "/work/proj", patch = {}) {
-  const raw = rewriteProjectDir(fs.readFileSync(path.join(FIXTURES, `${name}.json`), "utf8"), dir);
-  return { ...JSON.parse(raw), ...patch };
-}
+export const BIN = path.join(ROOT, "bin", "intent.js");
 
 // realpathSync.native: on Windows the temp dir can be a short name (C:\Users\RUNNER~1\...), which only
 // the native call expands to the long form git and the plugin report.
@@ -46,59 +34,10 @@ export function baseEnv(dataDir, apiUrl, extra = {}) {
   for (const k of Object.keys(env)) {
     if (k.startsWith("INTENT_") || k.startsWith("CLAUDE_") || k === "DO_NOT_TRACK") delete env[k];
   }
-  return { ...env, CLAUDE_PLUGIN_DATA: dataDir, XDG_CONFIG_HOME: xdgDir(dataDir), INTENT_API_URL: apiUrl, INTENT_CONSOLE_URL: apiUrl, CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PLUGIN_ROOT: ROOT, INTENT_LIVE: "0", ...extra };
+  return { ...env, CLAUDE_PLUGIN_DATA: dataDir, XDG_CONFIG_HOME: xdgDir(dataDir), INTENT_API_URL: apiUrl, INTENT_CONSOLE_URL: apiUrl, CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PLUGIN_ROOT: ROOT, ...extra };
 }
 
-// Run one hook like Claude Code: JSON on stdin, capture stdout/stderr/exit code.
-export function runHook(event, payload, env, { timeoutMs = 60000, onSpawn } = {}) {
-  return new Promise((resolve) => {
-    const t0 = Date.now();
-    const child = spawn(process.execPath, [BIN, event], { env, cwd: payload && payload.cwd && fs.existsSync(payload.cwd) ? payload.cwd : ROOT });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (d) => { stdout += d; });
-    child.stderr.on("data", (d) => { stderr += d; });
-    const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      resolve({ code, stdout, stderr, ms: Date.now() - t0, json: parseFirstJson(stdout) });
-    });
-    if (onSpawn) onSpawn(child);
-    child.stdin.end(payload === undefined ? "" : JSON.stringify(payload));
-  });
-}
-
-export function parseFirstJson(stdout) {
-  for (const line of stdout.split("\n")) {
-    if (line.startsWith("{")) {
-      try { return JSON.parse(line); } catch { /* next */ }
-    }
-  }
-  return null;
-}
-
-export function readSessionFiles(dataDir) {
-  const dir = path.join(dataDir, "sessions");
-  try {
-    return fs.readdirSync(dir).filter((f) => f.endsWith(".json")).map((f) => JSON.parse(fs.readFileSync(path.join(dir, f), "utf8")));
-  } catch {
-    return [];
-  }
-}
-
-export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-export async function waitFor(fn, { timeoutMs = 15000, stepMs = 100 } = {}) {
-  const end = Date.now() + timeoutMs;
-  while (Date.now() < end) {
-    const v = await fn();
-    if (v) return v;
-    await sleep(stepMs);
-  }
-  return null;
-}
-
-// Saves the key for one service URL (config.json keys[url]).
+// Saves the key for one service URL.
 // The credentials file lives under XDG_CONFIG_HOME; each test gets its own next to its data dir.
 export const xdgDir = (dataDir) => path.join(dataDir, "xdg");
 export const credentialsPath = (dataDir) => path.join(xdgDir(dataDir), "intent-check", "credentials.json");
@@ -112,19 +51,6 @@ export function saveKey(dataDir, key, url) {
 export const savedKey = (dataDir, url) => {
   try { return JSON.parse(fs.readFileSync(credentialsPath(dataDir), "utf8")).keys[new URL(url).origin]; } catch { return undefined; }
 };
-
-// global.json content for tests that are not about the first-run notices (consent, "ready").
-export const PLUGIN_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, ".claude-plugin", "plugin.json"), "utf8")).version;
-export const QUIET_GLOBAL = JSON.stringify({ consent_shown_at: "x", ready_version: PLUGIN_VERSION });
-
-// Pre-seed machine-wide state (global.json), e.g. the consent notice already shown.
-export function seedGlobal(dataDir, obj) {
-  fs.mkdirSync(dataDir, { recursive: true });
-  const f = path.join(dataDir, "global.json");
-  let cur = {};
-  try { cur = JSON.parse(fs.readFileSync(f, "utf8")); } catch { /* none yet */ }
-  fs.writeFileSync(f, JSON.stringify({ ...cur, ...obj }), { mode: 0o600 });
-}
 
 // fs.symlinkSync that also works on Windows without the symlink privilege where it can: a link to a
 // folder becomes a junction there (no privilege needed; lstat still reports a symbolic link).

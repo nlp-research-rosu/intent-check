@@ -6,6 +6,14 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+### Removed
+
+- Check/Live submission, collection and artifact handling, all plugin hooks, and the On/Live/Off commands. Chats and edits no longer capture or upload code. Existing credentials, settings and evidence are retained.
+
+### Changed
+
+- DeepScan is explicit: a file, folder or repository snapshot is submitted to `/deepscans`; the command polls until completion, saves evidence and returns findings. Use `/intent:deepscan collect [task-id]` to resume an interrupted DeepScan without resubmitting source. No hooks or detached workers run. Sign in with `intent-check login`. Prove remains a separate explicit workflow.
+
 ### Fixed
 
 - Claude Code and Codex plugin installs use the last published release rather than unreleased branch contents. The release workflow advances the shared marketplace's tag and commit pin only after publication succeeds.
@@ -35,82 +43,46 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ### Fixed
 
-- Codex guidance routes formal proofs through the global CLI, not the review hook script. Sign-in guidance lets tasks continue while approval is pending, and doctor guidance no longer promises to start login.
+- Codex guidance routes formal proofs through the global CLI. Sign-in guidance lets tasks continue while approval is pending, and doctor guidance no longer promises to start login.
 
 ## [1.0.0] - 2026-10-23
 
 ### Fixed
 
-- Live review resolves edited paths from the tool's working directory and filters them against the captured project root, so files elsewhere in the same repository are not skipped.
 - The CLI accepts completed reused proof results with no tool runs, preserves the backend response and evidence, and still passes actual tool exit codes through unchanged.
 - Release builds and CLI asset publication finish before the plugin branch advances to the new version.
 - The plugin and global CLI use the same `config.toml` API and console endpoints, with the same environment overrides.
 
 ### Breaking
 
-- The plugin now uses the Intent Check service API as its only backend. Reinstall or update the plugin, then use `onboarding` to install the global CLI. Hooks start browser sign-in when needed.
+- The plugin now uses the Intent Check service API as its only backend. Reinstall or update the plugin, then use `onboarding` to install the global CLI.
 - Report links from earlier versions stop working. Results open in the Intent Check console.
 - Formal proofs are available through prove mode in this plugin (`/intent:prove`).
 - Keys saved by earlier versions are not carried over.
-- The plugin's script is `bin/hooks.js` (was `bin/intent.js`). This matters only if you call it by path on Codex.
 
 ### Added
 
 - Prove mode: `/intent:prove [what to prove]` proves a program correct with K. Proof files go under `.intent/prove/<target>/`; the CLI's session state in `.intent/prove/sessions/` is not committed.
-- The global `intent-check` command line tool. Each release includes it for macOS, Linux and Windows (x64 and arm64), with checksums and `install-intent-check.sh` / `install-intent-check.ps1`. Skills call it directly from `PATH`; hooks do not download a private copy.
+- The global `intent-check` command line tool. Each release includes it for macOS, Linux and Windows (x64 and arm64), with checksums and `install-intent-check.sh` / `install-intent-check.ps1`. Skills call it directly from `PATH`.
 - `INTENT_CONSOLE_URL` sets the prover console that sign-in and result links open in.
 
 ### Changed
 
-- Sign-in is `intent-check login`, started automatically by hooks through the global CLI, or run directly during onboarding. Hooks share a pending login across sessions, never download a binary and never block the user's task. The key is saved in `~/.config/intent-check/credentials.json`. For cloud sessions and CI, set `INTENT_API_KEY`; the CLI honors `INTENT_API_URL`, `INTENT_CONSOLE_URL` and `INTENT_API_KEY` too.
 - Checks and DeepScans go to the prover API (`https://prover.intentcomputing.org`, `INTENT_API_URL` overrides it).
 - Everything the plugin writes in your repo lives under `.intent/`. Proof sessions now detect the repository root automatically, so running from a subdirectory does not create a nested `.intent/`.
-- The README describes all four modes (check, live, deepscan, prove), sign-in, the commands, file locations and environment variables, and no longer lists sample report pages.
 
 ## [0.3.0] - 2026-10-13
 
 ### Changed
 
-- Five commands replace eight. `/intent:on` turns checks on (your changes are reviewed at the end of each turn), `/intent:live` turns them on in live mode (every edit is also reviewed as it happens), and `/intent:off` turns them off. `/intent:on` turns live mode off again.
 - `/intent:deepscan [files or a folder] [fast|balanced|full]` is the one command for a review on demand. Files get the fast review; a folder or nothing gets a DeepScan.
-- `/intent:doctor` shows the plugin's state and repairs what it can: it gives a fresh connect link when the account is not connected, replaces a saved key the service no longer accepts, and updates the plugin on Claude Code. Its first line names a newer release when there is one.
-- `INTENT_LIVE=1` or `0` sets live mode from the environment.
-
-### Fixed
-
-- Windows: a state file another hook has just released no longer fails the check, repository paths from git match the rest of the plugin's paths, and the shadow snapshot runs without the user's git config there too.
 
 ### Removed
 
 - `/intent:check`: use `/intent:deepscan <files>`.
-- `/intent:mode`: use `/intent:on` or `/intent:live`.
 - `/intent:status` and `/intent:connect`: use `/intent:doctor`.
 - `/intent:disconnect`: revoke a machine's key from your account page on the service.
 - The `--depth` and `--scope` flags of `/intent:deepscan`: name the depth and the folder as plain arguments.
-- Settings saved by early versions are no longer read: the top-level `api_key` (the next prompt shows a connect link), `mode` and `per_edit` (run `/intent:live` again), and the `INTENT_MODE` variable (use `INTENT_LIVE`).
-
-## [0.2.4] - 2026-10-13
-
-### Added
-
-- When the service cannot finish a check, you now get one line saying so instead of silence.
-
-### Fixed
-
-- Text that the host adds to a prompt (reminders, task notifications) is no longer sent as if you had typed it.
-- A "done" or "skip" reply to the connect link is recognised when the host has added text in front of it.
-
-## [0.2.3] - 2026-10-10
-
-### Added
-
-- Small HTML apps with real logic are checked, not skipped as markup.
-- In per-edit mode, files written by shell commands are caught without a git repository, and PowerShell commands are handled.
-
-### Fixed
-
-- Each turn is judged against its own prompts, not those of a later turn.
-- The agent carries on with your request when the connection was approved before you replied "done".
 
 ## [0.2.2] - 2026-10-09
 
@@ -133,6 +105,5 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 ### Added
 
 - DeepScan: a scan of the whole repo, with a choice of depth (`fast`, `balanced`, `full`).
-- Per-edit checking becomes a mode of the main plugin, on Claude Code and Codex.
 
 Earlier releases are listed at https://github.com/nlp-research-rosu/intent-check/releases.

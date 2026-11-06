@@ -59,8 +59,7 @@ first applicable path:
 
 The plugin reads this same file through the global intent-check CLI for API
 and console endpoints. INTENT_API_URL and INTENT_CONSOLE_URL override it;
-blank variables count as unset. Plugin preferences such as disabled and live
-remain in the host-local config.json, not here.
+blank variables count as unset.
 
 Settings:
   server_url                Intent Check service HTTP endpoint.
@@ -365,11 +364,10 @@ every ten seconds. It never submits tasks or contacts the remote service.
 It never overwrites an existing file. Share it only with people who may read
 the included .intent evidence. It does not include source workspaces,
 credentials, plugin prompts or transcripts. Symlinks and hidden files are not
-exported; queued requests are represented by task metadata only.
+exported; explicit Scans are represented by task metadata only.
 
 The name comes from the origin repository name, falling back to the root folder.
-File reviews, DeepScan reports and proof sessions come from this project's
-.intent directory. Active file checks come from installed Claude Code/Codex
-plugin data; set --plugin-data for a custom or isolated plugin installation.
-Submitted means the plugin is awaiting a result, not a confirmed server status.
-The viewer does not enable the plugin's per-edit live checking mode."#;
+DeepScan reports and proof sessions come from this project's .intent directory.
+DeepScan progress comes from installed Claude Code/Codex plugin data; set
+--plugin-data for a custom or isolated plugin installation. Scan status is the
+last locally saved state, not a fresh server status."#;

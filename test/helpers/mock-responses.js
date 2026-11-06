@@ -32,13 +32,13 @@ export function createMockResponses({ file = "src/a.js", content = "export const
       if (req.method === "POST" && /\/responses$/.test(pathname)) {
         const id = `resp_mock${++n}`;
         const created = { type: "response.created", response: { id } };
-        if (onModelRequest) onModelRequest(); // a hook for the test to make its edit mid-turn
+        if (onModelRequest) onModelRequest(); // let the test make its edit mid-turn
         if (!write || (body && hasToolOutput(body.input))) {
           const item = { type: "message", role: "assistant", id: `msg_${n}`, content: [{ type: "output_text", text: "Done." }] };
           return sse(res, [created, { type: "response.output_item.done", item }, completed(id)]);
         }
         // Codex intercepts `apply_patch <<'EOF' ...` run through its exec_command tool and applies it
-        // as a patch (the tool_name its hooks see is apply_patch), which works for any model name.
+        // as a patch, which works for any model name.
         // Newer models get apply_patch as a freeform (custom) tool: call that directly.
         const raw = Buffer.concat(chunks).toString("latin1");
         const item = /"type":"custom","name":"apply_patch"/.test(raw)

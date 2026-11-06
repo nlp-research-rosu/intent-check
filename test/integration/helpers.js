@@ -70,7 +70,7 @@ export function runCli(bin, args, { env, cwd, timeoutMs = 55000, input = "" } = 
 
 export const basename = (p) => path.basename(p);
 
-// A PATH that has what Claude Code and the hooks' git calls need, and no node. `oldNode` adds a
+// A PATH that has what Claude Code needs, and no node. `oldNode` adds a
 // `node` that reports itself as 16.1.0 (the real binary behind it, with process.versions patched).
 export function toolsDir({ oldNode = false } = {}) {
   const dir = tmpdir("intent-it-path-");

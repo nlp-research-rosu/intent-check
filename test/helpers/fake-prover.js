@@ -13,14 +13,9 @@ const ERR = { unauthorized: { code: "AUTHENTICATION_REQUIRED", message: "A valid
 export function createFakeProver(opts = {}) {
   const st = {
     key: TEST_KEY,
-    scenario: "concerns", // "concerns" | "no_concerns" | "partial" | "failed" | "superseded" | "data_expired" (data_expired keeps the verdict, no artifacts)
-    pollsBeforeDone: 1,
     minVersion: "0.1.0", // X-Intent-Version below this (or missing) gets 426
-    submitStatus: null, // e.g. { status: 429, code: "spend_cap" }
-    concern: null, // override the agent concern
     connectApproved: false,
     connectKeyTaken: false,
-    jobs: new Map(),
     requests: [],
     ...opts,
   };
@@ -33,45 +28,11 @@ export function createFakeProver(opts = {}) {
     return !a || [0, 1, 2].some((i) => { const d = a[i] - m[i]; return d !== 0 && [0, 1, 2].slice(0, i).every((j) => a[j] === m[j]) && d < 0; });
   };
   const upgrade = (res) => json(res, 426, { code: "UPGRADE_REQUIRED", message: `Intent Check needs plugin version ${st.minVersion} or later. Update the plugin.`, details: { reason: "plugin_version" } });
-  const taskStatusOf = (job) => (job.finished ? "completed" : job.polls > 0 ? "running" : "queued");
 
   function json(res, status, body) {
     const b = JSON.stringify(body);
     res.writeHead(status, { "content-type": "application/json", "content-length": Buffer.byteLength(b) });
     res.end(b);
-  }
-
-  const ART_TEXT = { "INTENT.md": (u) => `# ${u.path}\n`, "SPEC.k": () => "module SPEC\nendmodule\n", "SEMANTICS.k": () => "module SEM\nendmodule\n", "VERDICT.md": (u, i, bad) => (bad ? "Concerns (1)\n" : "No concerns\n"), "VERIFICATION.k": () => "module VERIFICATION\nendmodule\n", "REASONING.md": () => "# Reasoning\n" };
-  const artifactText = (job, i, name) => ART_TEXT[name](job.request.units[i], i, i === 0 && concernsOf(job).length > 0);
-
-  function concernsOf(job) {
-    return ["concerns", "data_expired"].includes(st.scenario) ? [st.concern || {
-      id: "c1", type: "intentMismatch", severity: "high", path: job.request.units[0].path, line: 3, claimId: "k1",
-      title: "\"Never below zero\" does not hold when percent > 100",
-      explanation: "With percent = 150 the result is negative.",
-      fixDirection: "Clamp percent to 0..100, or clamp the result at 0.",
-    }] : [];
-  }
-
-  // An IntentCheckResult (openapi): every file links its artifacts by path under the API root.
-  function result(id, job) {
-    const concerns = concernsOf(job);
-    return {
-      verdict: concerns.length ? "concerns" : "noConcerns",
-      partial: st.scenario === "partial",
-      concerns,
-      units: job.request.units.map((u, i) => ({
-        path: u.path,
-        checkedSha256: u.sha256,
-        verdict: i === 0 && concerns.length ? "concerns" : "noConcerns",
-        partial: false,
-        claims: [{ id: "k1", function: "apply_discount", status: i === 0 && concerns.length ? "concern" : "noConflictFound" }],
-        artifacts: Object.fromEntries(Object.keys(ART_TEXT).map((name) => {
-          const text = artifactText(job, i, name);
-          return [name, { name, size: Buffer.byteLength(text), sha256: crypto.createHash("sha256").update(text).digest("hex"), url: `/tasks/${id}/artifacts/${i}/${name}` }];
-        })),
-      })),
-    };
   }
 
   // A Task (openapi TaskBase plus kind and result).
@@ -83,13 +44,14 @@ export function createFakeProver(opts = {}) {
     };
   }
 
-  const defaultSummary = (depth) => ({
+  const reportText = JSON.stringify({ version: 1, cards: [], one_liners: [], coverage: {} });
+  const defaultSummary = (depth, id) => ({
     depth,
     budgetSeconds: depth === "fast" ? 1800 : 3600,
     counts: { CRITICAL: 0, HIGH: 1, MODERATE: 0, LOW: 0, MARGINAL: 0 },
     cards: [{ id: "F1", criticality: "HIGH", title: "A discount above 100 percent makes the price negative", property: "Price is never negative.", cause: [{ path: "src/pricing.py", line: 3 }], reproSketch: "Call apply_discount(1000, 150).", control: "apply_discount(1000, 100) returns 0." }],
     oneLiners: [],
-    report: { name: "report.json", size: 2, sha256: "0".repeat(64), url: "/tasks/x/artifacts/report.json" },
+    report: { name: "report.json", size: Buffer.byteLength(reportText), sha256: crypto.createHash("sha256").update(reportText).digest("hex"), url: `/tasks/${id}/artifacts/report.json` },
   });
 
   const server = http.createServer((req, res) => {
@@ -111,18 +73,14 @@ export function createFakeProver(opts = {}) {
         return json(res, 200, { ok: true });
       }
       if (req.method === "GET" && url.pathname === "/_state") {
-        return json(res, 200, { requests: st.requests.map((r) => ({ method: r.method, path: r.path })), jobs: [...st.jobs.keys()] });
+        return json(res, 200, { requests: st.requests.map((r) => ({ method: r.method, path: r.path })), scans: [...(st.scans || new Map()).keys()] });
       }
       // The signed link an artifact redirects to: no API key needed, and none must arrive.
       const fm = url.pathname.match(/^\/_files\/([^/]+)\/(.+)$/);
       if (req.method === "GET" && fm) {
         st.fileAuth = req.headers.authorization || null;
-        const unit = fm[2].match(/^(\d+)\/([A-Za-z.]+)$/);
-        const job = st.jobs.get(fm[1]);
-        let t;
-        if (unit && job && ART_TEXT[unit[2]]) t = artifactText(job, Number(unit[1]), unit[2]) + (st.corruptArtifact ? "x" : "");
-        else if (!unit && st.scans && st.scans.has(fm[1])) t = "{}";
-        else return json(res, 404, { code: "NOT_FOUND", message: "x" });
+        if (fm[2] !== "report.json" || !st.scans?.has(fm[1])) return json(res, 404, { code: "NOT_FOUND", message: "x" });
+        const t = reportText + (st.corruptArtifact ? "x" : "");
         res.writeHead(200, { "content-type": "text/plain", "content-length": Buffer.byteLength(t) });
         return res.end(t);
       }
@@ -147,35 +105,6 @@ export function createFakeProver(opts = {}) {
         st.connectKeyTaken = true;
         st.keyRevoked = false;
         return json(res, 200, { status: "approved", api_key: st.key });
-      }
-      if (req.method === "POST" && url.pathname === "/intent-checks") {
-        if (!authed) return json(res, 401, ERR.unauthorized);
-        if (belowMin(req.headers["x-intent-version"])) return upgrade(res);
-        if (st.submitStatus) return json(res, st.submitStatus.status, { code: st.submitStatus.code, message: "x", ...(st.submitStatus.reason ? { details: { reason: st.submitStatus.reason } } : {}) });
-        if (st.failPath && body && Array.isArray(body.units) && body.units.some((u) => u.path === st.failPath)) {
-          return json(res, 500, { code: "INTERNAL_ERROR", message: "x" });
-        }
-        // Idempotency-Key: a repeat returns the original task.
-        const idem = req.headers["idempotency-key"];
-        st.idem = st.idem || new Map();
-        let id = idem && st.idem.get(idem);
-        const replay = !!id;
-        if (!id) {
-          id = newId();
-          // Server behavior: a check supersedes the caller's unfinished checks of the same files
-          // unless it is a per-edit check (per_edit: true).
-          if (body && body.per_edit !== true && Array.isArray(body.units)) {
-            const paths = new Set(body.units.map((u) => u.path));
-            for (const j of st.jobs.values()) {
-              if (!j.superseded && j.request && j.request.session_id === body.session_id && j.request.units.some((u) => paths.has(u.path))) j.superseded = true;
-            }
-          }
-          st.jobs.set(id, { request: body, polls: 0, created: Date.now() });
-          if (idem) st.idem.set(idem, id);
-        }
-        const reply = () => json(res, 202, { id, kind: "intentCheck", status: replay ? taskStatusOf(st.jobs.get(id)) : "queued", semantics: null, createdAt: new Date().toISOString() });
-        if (st.submitDelayMs) return void setTimeout(reply, st.submitDelayMs);
-        return reply();
       }
       // DeepScan. st.deepscan = { submit: [{status, code, reason, retryAfter}, ...] consumed one per POST,
       // statuses: [...] one per GET (last repeats; queued|running|done|failed|superseded), summary, error }.
@@ -210,16 +139,12 @@ export function createFakeProver(opts = {}) {
         return json(res, 200, { tasks: [], hasMore: false });
       }
       // Artifacts answer 302 to a signed link on a host that wants no API key (here: this server's /_files).
-      const am = url.pathname.match(/^\/tasks\/([^/]+)\/artifacts\/((?:report|progress)\.json|\d+\/[A-Za-z.]+)$/);
+      const am = url.pathname.match(/^\/tasks\/([^/]+)\/artifacts\/(report\.json)$/);
       if (req.method === "GET" && am) {
         if (!authed) return json(res, 401, ERR.unauthorized);
-        const job = st.jobs.get(am[1]);
         const scan = st.scans && st.scans.get(am[1]);
-        if (!job && !scan) return json(res, 404, { code: "NOT_FOUND", message: "Task was not found." });
-        if (st.scenario === "data_expired" && job) return json(res, 410, { code: "TASK_FILES_EXPIRED", message: "The task's logs and artifacts have expired." });
-        // Only a completed task has artifacts; a scan's progress.json is there while it runs too.
-        const ready = job ? job.finished && ["concerns", "no_concerns", "partial"].includes(st.scenario) : scan.done || am[2] === "progress.json";
-        if (!ready) return json(res, 409, { code: "ARTIFACT_NOT_AVAILABLE", message: "The task has not completed." });
+        if (!scan) return json(res, 404, { code: "NOT_FOUND", message: "Task was not found." });
+        if (!scan.done) return json(res, 409, { code: "ARTIFACT_NOT_AVAILABLE", message: "The task has not completed." });
         res.writeHead(302, { location: `${base}/_files/${am[1]}/${am[2]}` });
         return res.end();
       }
@@ -238,20 +163,12 @@ export function createFakeProver(opts = {}) {
           if (status === "superseded") return json(res, 200, task(id, "deepscan", "cancelled", { error: { code: "SUPERSEDED", message: "A newer scan replaced this one." } }));
           if (status === "failed") return json(res, 200, task(id, "deepscan", "failed", { error: ds.error || { code: "DEEPSCAN_FAILED", message: "The scan ran out of time." } }));
           scan.done = true;
-          const sum = ds.summary || defaultSummary((scan.request && scan.request.depth) || "balanced");
+          const sum = ds.summary || defaultSummary((scan.request && scan.request.depth) || "balanced", id);
           const budget = ds.getBudget_s === undefined ? ds.budget_s ?? sum.budgetSeconds : ds.getBudget_s;
           const { budgetSeconds, ...rest } = sum;
-          return json(res, 200, task(id, "deepscan", "completed", { result: { ...rest, ...(budget === null ? {} : { budgetSeconds: budget }) } }));
+          return json(res, 200, task(id, "deepscan", status === "data_expired" ? status : "completed", { result: { ...rest, ...(budget === null ? {} : { budgetSeconds: budget }) } }));
         }
-        const job = st.jobs.get(id);
-        if (!job) return json(res, 404, { code: "NOT_FOUND", message: "Task was not found." });
-        const superseded = () => json(res, 200, task(id, "intentCheck", "cancelled", { error: { code: "SUPERSEDED", message: "A newer check replaced this one.", details: { supersededBy: newId() } } }));
-        if (job.superseded && !job.finished) return superseded();
-        if (job.polls++ < st.pollsBeforeDone) return json(res, 200, task(id, "intentCheck", job.polls === 1 ? "queued" : "running"));
-        if (st.scenario === "failed") return json(res, 200, task(id, "intentCheck", "failed", { error: { code: st.failCode || "CHECK_FAILED", message: "x" } }));
-        if (st.scenario === "superseded") return superseded();
-        job.finished = true;
-        return json(res, 200, task(id, "intentCheck", st.scenario === "data_expired" ? "data_expired" : "completed", { result: result(id, job), created: job.created }));
+        return json(res, 404, { code: "NOT_FOUND", message: "Task was not found." });
       }
       json(res, 404, { code: "NOT_FOUND", message: "no route" });
     });
@@ -272,9 +189,6 @@ export function createFakeProver(opts = {}) {
     },
     deepscanUploads() {
       return st.requests.filter((r) => r.method === "POST" && r.path === "/deepscans").map((r) => r.body);
-    },
-    jobRequests() {
-      return st.requests.filter((r) => r.method === "POST" && r.path === "/intent-checks").map((r) => r.body);
     },
   };
 }

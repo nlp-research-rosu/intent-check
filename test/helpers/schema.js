@@ -1,10 +1,10 @@
-// Just enough JSON Schema (draft 2020-12 subset used by test/fixtures/api/job-v1.schema.json) to check
+// Just enough JSON Schema (draft 2020-12 subset used by test/fixtures/api/deepscan-v1.schema.json) to check
 // that what the plugin sends matches the contract. Returns a list of error strings.
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT } from "./env.js";
 
-export const SCHEMA = JSON.parse(fs.readFileSync(path.join(ROOT, "test", "fixtures", "api", "job-v1.schema.json"), "utf8"));
+export const DEEPSCAN = JSON.parse(fs.readFileSync(path.join(ROOT, "test", "fixtures", "api", "deepscan-v1.schema.json"), "utf8"));
 
 function typeOf(v) {
   if (v === null) return "null";
@@ -13,7 +13,7 @@ function typeOf(v) {
   return typeof v;
 }
 
-export function validate(value, schema, at = "$", root = SCHEMA) {
+export function validate(value, schema, at = "$", root = DEEPSCAN) {
   const errs = [];
   if (schema.$ref) return validate(value, root.$defs[schema.$ref.split("/").pop()], at, root);
   if (schema.oneOf) {
@@ -53,11 +53,6 @@ export function validate(value, schema, at = "$", root = SCHEMA) {
   return errs;
 }
 
-export function validateDef(value, def) {
-  return validate(value, SCHEMA.$defs[def]);
-}
-
-export const DEEPSCAN = JSON.parse(fs.readFileSync(path.join(ROOT, "test", "fixtures", "api", "deepscan-v1.schema.json"), "utf8"));
 export function validateDeepscan(value, def) {
   return validate(value, DEEPSCAN.$defs[def], "$", DEEPSCAN);
 }

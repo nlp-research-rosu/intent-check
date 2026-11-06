@@ -1,16 +1,20 @@
 ---
-description: Review on demand with DeepScan (the whole repo, a folder, or files; runs in the background)
-argument-hint: "[files or a folder] [fast|balanced|full]"
-allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js":*)
+description: Run DeepScan remotely and wait for results, or resume an interrupted DeepScan
+argument-hint: "[file or folder] [fast|balanced|full] | collect [task-id]"
+allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js":*)
 ---
 
-The user wants a DeepScan: $ARGUMENTS
+The user requested: $ARGUMENTS
 
-Run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" deepscan --data "${CLAUDE_PLUGIN_DATA}"` from the project root, adding what the user named:
+For a new DeepScan, tell the user before running it that a snapshot of the selected file, folder or repository will be uploaded to the configured Intent Check service, with obvious secrets masked. Project notes in `.intent/NOTES.md` are included when they fall within the selected scope; other `.intent/` evidence and chat transcripts are not uploaded. Do not widen the requested scope.
 
-- nothing: the whole repo is scanned.
-- one folder: only that part of the repo is scanned.
-- one or more files (at most 10): they get the fast review, which runs when this turn ends and takes a few minutes.
-- `fast`, `balanced` or `full`: the depth of a whole-repo or folder scan (fast when they named none).
+Run `node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" deepscan --data "${CLAUDE_PLUGIN_DATA}"` from the project, adding the arguments:
 
-Then tell the user the command's answer in a line or two, with the report link if there is one. Do not wait or poll: a fast scan takes about 15-20 minutes, a balanced one 30-35 and a full one 40-45, and the result arrives as a note at a later message.
+- No path: scan the whole repository.
+- One file or folder: limit DeepScan to that path. Run from inside a Git repository.
+- `fast`, `balanced` or `full`: DeepScan depth; default `fast`.
+- `collect [task-id]`: resume waiting and save results, without submitting code. Without an ID, collect outstanding scans in this project.
+
+The command prints a task/report link, polls the service until the task finishes, saves the evidence and returns findings. Keep the command running; use the host's long-running command support rather than starting another DeepScan. Show the final result and report link. No hooks or detached workers run.
+
+If the command is interrupted or polling fails, the remote task may continue. Resume with `collect <task-id>`; do not resubmit code or implement an agent-side polling loop.
