@@ -11,7 +11,7 @@ test("marketplace: intentcomputing, plugin intent at the repo root", () => {
   assert.equal(m.name, "intentcomputing");
   assert.equal(m.plugins.length, 1);
   assert.equal(m.plugins[0].name, "intent");
-  assert.equal(m.plugins[0].source, "./");
+  assert.equal(m.plugins[0].source.ref, `v${m.plugins[0].version}`);
   assert.equal(m.plugins[0].version, read(".claude-plugin/plugin.json").version);
 });
 
