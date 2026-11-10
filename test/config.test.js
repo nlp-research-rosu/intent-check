@@ -33,14 +33,6 @@ const creds = (keys, mode = 0o600) => (dir) => {
   fs.writeFileSync(path.join(dir, "xdg", "intent-check", "credentials.json"), JSON.stringify({ keys }), { mode });
 };
 
-test("API key: the default API reuses a key saved for the previous default", () => {
-  const at = (env, keys) => probe({ XDG: true, ...env }, {}, creds(keys)).key;
-  const old = "https://prover.intentcomputing.org";
-  assert.deepEqual(at({}, { [old]: "saved-before" }), { key: "saved-before", source: "file" });
-  assert.deepEqual(at({}, { [old]: "saved-before", "https://api.prover.intentcomputing.org": "saved-now" }), { key: "saved-now", source: "file" });
-  assert.deepEqual(at({ INTENT_API_URL: "https://staging.example" }, { [old]: "saved-before" }), { key: null, source: null });
-});
-
 test("API key: INTENT_API_KEY, then the credentials file entry for the API origin", () => {
   const u = "http://127.0.0.1:1";
   const files = creds({ [u]: "opaque-one", "http://other": "opaque-two" });

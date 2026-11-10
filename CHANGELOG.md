@@ -8,7 +8,7 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ### Changed
 
-- The default API endpoint is now `https://api.prover.intentcomputing.org`. A key saved for the previous default keeps working, so signing in again is not needed.
+- The default API endpoint is now `https://api.prover.intentcomputing.org`. Keys are saved per endpoint, so sign in again with `intent-check login` after updating.
 
 ## [1.1.0] - 2026-11-06
 

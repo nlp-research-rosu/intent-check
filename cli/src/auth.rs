@@ -32,10 +32,6 @@ struct Poll {
     api_key: Option<String>,
 }
 
-/// The default server before; keys saved for it still belong to the same
-/// service. Keep in sync with LEGACY_API_URL in lib/config.js.
-const LEGACY_SERVER_ORIGIN: &str = "https://prover.intentcomputing.org";
-
 fn origin(address: &str) -> Result<String> {
     let url = Url::parse(address).context("Invalid server or portal URL")?;
     let local = matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"));
@@ -102,20 +98,11 @@ pub fn api_key(server: &str) -> Result<Option<String>> {
         return Ok(Some(key.trim().into()));
     }
     let server_origin = Url::parse(server)?.origin().ascii_serialization();
-    let key = saved_key(read(&file()?)?.keys, &server_origin);
+    let key = read(&file()?)?.keys.remove(&server_origin);
     if key.is_some() {
         origin(server)?;
     }
     Ok(key)
-}
-
-fn saved_key(mut keys: BTreeMap<String, String>, server_origin: &str) -> Option<String> {
-    keys.remove(server_origin).or_else(|| {
-        let default = Url::parse(config::DEFAULT_SERVER_URL).ok()?;
-        (server_origin == default.origin().ascii_serialization())
-            .then(|| keys.remove(LEGACY_SERVER_ORIGIN))
-            .flatten()
-    })
 }
 
 // A 429 from the portal, with how long it asked us to wait.
@@ -235,21 +222,4 @@ pub fn login() -> CommandResult {
         thread::sleep(pause.min(deadline.saturating_duration_since(Instant::now())));
     }
     Ok((1, json!({"status": "expired"})))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{BTreeMap, LEGACY_SERVER_ORIGIN, saved_key};
-
-    #[test]
-    fn the_default_server_reuses_a_key_saved_for_the_previous_default() {
-        let current = "https://api.prover.intentcomputing.org";
-        let old = BTreeMap::from([(LEGACY_SERVER_ORIGIN.to_owned(), "before".to_owned())]);
-        assert_eq!(saved_key(old.clone(), current).as_deref(), Some("before"));
-        assert_eq!(saved_key(old.clone(), "https://staging.example"), None);
-
-        let mut both = old;
-        both.insert(current.to_owned(), "now".to_owned());
-        assert_eq!(saved_key(both, current).as_deref(), Some("now"));
-    }
 }
