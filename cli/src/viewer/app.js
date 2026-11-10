@@ -98,7 +98,7 @@ function fileView(path) {
 }
 function records() {
   const paths = Object.keys(data.files).sort();
-  const scans = paths.filter(p => /^deepscan\/[^/]+\/meta.json$/.test(p))
+  const scans = paths.filter(p => /^scan\/[^/]+\/meta.json$/.test(p))
     .map(p => ({ path: p, meta: json(p), report: json(p.replace(/meta.json$/, 'report.json')) })).filter(s => s.meta);
   for (const scan of scans) scan.progress = data.scanStates[scan.meta.task_id] || { status: scan.meta.task?.status || scan.meta.status };
   const operations = paths.filter(p => /^prove\/sessions\/[^/]+\/[^/]+\/result.json$/.test(p))
@@ -188,7 +188,7 @@ function artifactsPage(r) {
   if (!r.artifacts.includes(state.file)) state.file = r.artifacts[0];
   const groups = new Map();
   for (const path of r.artifacts) {
-    const group = path.startsWith('prove/') ? 'Formal proof' : path.startsWith('deepscan/') ? 'Scan' : 'Workspace';
+    const group = path.startsWith('prove/') ? 'Formal proof' : path.startsWith('scan/') ? 'Scan' : 'Workspace';
     if (!groups.has(group)) groups.set(group, []);
     groups.get(group).push(path);
   }

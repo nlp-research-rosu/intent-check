@@ -79,8 +79,8 @@ test("sanitize drops payload, defanged-host, tag-fragment and eval spans in any 
       const out = sanitize(`Fine. See ${b} ok.`, 400, kind);
       assert.ok(out === "Fine." || out === "Fine. See ok.", `${kind} ${b}: ${out}`);
     }
-    const keep = "Fine. Use `DEEPSCAN_BUDGET_S`, `deepscanBudgetS`, `a < b`, `() => 42` and `n >= 0`.";
-    assert.equal(sanitize(keep, 400, kind), keep.replace(/`(DEEPSCAN_BUDGET_S|deepscanBudgetS)`/g, "$1"));
+    const keep = "Fine. Use `SCAN_BUDGET_S`, `scanBudgetS`, `a < b`, `() => 42` and `n >= 0`.";
+    assert.equal(sanitize(keep, 400, kind), keep.replace(/`(SCAN_BUDGET_S|scanBudgetS)`/g, "$1"));
   }
 });
 

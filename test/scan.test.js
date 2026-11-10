@@ -7,14 +7,14 @@ import zlib from "node:zlib";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
 import { tmpdir, makeRepo, baseEnv, saveKey, BIN, symlink, SKIP_FILE_SYMLINKS } from "./helpers/env.js";
-import { validateDeepscan } from "./helpers/schema.js";
+import { validateScan } from "./helpers/schema.js";
 import { buildSnapshot, normaliseRemote, pathReason, decodeText } from "../lib/snapshot.js";
-import { takeDepth, renderScan, submitFailureLine } from "../lib/deepscan.js";
+import { takeDepth, renderScan, submitFailureLine } from "../lib/scan.js";
 
 let fp;
 before(async () => { fp = createFakeProver(); await fp.listen(); });
 after(() => fp.close());
-beforeEach(() => { fp.state.deepscan = {}; fp.state.scans = new Map(); fp.state.requests.length = 0; });
+beforeEach(() => { fp.state.scan = {}; fp.state.scans = new Map(); fp.state.requests.length = 0; });
 
 function setup({ key = true } = {}) {
   const data = tmpdir("intent-data-");
@@ -49,7 +49,7 @@ test("snapshot filters/redacts tracked and non-ignored untracked files, preservi
   const snapshot = await buildSnapshot({ cwd: ctx.repo, depth: "fast" });
   assert.equal(snapshot.ok, true);
   const upload = JSON.parse(zlib.gunzipSync(snapshot.gz));
-  assert.deepEqual(validateDeepscan(upload, "DeepscanUpload"), []);
+  assert.deepEqual(validateScan(upload, "ScanUpload"), []);
   assert.deepEqual(upload.files.map((file) => file.path), [".intent/NOTES.md", "README.md", "src/app.py", "src/secret.py"]);
   assert.ok(!JSON.stringify(upload.files).includes("abcdefghijklmnopqrstuvwxyz"));
   assert.equal(upload.depth, "fast");
@@ -71,26 +71,25 @@ test("snapshot scope is literal, rejects outside paths and does not follow symli
 
 test("repository Scan submits once, polls through running and saves the report before returning", async () => {
   const ctx = setup();
-  fp.state.deepscan.statuses = ["queued", "running", "done"];
+  fp.state.scan.statuses = ["queued", "running", "done"];
   const result = await cli([], ctx);
   assert.equal(result.code, 0, result.err);
   const id = idOf(result.out);
-  const record = path.join(ctx.data, "deepscans", `${id}.json`);
+  const record = path.join(ctx.data, "scans", `${id}.json`);
   assert.equal(read(record).status, "done");
   assert.equal(read(record).waiter, undefined);
   assert.equal(fp.state.requests.filter((request) => request.method === "GET" && request.path === `/tasks/${id}`).length, 3);
   assert.match(result.err, /If interrupted, resume with scan collect/);
   assert.match(result.out, /Scan finished/);
-  assert.doesNotMatch(result.err, /deepscan/i);
   assert.equal(read(record).report_status, "saved");
   const collected = await cli(["collect", id], ctx);
   assert.equal(collected.code, 0, collected.err);
   assert.match(collected.out, /Scan finished/);
   assert.equal(read(record).report_status, "saved");
-  const reportDir = path.join(ctx.repo, ".intent", "deepscan", id);
+  const reportDir = path.join(ctx.repo, ".intent", "scan", id);
   assert.ok(read(path.join(reportDir, "report.json")).coverage);
   assert.equal(read(path.join(reportDir, "meta.json")).report.status, "saved");
-  assert.equal(fp.deepscanUploads().length, 1);
+  assert.equal(fp.scanUploads().length, 1);
   assert.match((await cli(["collect"], ctx)).out, /No uncollected scans/);
 });
 
@@ -101,21 +100,21 @@ test("a file-scoped Scan uses the snapshot API and saves its report before retur
   const result = await cli(["pricing.py", "full"], ctx);
   assert.equal(result.code, 0, result.err);
   const id = idOf(result.out);
-  const uploads = fp.deepscanUploads();
+  const uploads = fp.scanUploads();
   assert.equal(uploads.length, 1);
-  assert.deepEqual(validateDeepscan(uploads[0], "DeepscanUpload"), []);
+  assert.deepEqual(validateScan(uploads[0], "ScanUpload"), []);
   assert.deepEqual(uploads[0].files.map((file) => file.path), ["pricing.py"]);
   assert.equal(uploads[0].meta.scope, "pricing.py");
   assert.equal(uploads[0].depth, "full");
   assert.match(result.out, /Scan finished/);
-  assert.ok(fs.existsSync(path.join(ctx.repo, ".intent", "deepscan", id, "report.json")));
-  assert.equal(read(path.join(ctx.data, "deepscans", `${id}.json`)).status, "done");
+  assert.ok(fs.existsSync(path.join(ctx.repo, ".intent", "scan", id, "report.json")));
+  assert.equal(read(path.join(ctx.data, "scans", `${id}.json`)).status, "done");
   assert.equal(fs.existsSync(path.join(ctx.data, "file-scans")), false);
-  assert.deepEqual([...new Set(fp.state.requests.filter((request) => request.method === "POST").map((request) => request.path))], ["/deepscans"]);
+  assert.deepEqual([...new Set(fp.state.requests.filter((request) => request.method === "POST").map((request) => request.path))], ["/scan"]);
   const collected = await cli(["collect", id], ctx);
   assert.equal(collected.code, 0, collected.err);
   assert.match(collected.out, /Scan finished/);
-  assert.equal(fp.deepscanUploads().length, 1);
+  assert.equal(fp.scanUploads().length, 1);
 });
 
 test("Scan leaves unrelated local state and existing evidence untouched", async () => {
@@ -130,7 +129,7 @@ test("Scan leaves unrelated local state and existing evidence untouched", async 
   assert.equal(fs.readFileSync(path.join(ctx.data, "config.json"), "utf8"), config);
   assert.ok(fs.existsSync(path.join(ctx.repo, ".intent/.queue/1-12345678.json")));
   assert.equal(fs.readFileSync(path.join(ctx.repo, ".intent/old/VERDICT.md"), "utf8"), "retained evidence");
-  assert.deepEqual(fp.deepscanUploads()[0].files.map((file) => file.path), ["pricing.py"]);
+  assert.deepEqual(fp.scanUploads()[0].files.map((file) => file.path), ["pricing.py"]);
 });
 
 test("collection is project/service scoped and never resubmits code", async () => {
@@ -143,12 +142,12 @@ test("collection is project/service scoped and never resubmits code", async () =
   assert.equal((await cli(["collect", "invalid"], ctx)).code, 1);
   await cli(["collect", id], ctx);
   await cli(["collect", id], ctx);
-  assert.equal(fp.deepscanUploads().length, 1);
+  assert.equal(fp.scanUploads().length, 1);
 });
 
 test("an interrupted Scan keeps its task record and collect resumes without another upload", async () => {
   const ctx = setup();
-  fp.state.deepscan.statuses = ["running"];
+  fp.state.scan.statuses = ["running"];
   const child = spawn(process.execPath, [BIN, "scan"], { cwd: ctx.repo, env: ctx.env });
   let err = "";
   let id;
@@ -161,12 +160,12 @@ test("an interrupted Scan keeps its task record and collect resumes without anot
   });
   await new Promise((resolve) => child.on("close", resolve));
   assert.ok(id, err);
-  assert.ok(fs.existsSync(path.join(ctx.data, "deepscans", `${id}.json`)));
-  fp.state.deepscan.statuses = ["done"];
+  assert.ok(fs.existsSync(path.join(ctx.data, "scans", `${id}.json`)));
+  fp.state.scan.statuses = ["done"];
   const recovered = await cli(["collect", id], ctx);
   assert.equal(recovered.code, 0, recovered.err);
   assert.match(recovered.out, /Saved report/);
-  assert.equal(fp.deepscanUploads().length, 1);
+  assert.equal(fp.scanUploads().length, 1);
 });
 
 test("missing auth, environment opt-outs and invalid targets never submit", async () => {
@@ -178,29 +177,29 @@ test("missing auth, environment opt-outs and invalid targets never submit", asyn
   assert.match((await cli(["missing.py"], connected)).out, /not found/);
   assert.match((await cli(["--scope"], connected)).out, /not a Scan option\. Use: \/intent:scan/);
   assert.match((await cli(["a.py", "b.py"], connected)).out, /one file or folder/);
-  assert.deepEqual(fp.deepscanUploads(), []);
+  assert.deepEqual(fp.scanUploads(), []);
   assert.equal(fp.state.requests.filter((request) => request.method === "POST").length, 0);
 });
 
 test("busy uploads retry once with the same idempotency key", async () => {
   const ctx = setup();
-  fp.state.deepscan.submit = [{ status: 429, code: "RATE_LIMITED", reason: "deepscan_ingest_busy", retryAfter: 1 }];
+  fp.state.scan.submit = [{ status: 429, code: "RATE_LIMITED", reason: "scan_ingest_busy", retryAfter: 1 }];
   assert.equal((await cli([], ctx)).code, 0);
-  const uploads = fp.state.requests.filter((request) => request.method === "POST" && request.path === "/deepscans");
+  const uploads = fp.state.requests.filter((request) => request.method === "POST" && request.path === "/scan");
   assert.equal(uploads.length, 2);
   assert.equal(uploads[0].headers["idempotency-key"], uploads[1].headers["idempotency-key"]);
 });
 
 test("failed scans and malformed summaries do not claim clean results", async () => {
   const ctx = setup();
-  fp.state.deepscan.statuses = ["failed"];
+  fp.state.scan.statuses = ["failed"];
   const result = await cli([], ctx);
   assert.equal(result.code, 1);
   assert.match(result.err, /could not finish/);
   const id = idOf(result.err);
   const collected = await cli(["collect", id], ctx);
   assert.equal(collected.code, 1);
-  assert.match(collected.err, /could not finish: DeepScan did not produce a usable report\. Try again, or scan one smaller folder\./);
+  assert.match(collected.err, /could not finish: Scan did not produce a usable report\. Try again, or scan one smaller folder\./);
   const rendered = renderScan({ status: "done", url: "https://example.test/report", summary: {} });
   assert.doesNotMatch(rendered.context, /no findings/);
   assert.match(rendered.context, /open the report/);

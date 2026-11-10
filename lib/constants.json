@@ -5,7 +5,7 @@
     "idempotency_key": "Idempotency-Key",
     "pipeline_override": "X-Intent-Pipeline"
   },
-  "deepscan": {
+  "scan": {
     "max_files": 3000,
     "max_text_bytes": 15728640,
     "max_file_bytes": 524288,

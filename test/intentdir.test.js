@@ -20,11 +20,11 @@ test("scaffold: README, .ignore with *, .gitignore for the local log and queue",
 test("git tracks .intent/ but not the sent log", () => {
   const { dir, git } = makeRepo();
   ensureScaffold(dir);
-  fs.mkdirSync(path.join(dir, ".intent", "deepscan", "task"), { recursive: true });
-  fs.writeFileSync(path.join(dir, ".intent", "deepscan", "task", "report.json"), "{}\n");
+  fs.mkdirSync(path.join(dir, ".intent", "scan", "task"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".intent", "scan", "task", "report.json"), "{}\n");
   appendSentLog(dir, { time: "t", url: "u", paths: ["pricing.py"], bytes: 1 });
   const out = execFileSync("git", ["status", "--porcelain", "-uall"], { cwd: dir }).toString();
-  assert.match(out, /\.intent\/deepscan\/task\/report\.json/);
+  assert.match(out, /\.intent\/scan\/task\/report\.json/);
   assert.match(out, /\.intent\/README\.md/);
   assert.doesNotMatch(out, /\.sent\.log/);
   void git;

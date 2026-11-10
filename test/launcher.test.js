@@ -9,12 +9,11 @@ test("bin/intent runs explicit command help", { skip: process.platform === "win3
   const result = spawnSync(path.join(ROOT, "bin", "intent"), ["--help"], { encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /intent scan collect/);
-  assert.doesNotMatch(result.stdout, /deepscan/i);
   assert.doesNotMatch(result.stdout, /intent (on|live|off)/);
 });
 
 test("launcher rejects unsupported commands", { skip: process.platform === "win32" }, () => {
-  for (const command of ["unsupported", "deepscan"]) {
+  for (const command of ["unsupported", "review"]) {
     const result = spawnSync("/bin/sh", [path.join(ROOT, "bin", "intent"), command], { encoding: "utf8", timeout: 2000 });
     assert.equal(result.status, 1);
     assert.equal(result.stdout, "");
