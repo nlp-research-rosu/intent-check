@@ -72,7 +72,7 @@ test("task statuses: completed, SUPERSEDED, failed, data_expired", async () => {
     assert.equal((await end("done")).status, "done");
     assert.equal((await end("superseded")).status, "superseded");
     const failed = await end("failed");
-    assert.deepEqual([failed.status, failed.error.code, failed.summary], ["failed", "DEEPSCAN_FAILED", undefined]);
+    assert.deepEqual([failed.status, failed.error.code, failed.summary], ["failed", "DEEPSCAN_NO_REPORT", undefined]);
     const expired = await end("data_expired");
     assert.equal(expired.status, "done");
     assert.equal(expired.summary.counts.HIGH, 1);

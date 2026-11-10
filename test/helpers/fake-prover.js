@@ -161,7 +161,7 @@ export function createFakeProver(opts = {}) {
           const status = seq[Math.min(scan.polls++, seq.length - 1)];
           if (status === "queued" || status === "running") return json(res, 200, task(id, "deepscan", status));
           if (status === "superseded") return json(res, 200, task(id, "deepscan", "cancelled", { error: { code: "SUPERSEDED", message: "A newer scan replaced this one." } }));
-          if (status === "failed") return json(res, 200, task(id, "deepscan", "failed", { error: ds.error || { code: "DEEPSCAN_FAILED", message: "The scan ran out of time." } }));
+          if (status === "failed") return json(res, 200, task(id, "deepscan", "failed", { error: ds.error || { code: "DEEPSCAN_NO_REPORT", message: "DeepScan did not produce a usable report." } }));
           scan.done = true;
           const sum = ds.summary || defaultSummary((scan.request && scan.request.depth) || "balanced", id);
           const budget = ds.getBudget_s === undefined ? ds.budget_s ?? sum.budgetSeconds : ds.getBudget_s;
