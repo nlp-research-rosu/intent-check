@@ -6,6 +6,8 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-11-10
+
 ### Fixed
 
 - An account still waiting for Prover approval now gets a link to apply, in Scan and in `/intent:doctor`, instead of "try again in a moment" or "could not reach the service".
