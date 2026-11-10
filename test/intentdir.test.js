@@ -64,7 +64,7 @@ test("README mentions the NOTES.md exception", () => {
   assert.match(README, /included in later scans/);
 });
 
-test("README describes DeepScan reports and proof inputs", () => {
+test("README describes Scan reports and proof inputs", () => {
   assert.match(README, /report\.json/);
   assert.match(README, /prove\/<target>/);
   assert.match(README, /meta\.json/);

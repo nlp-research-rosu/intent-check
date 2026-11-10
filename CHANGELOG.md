@@ -6,6 +6,10 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+### Changed
+
+- Rename DeepScan to Scan in commands, guides, diagnostics and the local viewer. Use `/intent:scan` (plugin launcher: `scan`) and `scan collect [task-id]`; the old public command is no longer registered. Backend protocol and existing evidence/state paths are unchanged, so earlier results remain collectible.
+
 ## [1.1.0] - 2026-11-06
 
 ### Removed

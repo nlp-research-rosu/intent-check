@@ -27,7 +27,7 @@ const read = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 const idOf = (text) => /\/tasks\/([0-9a-f-]{36})/.exec(text)[1];
 function cli(args, ctx, extraEnv = {}) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [BIN, "deepscan", ...args], { cwd: ctx.repo, env: { ...ctx.env, ...extraEnv } });
+    const child = spawn(process.execPath, [BIN, "scan", ...args], { cwd: ctx.repo, env: { ...ctx.env, ...extraEnv } });
     let out = "";
     let err = "";
     child.stdout.on("data", (bytes) => { out += bytes; });
@@ -79,12 +79,13 @@ test("repository Scan submits once, polls through running and saves the report b
   assert.equal(read(record).status, "done");
   assert.equal(read(record).waiter, undefined);
   assert.equal(fp.state.requests.filter((request) => request.method === "GET" && request.path === `/tasks/${id}`).length, 3);
-  assert.match(result.err, /If interrupted, resume with deepscan collect/);
-  assert.match(result.out, /DeepScan finished/);
+  assert.match(result.err, /If interrupted, resume with scan collect/);
+  assert.match(result.out, /Scan finished/);
+  assert.doesNotMatch(result.err, /deepscan/i);
   assert.equal(read(record).report_status, "saved");
   const collected = await cli(["collect", id], ctx);
   assert.equal(collected.code, 0, collected.err);
-  assert.match(collected.out, /DeepScan finished/);
+  assert.match(collected.out, /Scan finished/);
   assert.equal(read(record).report_status, "saved");
   const reportDir = path.join(ctx.repo, ".intent", "deepscan", id);
   assert.ok(read(path.join(reportDir, "report.json")).coverage);
@@ -93,7 +94,7 @@ test("repository Scan submits once, polls through running and saves the report b
   assert.match((await cli(["collect"], ctx)).out, /No uncollected scans/);
 });
 
-test("a file-scoped DeepScan uses the snapshot API and saves its report before returning", async () => {
+test("a file-scoped Scan uses the snapshot API and saves its report before returning", async () => {
   const ctx = setup();
   write(ctx.repo, "pricing.py", "def f():\n    return 1\n");
   write(ctx.repo, "unrelated.py", "private = 1\n");
@@ -106,14 +107,14 @@ test("a file-scoped DeepScan uses the snapshot API and saves its report before r
   assert.deepEqual(uploads[0].files.map((file) => file.path), ["pricing.py"]);
   assert.equal(uploads[0].meta.scope, "pricing.py");
   assert.equal(uploads[0].depth, "full");
-  assert.match(result.out, /DeepScan finished/);
+  assert.match(result.out, /Scan finished/);
   assert.ok(fs.existsSync(path.join(ctx.repo, ".intent", "deepscan", id, "report.json")));
   assert.equal(read(path.join(ctx.data, "deepscans", `${id}.json`)).status, "done");
   assert.equal(fs.existsSync(path.join(ctx.data, "file-scans")), false);
   assert.deepEqual([...new Set(fp.state.requests.filter((request) => request.method === "POST").map((request) => request.path))], ["/deepscans"]);
   const collected = await cli(["collect", id], ctx);
   assert.equal(collected.code, 0, collected.err);
-  assert.match(collected.out, /DeepScan finished/);
+  assert.match(collected.out, /Scan finished/);
   assert.equal(fp.deepscanUploads().length, 1);
 });
 
@@ -137,7 +138,7 @@ test("collection is project/service scoped and never resubmits code", async () =
   const id = idOf((await cli([], ctx)).out);
   const other = { ...ctx, repo: makeRepo().dir };
   const requests = fp.state.requests.length;
-  assert.match((await cli(["collect", id], other)).out, /No local DeepScan record/);
+  assert.match((await cli(["collect", id], other)).out, /No local Scan record/);
   assert.equal(fp.state.requests.length, requests);
   assert.equal((await cli(["collect", "invalid"], ctx)).code, 1);
   await cli(["collect", id], ctx);
@@ -148,7 +149,7 @@ test("collection is project/service scoped and never resubmits code", async () =
 test("an interrupted Scan keeps its task record and collect resumes without another upload", async () => {
   const ctx = setup();
   fp.state.deepscan.statuses = ["running"];
-  const child = spawn(process.execPath, [BIN, "deepscan"], { cwd: ctx.repo, env: ctx.env });
+  const child = spawn(process.execPath, [BIN, "scan"], { cwd: ctx.repo, env: ctx.env });
   let err = "";
   let id;
   child.stderr.on("data", (bytes) => {
@@ -175,7 +176,7 @@ test("missing auth, environment opt-outs and invalid targets never submit", asyn
   const connected = setup();
   assert.equal((await cli([], connected, { INTENT_DISABLED: "1" })).code, 1);
   assert.match((await cli(["missing.py"], connected)).out, /not found/);
-  assert.match((await cli(["--scope"], connected)).out, /not a DeepScan option/);
+  assert.match((await cli(["--scope"], connected)).out, /not a Scan option\. Use: \/intent:scan/);
   assert.match((await cli(["a.py", "b.py"], connected)).out, /one file or folder/);
   assert.deepEqual(fp.deepscanUploads(), []);
   assert.equal(fp.state.requests.filter((request) => request.method === "POST").length, 0);

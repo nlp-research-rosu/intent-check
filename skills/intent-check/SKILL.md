@@ -1,6 +1,6 @@
 ---
 name: intent-check
-description: Use for Intent Check setup, explicitly requested DeepScan scans/results, or formal proofs of program properties with K.
+description: Use for Intent Check setup, explicitly requested Scan runs/results, or formal proofs of program properties with K.
 ---
 
 # Intent Check
@@ -16,7 +16,7 @@ permission to edit. Never read credentials into chat.
 | User needs | Read |
 |---|---|
 | Install, connect or resolve missing setup | [Onboarding](references/onboarding.md) |
-| Submit a remote code scan or collect its results | [DeepScan](references/deepscan.md) |
+| Submit a remote code scan or collect its results | [Scan](references/scan.md) |
 | Prove a property of a program with K | [Prove](references/prove.md) |
 
 Scan is not a prerequisite for Prove. Reuse completed setup; do not sign in,
@@ -24,7 +24,7 @@ install updates, submit jobs or deliver old results on ordinary messages.
 
 ## Commands
 
-Claude Code: `/intent:deepscan [file or folder] [fast|balanced|full]`, `/intent:deepscan collect [task-id]`, `/intent:prove`, `/intent:doctor`.
+Claude Code: `/intent:scan [file or folder] [fast|balanced|full]`, `/intent:scan collect [task-id]`, `/intent:prove`, `/intent:doctor`.
 
 For Scan and diagnostics, run:
 

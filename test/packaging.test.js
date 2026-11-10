@@ -26,12 +26,16 @@ test("plugins register no automatic hooks", () => {
 });
 
 test("only Scan, Prove and diagnostics are callable commands", () => {
-  assert.deepEqual(fs.readdirSync(path.join(ROOT, "commands")).sort(), ["deepscan.md", "doctor.md", "prove.md"]);
-  for (const command of ["deepscan", "doctor"]) {
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "commands")).sort(), ["doctor.md", "prove.md", "scan.md"]);
+  for (const command of ["scan", "doctor"]) {
     const text = fs.readFileSync(path.join(ROOT, "commands", `${command}.md`), "utf8");
     assert.match(text, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/intent\.js"/);
   }
   assert.match(fs.readFileSync(path.join(ROOT, "commands", "prove.md"), "utf8"), /allowed-tools: Bash\(intent-check:\*\)/);
+  const skill = fs.readFileSync(path.join(ROOT, "skills", "intent-check", "SKILL.md"), "utf8");
+  assert.match(skill, /references\/scan\.md/);
+  assert.ok(fs.existsSync(path.join(ROOT, "skills", "intent-check", "references", "scan.md")));
+  assert.doesNotMatch(skill, /deepscan/i);
 });
 
 test("explicit launcher is executable and runtime has no dependencies", () => {

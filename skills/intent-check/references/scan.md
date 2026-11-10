@@ -1,4 +1,4 @@
-# DeepScan
+# Scan
 
 Use the plugin launcher in [Intent Check](../SKILL.md#commands), not the global
 Prove CLI. Before submitting, explain that the requested code will be uploaded
@@ -7,9 +7,9 @@ request is not permission to upload code; ask if remote analysis was not request
 
 ## Submit
 
-- One file: `deepscan <file>`.
-- Folder: `deepscan <folder>`.
-- Repository: `deepscan`.
+- One file: `scan <file>`.
+- Folder: `scan <folder>`.
+- Repository: `scan`.
 - Depth: `fast` (default, about 15–20 minutes), `balanced` (30–35), or `full` (40–45).
 
 Run inside a Git repository. The snapshot includes tracked and non-ignored
@@ -25,8 +25,8 @@ command support. Do not submit a second Scan or implement a separate polling loo
 ## Collect and report
 
 If waiting is interrupted or a request fails, the task may still be running.
-Use `deepscan collect <task-id>` to resume polling and save evidence without
-resubmitting source. `deepscan collect` handles outstanding scans in this project.
+Use `scan collect <task-id>` to resume polling and save evidence without
+resubmitting source. `scan collect` handles outstanding scans in this project.
 Ordinary messages do not resume scans or deliver results.
 
 Reports live in `.intent/deepscan/<task-id>/` at the repository root. Preserve
