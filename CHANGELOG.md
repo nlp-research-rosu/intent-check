@@ -6,6 +6,15 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+### Fixed
+
+- An account still waiting for Prover approval now gets a link to apply, in DeepScan and in `/intent:doctor`, instead of "try again in a moment" or "could not reach the service".
+
+### Changed
+
+- A failed DeepScan adds the next step for its error code, such as trying again later or scanning a smaller folder.
+- Prove guidance and `intent-check` help explain what to do for each task error code, including that an undecided proof is not a counterexample.
+
 ## [1.1.0] - 2026-11-06
 
 ### Removed
