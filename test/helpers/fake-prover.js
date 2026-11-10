@@ -62,7 +62,7 @@ export function createFakeProver(opts = {}) {
       let body = null;
       const url = new URL(req.url, base);
       try {
-        const raw = (url.pathname === "/deepscans" && req.headers["content-encoding"] !== "identity" ? zlib.gunzipSync(rawBuf) : rawBuf).toString("utf8");
+        const raw = (url.pathname === "/scan" && req.headers["content-encoding"] !== "identity" ? zlib.gunzipSync(rawBuf) : rawBuf).toString("utf8");
         body = raw ? JSON.parse(raw) : null;
       } catch { body = null; }
       st.requests.push({ method: req.method, path: url.pathname, headers: req.headers, body });
@@ -106,32 +106,32 @@ export function createFakeProver(opts = {}) {
         st.keyRevoked = false;
         return json(res, 200, { status: "approved", api_key: st.key });
       }
-      // DeepScan. st.deepscan = { submit: [{status, code, reason, retryAfter}, ...] consumed one per POST,
+      // Scan. st.scan = { submit: [{status, code, reason, retryAfter}, ...] consumed one per POST,
       // statuses: [...] one per GET (last repeats; queued|running|done|failed|superseded), summary, error }.
-      if (req.method === "POST" && url.pathname === "/deepscans") {
+      if (req.method === "POST" && url.pathname === "/scan") {
         if (!authed) return json(res, 401, ERR.unauthorized);
-        const ds = (st.deepscan = st.deepscan || {});
+        const options = (st.scan = st.scan || {});
         if (belowMin(req.headers["x-intent-version"])) return upgrade(res);
-        st.deepscanContentType = req.headers["content-type"];
+        st.scanContentType = req.headers["content-type"];
         if (req.headers["content-type"] !== "application/gzip") return json(res, 400, { code: "INVALID_REQUEST", message: "The snapshot must be sent as application/gzip." });
-        const fail = (ds.submit || []).shift();
+        const fail = (options.submit || []).shift();
         if (fail && fail.drop) return void req.socket.destroy();
         if (fail) {
           const b = JSON.stringify({ code: fail.code || "x", message: fail.message || "x", ...(fail.reason ? { details: { reason: fail.reason } } : {}) });
-          res.writeHead(fail.status, { "content-type": "application/json", ...(fail.retryAfter && fail.reason === "deepscan_ingest_busy" ? { "retry-after": String(fail.retryAfter) } : {}) });
+          res.writeHead(fail.status, { "content-type": "application/json", ...(fail.retryAfter && fail.reason === "scan_ingest_busy" ? { "retry-after": String(fail.retryAfter) } : {}) });
           return res.end(b);
         }
         const idem = req.headers["idempotency-key"];
-        ds.idem = ds.idem || new Map();
-        let id = idem && ds.idem.get(idem);
+        options.idem = options.idem || new Map();
+        let id = idem && options.idem.get(idem);
         const replay = !!id;
         if (!id) {
           id = newId();
           st.scans = st.scans || new Map();
           st.scans.set(id, { request: body, polls: 0 });
-          if (idem) ds.idem.set(idem, id);
+          if (idem) options.idem.set(idem, id);
         }
-        return json(res, 202, { id, kind: "deepscan", status: replay ? (st.scans.get(id).done ? "completed" : st.scans.get(id).polls > 0 ? "running" : "queued") : "queued", semantics: null, createdAt: new Date().toISOString() });
+        return json(res, 202, { id, kind: "scan", status: replay ? (st.scans.get(id).done ? "completed" : st.scans.get(id).polls > 0 ? "running" : "queued") : "queued", semantics: null, createdAt: new Date().toISOString() });
       }
       if (req.method === "GET" && url.pathname === "/tasks") {
         if (!authed) return json(res, 401, ERR.unauthorized);
@@ -155,18 +155,18 @@ export function createFakeProver(opts = {}) {
         if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id)) return json(res, 400, { code: "INVALID_REQUEST", message: "The task ID is not a UUID." });
         const scan = st.scans && st.scans.get(id);
         if (scan) {
-          const ds = st.deepscan || {};
-          if (ds.getStatus) return json(res, ds.getStatus, { code: "INTERNAL_ERROR", message: "x" });
-          const seq = ds.statuses || ["done"];
+          const options = st.scan || {};
+          if (options.getStatus) return json(res, options.getStatus, { code: "INTERNAL_ERROR", message: "x" });
+          const seq = options.statuses || ["done"];
           const status = seq[Math.min(scan.polls++, seq.length - 1)];
-          if (status === "queued" || status === "running") return json(res, 200, task(id, "deepscan", status));
-          if (status === "superseded") return json(res, 200, task(id, "deepscan", "cancelled", { error: { code: "SUPERSEDED", message: "A newer scan replaced this one." } }));
-          if (status === "failed") return json(res, 200, task(id, "deepscan", "failed", { error: ds.error || { code: "DEEPSCAN_NO_REPORT", message: "DeepScan did not produce a usable report." } }));
+          if (status === "queued" || status === "running") return json(res, 200, task(id, "scan", status));
+          if (status === "superseded") return json(res, 200, task(id, "scan", "cancelled", { error: { code: "SUPERSEDED", message: "A newer scan replaced this one." } }));
+          if (status === "failed") return json(res, 200, task(id, "scan", "failed", { error: options.error || { code: "SCAN_NO_REPORT", message: "Scan did not produce a usable report." } }));
           scan.done = true;
-          const sum = ds.summary || defaultSummary((scan.request && scan.request.depth) || "balanced", id);
-          const budget = ds.getBudget_s === undefined ? ds.budget_s ?? sum.budgetSeconds : ds.getBudget_s;
+          const sum = options.summary || defaultSummary((scan.request && scan.request.depth) || "balanced", id);
+          const budget = options.getBudget_s === undefined ? options.budget_s ?? sum.budgetSeconds : options.getBudget_s;
           const { budgetSeconds, ...rest } = sum;
-          return json(res, 200, task(id, "deepscan", status === "data_expired" ? status : "completed", { result: { ...rest, ...(budget === null ? {} : { budgetSeconds: budget }) } }));
+          return json(res, 200, task(id, "scan", status === "data_expired" ? status : "completed", { result: { ...rest, ...(budget === null ? {} : { budgetSeconds: budget }) } }));
         }
         return json(res, 404, { code: "NOT_FOUND", message: "Task was not found." });
       }
@@ -187,8 +187,8 @@ export function createFakeProver(opts = {}) {
       server.closeAllConnections?.();
       return new Promise((resolve) => server.close(() => resolve()));
     },
-    deepscanUploads() {
-      return st.requests.filter((r) => r.method === "POST" && r.path === "/deepscans").map((r) => r.body);
+    scanUploads() {
+      return st.requests.filter((r) => r.method === "POST" && r.path === "/scan").map((r) => r.body);
     },
   };
 }

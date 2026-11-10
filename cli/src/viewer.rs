@@ -174,7 +174,7 @@ fn snapshot(root: &Path, name: &str, data_dirs: &[PathBuf]) -> Result<Snapshot> 
     }
     collect_files(&intent, &intent, &mut snapshot)?;
     for dir in data_dirs {
-        for entry in entries(&dir.join("deepscans"))? {
+        for entry in entries(&dir.join("scans"))? {
             let Some(scan) = read_json(&entry.path()) else {
                 continue;
             };

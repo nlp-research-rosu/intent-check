@@ -1,6 +1,6 @@
 {
   "id": "0b7e4a9c-52d1-4f0a-8c3e-91d6a7b5e2f4",
-  "kind": "deepscan",
+  "kind": "scan",
   "status": "completed",
   "semantics": null,
   "createdAt": "2026-10-20T14:00:00.000Z",

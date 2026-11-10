@@ -112,7 +112,7 @@ Restart Codex. The desktop app and VS Code extension use the same installed plug
 /intent:scan collect [task-id]
 ```
 
-Run from inside a Git repository. With no path, Scan snapshots the repository; one file or folder limits the snapshot to that path. Every submission uses `POST /deepscans`. Choose a depth:
+Run from inside a Git repository. With no path, Scan snapshots the repository; one file or folder limits the snapshot to that path. Every submission uses `POST /scan`. Choose a depth:
 
 | Depth | Expected time |
 |---|---|
@@ -120,7 +120,9 @@ Run from inside a Git repository. With no path, Scan snapshots the repository; o
 | `balanced` | 30–35 minutes |
 | `full` | 40–45 minutes |
 
-The command prints a report link, then polls until the task finishes, saves its evidence and returns findings. Keep it running, as with Prove. Polling uses the shared `poll_interval_seconds` setting (default 10 seconds); transient status-request failures retry after 1, 2 and 4 seconds. No detached worker or later-message hook is involved. Collection saves reports under `.intent/deepscan/<task-id>/report.json`, with task/source metadata in `meta.json`. Report downloads are checked against their stated size and SHA-256. No source contents are copied into the Scan evidence folder.
+The command prints a report link, then polls until the task finishes, saves its evidence and returns findings. Keep it running, as with Prove. Polling uses the shared `poll_interval_seconds` setting (default 10 seconds); transient status-request failures retry after 1, 2 and 4 seconds. No detached worker or later-message hook is involved. Collection saves reports under `.intent/scan/<task-id>/report.json`, with task/source metadata in `meta.json`. Report downloads are checked against their stated size and SHA-256. No source contents are copied into the Scan evidence folder.
+
+This plugin requires the service's `POST /scan` contract and `scan` task kind. It uses `.intent/scan/` for evidence and `scans/` for task records. Older folders are left untouched and are not read by collection or the viewer.
 
 Interrupting Scan stops local waiting; the remote task may continue. If interrupted, polling fails or a report is still pending, use `collect <task-id>` to resume waiting and collection; it does not resubmit the scan. Saved reports remain available after service files expire. Supporting files remain remote. Findings are flagged, not reproduced; request reproduction or fixes separately.
 
@@ -134,7 +136,7 @@ Interrupting Scan stops local waiting; the remote task may continue. If interrup
 
 - Zero runtime dependencies; plain ESM JavaScript, Node 18+.
 - `npm test` runs existing unit checks. `npm run test:integration` loads the real Claude/Codex plugins against local mock APIs, without paid inference.
-- `lib/snapshot.js` builds scoped repository snapshots; `lib/deepscan.js` submits, waits for and collects Scans. No host session capture or worker spawning remains.
+- `lib/snapshot.js` builds scoped repository snapshots; `lib/scan.js` submits, waits for and collects Scans. No host session capture or worker spawning remains.
 - Backend contract: the Intent Check service API (`nlp-research-rosu/prover`); `test/helpers/fake-prover.js` provides a controlled service for checks.
 - CLI: `cli/` (Rust). CI runs formatting, clippy, build and existing tests.
 - `NOTICE` retains attribution for code derived from Anthropic's security-guidance plugin.

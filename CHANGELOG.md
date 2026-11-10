@@ -6,6 +6,10 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+### Changed
+
+- Scan now uses the `/scan` API and `scan` task kind throughout. New local reports and task records use `.intent/scan/` and `scans/`; older folders are left untouched.
+
 ## [1.1.1] - 2026-11-10
 
 ### Fixed
@@ -14,7 +18,7 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ### Changed
 
-- Rename DeepScan to Scan in commands, guides, diagnostics and the local viewer. Use `/intent:scan` (plugin launcher: `scan`) and `scan collect [task-id]`; the old public command is no longer registered. Backend protocol and existing evidence/state paths are unchanged, so earlier results remain collectible.
+- Use Scan in commands, guides, diagnostics and the local viewer. Use `/intent:scan` (plugin launcher: `scan`) and `scan collect [task-id]`; the old public command is no longer registered. This release left backend protocol and evidence/state paths unchanged.
 - A failed Scan adds the next step for its error code, such as trying again later or scanning a smaller folder.
 - Prove guidance and `intent-check` help explain what to do for each task error code, including that an undecided proof is not a counterexample.
 - The default API endpoint is now `https://api.prover.intentcomputing.org`. Keys are saved per endpoint, so sign in again with `intent-check login` after updating.
@@ -27,7 +31,7 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ### Changed
 
-- DeepScan is explicit: a file, folder or repository snapshot is submitted to `/deepscans`; the command polls until completion, saves evidence and returns findings. Use `/intent:deepscan collect [task-id]` to resume an interrupted DeepScan without resubmitting source. No hooks or detached workers run. Sign in with `intent-check login`. Prove remains a separate explicit workflow.
+- Scan is explicit: a file, folder or repository snapshot is submitted to `/scan`; the command polls until completion, saves evidence and returns findings. Use `/intent:scan collect [task-id]` to resume an interrupted Scan without resubmitting source. No hooks or detached workers run. Sign in with `intent-check login`. Prove remains a separate explicit workflow.
 
 ### Fixed
 
@@ -38,7 +42,7 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 ### Added
 
 - `intent-check view` serves a repository-aware live local viewer for saved evidence and active file checks. `--output` exports the same UI as a self-contained offline HTML report.
-- DeepScan saves its final report and task/source metadata in `.intent/deepscan/<task-id>/`, with verified downloads, resumable collection and explicit expiry status. Saved reports remain available offline; supporting detail files stay on the service.
+- Scan saves its final report and task/source metadata in `.intent/scan/<task-id>/`, with verified downloads, resumable collection and explicit expiry status. Saved reports remain available offline; supporting detail files stay on the service.
 
 ### Fixed
 
@@ -83,21 +87,21 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ### Changed
 
-- Checks and DeepScans go to the prover API (`https://prover.intentcomputing.org`, `INTENT_API_URL` overrides it).
+- Checks and Scans go to the prover API (`https://prover.intentcomputing.org`, `INTENT_API_URL` overrides it).
 - Everything the plugin writes in your repo lives under `.intent/`. Proof sessions now detect the repository root automatically, so running from a subdirectory does not create a nested `.intent/`.
 
 ## [0.3.0] - 2026-10-13
 
 ### Changed
 
-- `/intent:deepscan [files or a folder] [fast|balanced|full]` is the one command for a review on demand. Files get the fast review; a folder or nothing gets a DeepScan.
+- `/intent:scan [files or a folder] [fast|balanced|full]` is the one command for a review on demand. Files get the fast review; a folder or nothing gets a Scan.
 
 ### Removed
 
-- `/intent:check`: use `/intent:deepscan <files>`.
+- `/intent:check`: use `/intent:scan <files>`.
 - `/intent:status` and `/intent:connect`: use `/intent:doctor`.
 - `/intent:disconnect`: revoke a machine's key from your account page on the service.
-- The `--depth` and `--scope` flags of `/intent:deepscan`: name the depth and the folder as plain arguments.
+- The `--depth` and `--scope` flags of `/intent:scan`: name the depth and the folder as plain arguments.
 
 ## [0.2.2] - 2026-10-09
 
@@ -107,18 +111,18 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ### Fixed
 
-- DeepScan leaves Intent Check's own `.intent/` results out of the snapshot.
+- Scan leaves Intent Check's own `.intent/` results out of the snapshot.
 
 ## [0.2.1] - 2026-10-09
 
 ### Changed
 
-- `fast` is the default DeepScan depth.
+- `fast` is the default Scan depth.
 
 ## [0.2.0] - 2026-10-09
 
 ### Added
 
-- DeepScan: a scan of the whole repo, with a choice of depth (`fast`, `balanced`, `full`).
+- Scan: a scan of the whole repo, with a choice of depth (`fast`, `balanced`, `full`).
 
 Earlier releases are listed at https://github.com/nlp-research-rosu/intent-check/releases.
