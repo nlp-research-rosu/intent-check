@@ -6,6 +6,8 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-11-10
+
 ### Changed
 
 - Scan now uses the `/scan` API and `scan` task kind throughout. New local reports and task records use `.intent/scan/` and `scans/`; older folders are left untouched.
