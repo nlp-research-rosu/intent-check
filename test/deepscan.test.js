@@ -208,6 +208,7 @@ test("failed scans and malformed summaries do not claim clean results", async ()
 test("a failed scan adds the next step its code calls for", () => {
   const failed = (code) => renderScan({ status: "failed", url: "u", error: { code, message: "Fixed text." } }).context;
   assert.equal(failed("SERVICE_UNAVAILABLE"), "DeepScan could not finish: Fixed text. Try again later. · u");
+  assert.equal(failed("INVALID_INPUT"), "DeepScan could not finish: Fixed text. Scan again; if it repeats, scan one smaller folder. · u");
   assert.equal(failed("SPEND_CAP"), "DeepScan could not finish: Fixed text. · u");
   assert.equal(failed("SOMETHING_NEW"), "DeepScan could not finish: Fixed text. · u");
 });
