@@ -1035,7 +1035,7 @@ class Tests(unittest.TestCase):
         self.assertEqual({key: partial[key] for key in limits}, dict.fromkeys(limits, 50))
         self.config.unlink()
         defaults = self.cli("config")["config"]
-        self.assertEqual(defaults["server_url"], "https://prover.intentcomputing.org")
+        self.assertEqual(defaults["server_url"], "https://api.prover.intentcomputing.org")
         self.assertEqual({key: defaults[key] for key in limits}, dict.fromkeys(limits, 50))
 
 

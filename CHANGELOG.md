@@ -15,6 +15,7 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 - Rename DeepScan to Scan in commands, guides, diagnostics and the local viewer. Use `/intent:scan` (plugin launcher: `scan`) and `scan collect [task-id]`; the old public command is no longer registered. Backend protocol and existing evidence/state paths are unchanged, so earlier results remain collectible.
 - A failed Scan adds the next step for its error code, such as trying again later or scanning a smaller folder.
 - Prove guidance and `intent-check` help explain what to do for each task error code, including that an undecided proof is not a counterexample.
+- The default API endpoint is now `https://api.prover.intentcomputing.org`. Keys are saved per endpoint, so sign in again with `intent-check login` after updating.
 
 ## [1.1.0] - 2026-11-06
 
