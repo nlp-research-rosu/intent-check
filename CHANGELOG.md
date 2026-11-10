@@ -6,9 +6,15 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+### Fixed
+
+- An account still waiting for Prover approval now gets a link to apply, in Scan and in `/intent:doctor`, instead of "try again in a moment" or "could not reach the service".
+
 ### Changed
 
 - Rename DeepScan to Scan in commands, guides, diagnostics and the local viewer. Use `/intent:scan` (plugin launcher: `scan`) and `scan collect [task-id]`; the old public command is no longer registered. Backend protocol and existing evidence/state paths are unchanged, so earlier results remain collectible.
+- A failed Scan adds the next step for its error code, such as trying again later or scanning a smaller folder.
+- Prove guidance and `intent-check` help explain what to do for each task error code, including that an undecided proof is not a counterexample.
 
 ## [1.1.0] - 2026-11-06
 

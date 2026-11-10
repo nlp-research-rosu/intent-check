@@ -287,6 +287,15 @@ const EVIDENCE: &str = r#"Evidence:
   queued or running means unfinished; completed means execution finished;
   failed means preparation or execution failed; timed_out means its time limit
   ended it; cancelled means cancellation; data_expired means files have expired.
+  A failed or timed_out task has task.error.code, which sets the next step:
+  INVALID_INPUT: fix the input. K's message is in stderr; details.path names
+  the source at fault, and details.supported the current semantics revision.
+  PROOF_UNDECIDED: the solver decided nothing, so this is no counterexample.
+  Split the claim or add lemmas. PROVER_BACKEND_FAILED: change the proof
+  before resubmitting. TIMED_OUT: narrow the program or claim; details.tool
+  names the tool. TASK_FILE_MISSING: submit again. SERVICE_UNAVAILABLE: try
+  again later. INTERNAL_ERROR or an unknown code: the service already retried;
+  report the task ID. task.error.message is fixed text; do not parse it.
   A completed task is not necessarily a successful run, validation, or proof.
   A completed task with a result, no error and an empty toolRuns list can be
   a reused backend result. The CLI exits 0 with exitCode: null; this reports
