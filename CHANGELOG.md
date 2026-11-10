@@ -12,6 +12,7 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ### Changed
 
+- The default API endpoint is now `https://api.prover.intentcomputing.org`. Keys are saved per endpoint, so sign in again with `intent-check login` after updating.
 - A failed DeepScan adds the next step for its error code, such as trying again later or scanning a smaller folder.
 - Prove guidance and `intent-check` help explain what to do for each task error code, including that an undecided proof is not a counterexample.
 

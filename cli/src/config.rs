@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{env, fs, path::PathBuf};
 
+pub const DEFAULT_SERVER_URL: &str = "https://api.prover.intentcomputing.org";
+
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Config {
@@ -20,7 +22,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            server_url: "https://prover.intentcomputing.org".into(),
+            server_url: DEFAULT_SERVER_URL.into(),
             portal_url: "https://prover-console.intentcomputing.org".into(),
             request_timeout_seconds: 30,
             poll_interval_seconds: 10,
