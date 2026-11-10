@@ -63,7 +63,7 @@ blank variables count as unset.
 
 Settings:
   server_url                Intent Check service HTTP endpoint.
-                            Default: https://prover.intentcomputing.org.
+                            Default: https://api.prover.intentcomputing.org.
   portal_url                Intent Check web origin for browser login.
                             Default: https://prover-console.intentcomputing.org.
   request_timeout_seconds   Limit for each HTTP request.

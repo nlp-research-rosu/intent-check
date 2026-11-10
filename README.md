@@ -79,7 +79,7 @@ On Windows, download `install-intent-check.ps1` from the same release and run it
 
 | Variable | Effect |
 |---|---|
-| `INTENT_API_URL` | API endpoint; default `https://prover.intentcomputing.org`. |
+| `INTENT_API_URL` | API endpoint; default `https://api.prover.intentcomputing.org`. |
 | `INTENT_CONSOLE_URL` | Console endpoint; default `https://prover-console.intentcomputing.org`. |
 | `INTENT_API_KEY` | Credential override for the plugin and CLI. |
 | `INTENT_DISABLED=1` / `DO_NOT_TRACK=1` | Block plugin Scan commands. These are not switches for the separate proof CLI. |

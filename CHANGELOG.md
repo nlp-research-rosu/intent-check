@@ -6,6 +6,10 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+### Changed
+
+- The default API endpoint is now `https://api.prover.intentcomputing.org`. A key saved for the previous default keeps working, so signing in again is not needed.
+
 ## [1.1.0] - 2026-11-06
 
 ### Removed

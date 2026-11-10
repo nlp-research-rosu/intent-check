@@ -18,8 +18,8 @@ function probe({ XDG, ...env }, files = {}, setup = null) {
 }
 
 test("API base: INTENT_API_URL or the shared default; host-local settings do not select endpoints", () => {
-  assert.equal(probe({}).url, "https://prover.intentcomputing.org");
-  assert.equal(probe({}, { "config.json": { api_url: "https://cfg.example/" } }).url, "https://prover.intentcomputing.org");
+  assert.equal(probe({}).url, "https://api.prover.intentcomputing.org");
+  assert.equal(probe({}, { "config.json": { api_url: "https://cfg.example/" } }).url, "https://api.prover.intentcomputing.org");
   assert.equal(probe({ INTENT_API_URL: "http://127.0.0.1:1" }, { "config.json": { api_url: "https://cfg.example" } }).url, "http://127.0.0.1:1");
 });
 
@@ -32,6 +32,14 @@ const creds = (keys, mode = 0o600) => (dir) => {
   fs.mkdirSync(path.join(dir, "xdg", "intent-check"), { recursive: true });
   fs.writeFileSync(path.join(dir, "xdg", "intent-check", "credentials.json"), JSON.stringify({ keys }), { mode });
 };
+
+test("API key: the default API reuses a key saved for the previous default", () => {
+  const at = (env, keys) => probe({ XDG: true, ...env }, {}, creds(keys)).key;
+  const old = "https://prover.intentcomputing.org";
+  assert.deepEqual(at({}, { [old]: "saved-before" }), { key: "saved-before", source: "file" });
+  assert.deepEqual(at({}, { [old]: "saved-before", "https://api.prover.intentcomputing.org": "saved-now" }), { key: "saved-now", source: "file" });
+  assert.deepEqual(at({ INTENT_API_URL: "https://staging.example" }, { [old]: "saved-before" }), { key: null, source: null });
+});
 
 test("API key: INTENT_API_KEY, then the credentials file entry for the API origin", () => {
   const u = "http://127.0.0.1:1";
