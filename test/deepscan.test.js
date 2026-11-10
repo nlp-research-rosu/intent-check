@@ -9,7 +9,7 @@ import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
 import { tmpdir, makeRepo, baseEnv, saveKey, BIN, symlink, SKIP_FILE_SYMLINKS } from "./helpers/env.js";
 import { validateDeepscan } from "./helpers/schema.js";
 import { buildSnapshot, normaliseRemote, pathReason, decodeText } from "../lib/snapshot.js";
-import { takeDepth, renderScan } from "../lib/deepscan.js";
+import { takeDepth, renderScan, submitFailureLine } from "../lib/deepscan.js";
 
 let fp;
 before(async () => { fp = createFakeProver(); await fp.listen(); });
@@ -199,10 +199,23 @@ test("failed scans and malformed summaries do not claim clean results", async ()
   const id = idOf(result.err);
   const collected = await cli(["collect", id], ctx);
   assert.equal(collected.code, 1);
-  assert.match(collected.err, /could not finish/);
+  assert.match(collected.err, /could not finish: DeepScan did not produce a usable report\. Try again, or scan one smaller folder\./);
   const rendered = renderScan({ status: "done", url: "https://example.test/report", summary: {} });
   assert.doesNotMatch(rendered.context, /no findings/);
   assert.match(rendered.context, /open the report/);
+});
+
+test("a failed scan adds the next step its code calls for", () => {
+  const failed = (code) => renderScan({ status: "failed", url: "u", error: { code, message: "Fixed text." } }).context;
+  assert.equal(failed("SERVICE_UNAVAILABLE"), "DeepScan could not finish: Fixed text. Try again later. · u");
+  assert.equal(failed("INVALID_INPUT"), "DeepScan could not finish: Fixed text. Scan again; if it repeats, scan one smaller folder. · u");
+  assert.equal(failed("SPEND_CAP"), "DeepScan could not finish: Fixed text. · u");
+  assert.equal(failed("SOMETHING_NEW"), "DeepScan could not finish: Fixed text. · u");
+});
+
+test("an account waiting for approval is sent to apply", () => {
+  const line = submitFailureLine({ status: 403, code: "ACCESS_NOT_APPROVED" });
+  assert.match(line, /not approved for Prover yet\. Apply at https?:\/\/\S+\/apply/);
 });
 
 test("depth is one bare word and defaults to fast", () => {

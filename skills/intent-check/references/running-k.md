@@ -65,6 +65,23 @@ capabilities. Added theory needs [independent justification](proof-correctness.m
 - For a false-postcondition diagnostic, require `notProved` and evidence of the
   unmet condition; parser errors and timeouts do not count.
 
+## Task error codes
+
+A `failed` or `timed_out` task carries `task.error.code`; act on the code, not
+on `task.error.message`, which is fixed text that can change.
+
+| Code | Next step |
+|---|---|
+| `INVALID_INPUT` | Fix the input. K's message is in stderr; `details.path` names the source at fault. With `details.supported`, resubmit on that semantics revision. |
+| `PROOF_UNDECIDED` | The solver could not decide an obligation: no counterexample. Split the claim or add lemmas. |
+| `PROVER_BACKEND_FAILED` | The backend failed internally. Change the proof before resubmitting; report the task ID if it persists. |
+| `TIMED_OUT` | The service limit ended the work; `details.tool` names the tool. Narrow the program or claim. |
+| `TASK_FILE_MISSING` | A stored input is gone. Submit again. |
+| `SERVICE_UNAVAILABLE` | A service the prover depends on failed. Try again later. |
+| `INTERNAL_ERROR` or unknown | The service already retried. Do not loop; report the task ID to the user. |
+
+`details.attempts` counts the attempts when the service retried.
+
 ## Diagnostic entry points
 
 - Source/module error: inspect submitted files and the selected semantics entry;
