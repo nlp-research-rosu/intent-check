@@ -2,7 +2,7 @@
 
 The `intent` plugin for Claude Code and Codex provides two explicitly requested workflows:
 
-- **DeepScan** (`/intent:deepscan`): analyze a file, a folder or the whole repository.
+- **Scan** (`/intent:scan`): analyze a file, a folder or the whole repository.
 - **Prove** (`/intent:prove`): formal proofs with K for properties a review cannot settle.
 
 There are no automatic hooks or reviews. Ordinary chats and edits do not capture or upload code, start sign-in, poll jobs or deliver results.
@@ -11,7 +11,7 @@ There are no automatic hooks or reviews. Ordinary chats and edits do not capture
 
 Before starting a remote Scan or Prove operation, the agent explains what will be uploaded to the configured Intent Check service. A local review does not require a remote submission.
 
-- **DeepScan:** a compressed snapshot of tracked and non-ignored untracked text files within the selected file, folder or repository, plus repository metadata. `.intent/NOTES.md` is included when it falls within the selected scope. It excludes other `.intent/` evidence, secrets files, binaries, lockfiles and generated/vendored code. Caps: 512 KB per file, 3,000 files and 15 MB of text. Larger snapshots are trimmed with a coverage notice. Chat prompts, plans, todos and transcripts are not read or uploaded.
+- **Scan:** a compressed snapshot of tracked and non-ignored untracked text files within the selected file, folder or repository, plus repository metadata. `.intent/NOTES.md` is included when it falls within the selected scope. It excludes other `.intent/` evidence, secrets files, binaries, lockfiles and generated/vendored code. Caps: 512 KB per file, 3,000 files and 15 MB of text. Larger snapshots are trimmed with a coverage notice. Chat prompts, plans, todos and transcripts are not read or uploaded.
 - **Prove:** the program/specification/helper files selected through the explicit CLI commands. See the proof skills and CLI help for their inputs.
 
 Scan masks obvious secrets locally and never sends files such as `.env*`, private keys or credential files. Redaction is not a substitute for reviewing the requested scope. Scan upload metadata is listed in `.intent/.sent.log`; it does not contain source contents.
@@ -44,8 +44,8 @@ Restart Claude Code or run `/reload-plugins`. Use the Intent Check skill's onboa
 
 | Command | What it does |
 |---|---|
-| `/intent:deepscan [file or folder] [fast\|balanced\|full]` | Submit a DeepScan, wait for completion, save evidence and return findings. |
-| `/intent:deepscan collect [task-id]` | Resume an interrupted Scan without submitting source. No ID: outstanding scans in this project. |
+| `/intent:scan [file or folder] [fast\|balanced\|full]` | Submit a Scan, wait for completion, save evidence and return findings. |
+| `/intent:scan collect [task-id]` | Resume an interrupted Scan without submitting source. No ID: outstanding scans in this project. |
 | `/intent:prove [what to prove]` | Formal proof with K through the global CLI. |
 | `/intent:doctor` | Read connection/configuration diagnostics; does not log in, clear credentials or update the plugin. |
 
@@ -61,7 +61,7 @@ Endpoint settings are shared in `config.toml` beside credentials: `server_url` s
 
 ## Prove
 
-The single `intent-check` skill contains onboarding, DeepScan and Prove guides, with detailed references loaded only as needed. `/intent:prove [what to prove]` follows its Prove guide, invoking the global CLI directly. Scan is not a prerequisite. K proofs establish partial correctness: if the program terminates and the precondition holds, the postcondition holds. Writing or auditing new language semantics is not included.
+The single `intent-check` skill contains onboarding, Scan and Prove guides, with detailed references loaded only as needed. `/intent:prove [what to prove]` follows its Prove guide, invoking the global CLI directly. Scan is not a prerequisite. K proofs establish partial correctness: if the program terminates and the precondition holds, the postcondition holds. Writing or auditing new language semantics is not included.
 
 Proof inputs and documents live in `.intent/prove/<target>/`; commit them. `.intent/prove/sessions/` is local session state. Commands detect the repository root even from subdirectories; outside Git, they use the project directory. Explicit CLI operations collect their results, with task recovery documented in `intent-check task --help`.
 
@@ -88,7 +88,7 @@ On Windows, download `install-intent-check.ps1` from the same release and run it
 
 Update the plugin marketplace and plugin, then reload or restart the host. Claude Code: `claude plugin marketplace update intentcomputing`, then `claude plugin update intent@intentcomputing`, then `/reload-plugins`. Codex: `codex plugin marketplace upgrade intentcomputing`, then restart. See [CHANGELOG.md](CHANGELOG.md) for release changes.
 
-Reload or restart the host after updating. Close sessions using an older plugin and let their workers finish first; updating files does not stop already-running code. The plugin has no hook entrypoint or compatibility layer. Existing credentials and evidence are retained; unrelated local state is not read or removed. Collect submitted DeepScans using their task IDs; other submitted tasks remain available through their console links and `intent-check task show <id>`.
+Reload or restart the host after updating. Close sessions using an older plugin and let their workers finish first; updating files does not stop already-running code. The plugin has no hook entrypoint or compatibility layer. Existing credentials and evidence are retained; unrelated local state is not read or removed. Collect submitted Scans using their task IDs; other submitted tasks remain available through their console links and `intent-check task show <id>`.
 
 Claude Code updates a plugin only when its version changes. Third-party marketplace auto-update is optional; enable it under `/plugin` → Marketplaces → intentcomputing. A running session needs `/reload-plugins` or a restart to use a new version.
 
@@ -105,14 +105,14 @@ codex plugin add intent@intentcomputing
 
 Restart Codex. The desktop app and VS Code extension use the same installed plugins. This plugin has no hooks to approve. Use the Intent Check skill's onboarding guide and explicit `intent-check login` when setup is needed.
 
-## DeepScan
+## Scan
 
 ```
-/intent:deepscan [file or folder] [fast|balanced|full]
-/intent:deepscan collect [task-id]
+/intent:scan [file or folder] [fast|balanced|full]
+/intent:scan collect [task-id]
 ```
 
-Run from inside a Git repository. With no path, DeepScan snapshots the repository; one file or folder limits the snapshot to that path. Every submission uses `POST /deepscans`. Choose a depth:
+Run from inside a Git repository. With no path, Scan snapshots the repository; one file or folder limits the snapshot to that path. Every submission uses `POST /deepscans`. Choose a depth:
 
 | Depth | Expected time |
 |---|---|
@@ -120,7 +120,7 @@ Run from inside a Git repository. With no path, DeepScan snapshots the repositor
 | `balanced` | 30–35 minutes |
 | `full` | 40–45 minutes |
 
-The command prints a report link, then polls until the task finishes, saves its evidence and returns findings. Keep it running, as with Prove. Polling uses the shared `poll_interval_seconds` setting (default 10 seconds); transient status-request failures retry after 1, 2 and 4 seconds. No detached worker or later-message hook is involved. Collection saves reports under `.intent/deepscan/<task-id>/report.json`, with task/source metadata in `meta.json`. Report downloads are checked against their stated size and SHA-256. No source contents are copied into the DeepScan evidence folder.
+The command prints a report link, then polls until the task finishes, saves its evidence and returns findings. Keep it running, as with Prove. Polling uses the shared `poll_interval_seconds` setting (default 10 seconds); transient status-request failures retry after 1, 2 and 4 seconds. No detached worker or later-message hook is involved. Collection saves reports under `.intent/deepscan/<task-id>/report.json`, with task/source metadata in `meta.json`. Report downloads are checked against their stated size and SHA-256. No source contents are copied into the Scan evidence folder.
 
 Interrupting Scan stops local waiting; the remote task may continue. If interrupted, polling fails or a report is still pending, use `collect <task-id>` to resume waiting and collection; it does not resubmit the scan. Saved reports remain available after service files expire. Supporting files remain remote. Findings are flagged, not reproduced; request reproduction or fixes separately.
 
@@ -134,7 +134,7 @@ Interrupting Scan stops local waiting; the remote task may continue. If interrup
 
 - Zero runtime dependencies; plain ESM JavaScript, Node 18+.
 - `npm test` runs existing unit checks. `npm run test:integration` loads the real Claude/Codex plugins against local mock APIs, without paid inference.
-- `lib/snapshot.js` builds scoped repository snapshots; `lib/deepscan.js` submits, waits for and collects DeepScans. No host session capture or worker spawning remains.
+- `lib/snapshot.js` builds scoped repository snapshots; `lib/deepscan.js` submits, waits for and collects Scans. No host session capture or worker spawning remains.
 - Backend contract: the Intent Check service API (`nlp-research-rosu/prover`); `test/helpers/fake-prover.js` provides a controlled service for checks.
 - CLI: `cli/` (Rust). CI runs formatting, clippy, build and existing tests.
 - `NOTICE` retains attribution for code derived from Anthropic's security-guidance plugin.

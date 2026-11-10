@@ -376,7 +376,7 @@ credentials, plugin prompts or transcripts. Symlinks and hidden files are not
 exported; explicit Scans are represented by task metadata only.
 
 The name comes from the origin repository name, falling back to the root folder.
-DeepScan reports and proof sessions come from this project's .intent directory.
-DeepScan progress comes from installed Claude Code/Codex plugin data; set
+Scan reports and proof sessions come from this project's .intent directory.
+Scan progress comes from installed Claude Code/Codex plugin data; set
 --plugin-data for a custom or isolated plugin installation. Scan status is the
 last locally saved state, not a fresh server status."#;
