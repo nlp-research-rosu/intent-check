@@ -1,0 +1,26 @@
+{
+  "production": {
+    "display_name": "Intent Prover",
+    "plugin": "intent",
+    "marketplace": "intentcomputing",
+    "cli": "intent-prover",
+    "config_dir": "intent-prover",
+    "api_url": "https://api.prover.intentcomputing.org",
+    "console_url": "https://prover-console.intentcomputing.org",
+    "env_prefix": "INTENT",
+    "windows_install_dir": "IntentProver",
+    "catalog_branch": "main"
+  },
+  "staging": {
+    "display_name": "Intent Prover Staging",
+    "plugin": "intent-staging",
+    "marketplace": "intentcomputing-staging",
+    "cli": "intent-prover-staging",
+    "config_dir": "intent-prover-staging",
+    "api_url": "https://api.staging-prover.intentcomputing.org",
+    "console_url": "https://staging-prover-console.intentcomputing.org",
+    "env_prefix": "INTENT_STAGING",
+    "windows_install_dir": "IntentProverStaging",
+    "catalog_branch": "catalog-staging"
+  }
+}
