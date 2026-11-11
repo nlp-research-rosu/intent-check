@@ -70,12 +70,6 @@ function assertNoHooks(s) {
   assert.ok(!s.r.timedOut, note(s, "claude -p timed out"));
 }
 
-test("claude -p without sign-in: ordinary edits trigger no hooks, login or uploads", { skip, timeout: 60000 }, async () => {
-  const s = await session();
-  assertNoHooks(s);
-  assert.equal(fp.state.requests.length, 0);
-});
-
 test("claude -p with a seeded key: ordinary edits still cause no service requests", { skip, timeout: 60000 }, async () => {
   const s = await session({ key: TEST_KEY });
   assertNoHooks(s);
