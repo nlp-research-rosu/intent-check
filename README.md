@@ -49,7 +49,7 @@ Restart Claude Code or run `/reload-plugins`. Use the Intent Check skill's onboa
 | `/intent:prove [what to prove]` | Formal proof with K through the global CLI. |
 | `/intent:doctor` | Read connection/configuration diagnostics; does not log in, clear credentials or update the plugin. |
 
-On Codex, ask the agent to invoke the corresponding skill. On Antigravity, the skill is `/intent-check`. Scan and diagnostics use `node <plugin>/bin/intent.js`; Prove and login use the global `intent-check` CLI. Network access and plugin-data writes may need sandbox approval.
+On Codex, ask the agent to invoke the corresponding skill. On Antigravity, the skill is `/intent:intent-check`. Scan and diagnostics use `node <plugin>/bin/intent.js`; Prove and login use the global `intent-check` CLI. Network access and plugin-data writes may need sandbox approval.
 
 ## Signing in
 
@@ -111,7 +111,7 @@ Restart Codex. The desktop app and VS Code extension use the same installed plug
 agy plugin install https://github.com/nlp-research-rosu/intent-check
 ```
 
-Antigravity installs from the repository, not the shared marketplace, and reads `.antigravity-plugin/plugin.json`. The App, CLI and IDE share installed plugins. Antigravity has no plugin commands: use `/intent-check` or ask for a Scan or proof. Its terminal sandbox has no network access by default, so approve Scan and sign-in commands to run outside it. Local Scan state is kept in `~/.gemini/config/plugin-data/intent`.
+Antigravity installs from the repository, not the shared marketplace, and reads `.antigravity-plugin/plugin.json`. The App, CLI and IDE share installed plugins. Antigravity has no plugin commands: use `/intent:intent-check` or ask for a Scan or proof. Its terminal sandbox has no network access by default, so approve Scan and sign-in commands to run outside it. Local Scan state is kept in `~/.gemini/config/plugin-data/intent`.
 
 ## Scan
 

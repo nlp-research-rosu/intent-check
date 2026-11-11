@@ -34,7 +34,8 @@ Codex has no plugin slash commands. Use the path relative to this skill:
 
     node <folder of this SKILL.md>/../../bin/intent.js <subcommand> --host codex
 
-Antigravity has no plugin commands either; this skill is `/intent-check`. Use
+Antigravity has no plugin commands either; this skill is
+`/intent:intent-check`. Use
 the same relative path with `--host antigravity`.
 
 These commands may need permission for network access and writing plugin data
