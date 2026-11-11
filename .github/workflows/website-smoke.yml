@@ -11,6 +11,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   website:
+    # These are observational runs, not promotion gates. Keep real outcomes in artifacts.
+    continue-on-error: true
     if: >-
       github.event.pull_request.head.ref == 'staging' &&
       github.event.pull_request.head.repo.full_name == github.repository
@@ -80,3 +82,36 @@ jobs:
           include-hidden-files: true # Only the harness's selected/redacted output, including .intent/.
           if-no-files-found: ignore
           retention-days: 7
+  report:
+    name: website smoke report (advisory)
+    needs: website
+    if: >-
+      always() &&
+      github.event.pull_request.head.ref == 'staging' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.19.0
+      - name: Download selected smoke evidence
+        id: evidence
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: '*-smoke-${{ github.run_id }}-${{ github.run_attempt }}'
+          path: ${{ runner.temp }}/smoke-evidence
+      - name: Update advisory PR result comment
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SMOKE_EVIDENCE_DIR: ${{ runner.temp }}/smoke-evidence
+        run: node scripts/website-smoke-comment.mjs
