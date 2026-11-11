@@ -43,6 +43,7 @@ jobs:
           node-version: 22.19.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
       - name: Install pinned Pi without lifecycle scripts
+        if: matrix.case == 'withdraw'
         run: |
           npm install --prefix "$RUNNER_TEMP/pi" --ignore-scripts --no-audit --no-fund --save-exact "@earendil-works/pi-coding-agent@$PI_VERSION"
           echo "$RUNNER_TEMP/pi/node_modules/.bin" >> "$GITHUB_PATH"
@@ -57,9 +58,15 @@ jobs:
           cargo build --manifest-path cli/Cargo.toml --locked --release
           install -m 755 cli/target/release/intent-prover-staging "$RUNNER_TEMP/smoke-bin/intent-prover-staging"
           echo "$RUNNER_TEMP/smoke-bin" >> "$GITHUB_PATH"
-      - name: Run the website example with Pi
+      - name: Prove the website withdrawal example with Pi
+        if: matrix.case == 'withdraw'
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          INTENT_STAGING_API_KEY: ${{ secrets.INTENT_STAGING_API_KEY }}
+        run: node scripts/website-smoke.mjs
+      - name: Scan the pinned website repository directly
+        if: matrix.case == 'mle-bench'
+        env:
           INTENT_STAGING_API_KEY: ${{ secrets.INTENT_STAGING_API_KEY }}
         run: node scripts/website-smoke.mjs
       - name: Retain selected evidence and metrics

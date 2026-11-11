@@ -8,12 +8,14 @@ releases or manual dispatch. Existing unit and mock-host checks are unchanged.
 
 In this repository's **Settings → Secrets and variables → Actions**, add:
 
-- `OPENROUTER_API_KEY`: a dedicated test key with an OpenRouter spending limit.
+- `OPENROUTER_API_KEY`: a dedicated spend-limited OpenRouter test key, **Prove only**.
 - `INTENT_STAGING_API_KEY`: a separate, approved staging test account's key.
 
-Missing secrets fail the smoke before any model call. Never use a production
-key. Use a dedicated account so its proof work and usage can be attributed to
-testing. Keys are supplied only to the smoke step, not installation or builds.
+Missing required secrets fail before remote work. Never use a production key.
+Use a dedicated account so its work and usage can be attributed to testing.
+Keys are supplied only to the corresponding smoke step, not installation or
+builds. Scan receives only `INTENT_STAGING_API_KEY`; it does not install Pi,
+require OpenRouter credentials, load skills or invoke an outer model.
 
 ## What runs
 
@@ -23,7 +25,7 @@ It generates a staging package in a disposable checkout using
 local `<source-version>-staging.0` identity is only for this unpublished test:
 no tag, release, catalog or source-version update is made.
 
-Pi `1.5.2` on Node `22.19.0` uses OpenRouter's
+For Prove, Pi `1.5.2` on Node `22.19.0` uses OpenRouter's
 `anthropic/claude-haiku-5.5` with `medium` thinking. These pins, the 1,500-second
 withdrawal deadline and 2,400-second Scan deadline are visible in the workflow.
 The cases run sequentially in separate isolated jobs; failure does not skip the
@@ -37,22 +39,30 @@ settings; freeze those restrictions for comparisons.
 default Scan requests retrieved from <https://prover.intentcomputing.org/> on
 2026-11-11. Their original “Intent Check” wording is intentional; update it
 explicitly when the published prompts change.
-The harness separately explains that this is internal staging testing and that
-the generated staging skill/CLI must be used. It supplies no solved claims or
-implementation. Both effective inputs and each prompt hash are retained.
+The Prove harness separately explains that this is internal staging testing and
+that the generated staging skill/CLI must be used. It supplies no solved claims
+or implementation. The effective Prove inputs and both website prompt hashes
+are retained. The Scan prompt is a source reference, not sent to an agent.
 
-For Scan, Pi clones `openai/mle-bench` at
-`507f92e1138bb6e40dac5c6ee7a6758e6424bf97`, explains the upload scope and uses
-the existing Node launcher for one `fast` Scan of
+Scan orchestration is deterministic: the harness fetches `openai/mle-bench` at
+`507f92e1138bb6e40dac5c6ee7a6758e6424bf97` into a fresh isolated checkout and
+invokes the existing generated staging launcher directly for one `fast` Scan of
 `mlebench/competitions/jigsaw-unintended-bias-in-toxicity-classification/`.
+The invocation is `node <staging-package>/bin/intent.js scan <folder> fast`,
+not a new API client or the native Prove command. The upload scope and exact
+checkout/launcher commands are saved alongside the reference website prompt.
 The launcher submits, polls, downloads the report and saves local evidence.
-If interrupted, Pi must collect that task, not submit another. The 40-minute
-outer deadline allows setup/queue/collection around the service's 30-minute fast
-budget; queue delays can still fail the smoke. The wrapper prohibits installing
-repository dependencies or running its scripts on the GitHub runner.
+The harness never resubmits; interrupted/failed runs fail and cleanup cancels
+recorded unfinished tasks. The existing `scan collect <task-id>` command remains
+the recovery path, not a replacement submission. The 40-minute outer deadline
+covers checkout and the launcher around the service's 30-minute fast budget;
+queue delays can still fail the smoke. No repository dependencies or scripts
+are installed/run. The backend Scan still uses its configured model: only the
+outer orchestration is deterministic. This covers the Scan client/service
+path, not natural-language prompt interpretation or skill selection.
 
-Pi loads the complete generated staging skill and its relative references. Pi
-has ordinary read/write/edit/bash tools; no custom agent loop or extension is
+For Prove, Pi loads the complete generated staging skill and its relative
+references. Pi has ordinary read/write/edit/bash tools; no custom agent loop or extension is
 used. K execution stays on the staging VPS, not the GitHub runner. The test does
 not cover Claude Code/Codex marketplace installation or production packaging.
 
@@ -83,18 +93,20 @@ website example verified. A green service result alone does not establish that
 the agent proved the intended theorem. There is no second-model judge.
 
 Each artifact retains selected proof sources/results or Scan report/metadata,
-authoritative task states, effective inputs and metrics for seven days.
-It excludes credential homes and
-raw Pi transcripts; the two injected key values are redacted from retained text.
-Pi's cost is an estimate, not actual billed cost; reconcile it with OpenRouter
-usage for the cost trial. VPS service compute is separate and is not capped by the
-OpenRouter key. The workflow records runtime including client preflight, but
-does not independently measure queue/worker time beyond saved service evidence.
+authoritative task states, effective inputs/Scan plan and metrics for seven days.
+It excludes credential homes and raw Pi transcripts; injected key values are
+redacted from retained text. Prove's Pi cost is an estimate, not actual billed
+cost; reconcile it with OpenRouter usage for the cost trial. VPS service compute
+is separate and is not capped by the OpenRouter key. Scan records no outer-model
+usage or cost; it does not measure backend model billing. The workflow records
+runtime including client preflight, but does not independently measure
+queue/worker time beyond saved service evidence.
 
-On deadline or interruption the harness stops Pi and requests cancellation of
-proof and Scan tasks recorded by this run. Cleanup failures fail the smoke and
-retain task IDs for investigation. A runner crash or a lost submission response can leave a job
-without local evidence; the VPS's own execution deadlines remain necessary.
+On deadline or interruption the harness stops the active Pi/checkout/launcher
+process and requests cancellation of proof and Scan tasks recorded by this run.
+Cleanup failures fail the smoke and retain task IDs for investigation. A runner
+crash or a lost submission response can leave a job without local evidence;
+the VPS's own execution deadlines remain necessary.
 Concurrency does not interrupt an active run when the PR receives another push.
 
 No paid run is needed to check the harness itself. Node syntax, existing unit
