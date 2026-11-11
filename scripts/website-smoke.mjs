@@ -40,6 +40,12 @@ export function checkProof(task, saved, semantics) {
   return { taskId: task.id, semantics, reused: task.toolRuns.length === 0 };
 }
 
+export function isPinnedSource(original, current, sourceHash) {
+  const lfs = original.toString("utf8").match(/^version https:\/\/git-lfs\.github\.com\/spec\/v1\noid sha256:([a-f0-9]{64})\nsize (\d+)\n$/);
+  const pinned = lfs ? lfs[1] === sourceHash && current.length === Number(lfs[2]) : hash(original) === sourceHash;
+  return pinned && hash(current) === sourceHash;
+}
+
 function files(directory) {
   if (!fs.existsSync(directory)) return [];
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -78,7 +84,8 @@ function checkScan(task, saved, project, apiUrl) {
   for (const file of source.files) {
     requireValue(typeof file.path === "string" && file.path.startsWith(`${SCAN.scope}/`) && !file.path.split("/").includes(".."), "Scan uploaded a file outside the requested scope");
     const original = execFileSync("git", ["show", `${SCAN.commit}:${file.path}`], { cwd: repo, timeout: 30_000 });
-    requireValue(hash(original) === file.source_sha256 && hash(fs.readFileSync(path.join(repo, file.path))) === file.source_sha256, "Scanned source differs from pinned/unchanged code");
+    const current = fs.readFileSync(path.join(repo, file.path));
+    requireValue(isPinnedSource(original, current, file.source_sha256), "Scanned source differs from pinned/unchanged code");
   }
   const dir = path.join(repo, ".intent/scan", task.id);
   const meta = JSON.parse(fs.readFileSync(path.join(dir, "meta.json"), "utf8"));
@@ -91,8 +98,8 @@ function checkScan(task, saved, project, apiUrl) {
   const levels = ["CRITICAL", "HIGH", "MODERATE", "LOW", "MARGINAL"];
   requireValue(levels.every((level) => Number.isSafeInteger(task.result.counts?.[level]) && task.result.counts[level] >= 0) && Array.isArray(task.result.cards) && Array.isArray(task.result.oneLiners), "Scan summary has invalid counts/findings");
   for (const finding of [...report.cards, ...report.one_liners, ...task.result.cards, ...task.result.oneLiners]) {
-    requireValue(finding && levels.includes(finding.criticality) && typeof finding.title === "string" && finding.title.trim(), "Scan finding lacks title/severity");
-    const locations = finding.cause ?? [{ path: finding.path, line: finding.line }];
+    requireValue(finding && levels.includes(finding.severity ?? finding.criticality) && typeof finding.title === "string" && finding.title.trim(), "Scan finding lacks title/severity");
+    const locations = finding.source_references ?? finding.cause ?? [{ path: finding.path, line: finding.line }];
     requireValue(Array.isArray(locations) && locations.length > 0, "Scan finding lacks source locations");
     for (const location of locations) {
       requireValue(source.files.some((file) => file.path === location.path) && Number.isSafeInteger(location.line) && location.line > 0, "Scan finding location is outside submitted source");

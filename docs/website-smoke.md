@@ -107,8 +107,9 @@ fresh proof-worker execution. The agent must retain `PROOF.md` and `SCOPE.md`.
 Scan requires exactly one saved submission, with authoritative task kind `scan`,
 status `completed`, no error and depth `fast`. The saved staging record must show
 successful report collection and the requested repo/revision/scope. Source-file
-manifest hashes must match both the pinned Git objects and unchanged working
-files; tracked changes and non-ignored untracked files outside `.intent/` fail.
+manifest hashes must match the pinned Git blobs (or a Git LFS pointer's SHA-256
+and byte size) and unchanged working files; tracked changes and non-ignored
+untracked files outside `.intent/` fail.
 The saved report's bytes/hash must match the service artifact reference. Its JSON
 must contain an integer version, coverage object and finding arrays; summary
 counts must be nonnegative integers. Findings must have titles, valid severities
