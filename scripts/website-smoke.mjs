@@ -186,9 +186,21 @@ async function main() {
       env.PI_CODING_AGENT_DIR = path.join(home, ".pi/agent");
       fs.mkdirSync(env.PI_CODING_AGENT_DIR, { recursive: true });
       execFileSync("git", ["init", "--quiet"], { cwd: project, env });
+      const fixtureDir = path.join(ROOT, "test/smoke/withdraw");
+      result.fixture = JSON.parse(fs.readFileSync(path.join(fixtureDir, "fixture.json"), "utf8"));
+      requireValue(prompt.split("```python\n")[1]?.split("```")[0] === fs.readFileSync(path.join(fixtureDir, "withdraw.py"), "utf8"), "Withdrawal fixture differs from the website function");
+      fs.mkdirSync(path.join(output, "fixtures"), { recursive: true });
+      for (const name of ["withdraw.py", "withdraw.kpyc"]) {
+        const bytes = fs.readFileSync(path.join(fixtureDir, name));
+        requireValue(hash(bytes) === result.fixture.files[name], `Withdrawal fixture hash differs: ${name}`);
+        fs.writeFileSync(path.join(project, name), bytes);
+        write(`fixtures/${name}`, bytes.toString("utf8"));
+      }
+      write("fixtures/fixture.json", result.fixture);
       fs.writeFileSync(path.join(home, ".config/intent-prover-staging/config.toml"), "max_proof_attempts = 5\nmax_validation_attempts = 5\nmax_run_attempts = 10\n");
       fs.writeFileSync(path.join(env.PI_CODING_AGENT_DIR, "settings.json"), JSON.stringify({ enableInstallTelemetry: false, cacheWarming: "off", retry: { enabled: false } }));
       setup = `This is an explicitly requested internal staging smoke test. Use the installed Intent Prover Staging skill and ${CLI} on PATH, not the production client. The supplied website request retains its public product wording. The requested program and generated proof inputs may be uploaded to the configured staging service. Use one construction session and its existing attempt limits; do not start replacement sessions to bypass them. Do not install/update tools or start browser login; report missing authentication as blocked. Never print or read credentials into context. You have ${timeout} seconds overall; leave time to return the proof evidence and unresolved obligations.\n`;
+      setup += `The working directory already contains withdraw.py (the unchanged website function) and withdraw.kpyc (its bytecode, generated with CPython ${result.fixture.pythonVersion} and the pinned exporter for ${result.fixture.semantics.id}@${result.fixture.semantics.commit}). Use these supplied inputs; no local Python interpreter or bytecode generation is needed. Read the matching semantics, construct the specification yourself, and use the staging CLI to validate/prove it. No claims or proof solution are supplied.\n`;
       write("setup.txt", setup);
     }
     result.config = command(["config"]);
@@ -230,6 +242,7 @@ async function main() {
       const sessions = files(path.join(home, ".config/intent-prover-staging/sessions")).filter((file) => path.basename(file) === "session.json");
       requireValue(sessions.length === 1, "Expected exactly one proof construction session");
       const session = JSON.parse(fs.readFileSync(sessions[0], "utf8"));
+      requireValue(session.semantics.id === result.fixture.semantics.id && session.semantics.commit === result.fixture.semantics.commit, "Proof session differs from the supplied bytecode semantics pin");
       const proofs = evidence(project).filter(({ file }) => /\/proof-\d+\/result\.json$/.test(file)).sort((a, b) => a.file.localeCompare(b.file, "en", { numeric: true }));
       requireValue(proofs.length > 0, "Pi did not save a real proof submission");
       const saved = proofs.at(-1).snapshot.task;
@@ -294,7 +307,7 @@ async function main() {
           }
         }
         for (const file of files(path.join(project, ".intent/prove"))) {
-          if (!/\.(?:k|md|py|sh)$/.test(file) && path.basename(file) !== "result.json") continue;
+          if (!/\.(?:k|kpyc|md|py|sh)$/.test(file) && path.basename(file) !== "result.json") continue;
           const relative = path.relative(project, file);
           fs.mkdirSync(path.dirname(path.join(output, relative)), { recursive: true });
           write(relative, fs.readFileSync(file, "utf8"));
@@ -315,6 +328,14 @@ async function main() {
         result.cleanup.push({ error: error.message });
         result.status = "failed";
         process.exitCode = 1;
+      }
+    }
+    if (files(path.join(output, ".intent")).length) {
+      try {
+        execFileSync(CLI, ["--project", output, "view", "--output", path.join(output, "report.html")], { env, encoding: "utf8", timeout: 20_000, stdio: ["ignore", "pipe", "pipe"] });
+        result.html = "report.html";
+      } catch {
+        result.reportError = "Could not export the local HTML evidence; retained source evidence is still available.";
       }
     }
     result.runtimeSeconds = (Date.now() - started) / 1000;

@@ -40,8 +40,9 @@ default Scan requests retrieved from <https://prover.intentcomputing.org/> on
 2026-11-11. Their original “Intent Check” wording is intentional; update it
 explicitly when the published prompts change.
 The Prove harness separately explains that this is internal staging testing and
-that the generated staging skill/CLI must be used. It supplies no solved claims
-or implementation. The effective Prove inputs and both website prompt hashes
+that the generated staging skill/CLI must be used. It supplies the unchanged
+Python function and pre-generated matching bytecode, but no solved claims or
+specification. The effective Prove inputs and both website prompt hashes
 are retained. The Scan prompt is a source reference, not sent to an agent.
 
 Scan orchestration is deterministic: the harness fetches `openai/mle-bench` at
@@ -66,7 +67,37 @@ references. Pi has ordinary read/write/edit/bash tools; no custom agent loop or 
 used. K execution stays on the staging VPS, not the GitHub runner. The test does
 not cover Claude Code/Codex marketplace installation or production packaging.
 
+The agent starts with `withdraw.py` and `withdraw.kpyc` from
+`test/smoke/withdraw/`, pinned to `python-3-14-6@e5d24a5429a4`. This tests skill,
+specification construction and CLI use, not interpreter installation. The
+harness checks the source against the unchanged website prompt and the two
+fixture hashes, retains both inputs, and requires the proof session to use the
+matching semantics pin. The agent must construct the claims itself.
+
+To regenerate the bytecode, use CPython **3.14.6** and the unmodified exporter
+downloaded by `intent-prover-staging semantics fetch python-3-14-6`. Confirm the
+returned commit matches `fixture.json`. From `test/smoke/withdraw/`, with
+`PYTHONPATH` set to that reference source directory, run:
+
+```sh
+python3.14 -B -m exporter withdraw.py --check --pretty
+```
+
+Update the fixture hashes only alongside an intentional input or pin change.
+The exporter checks passed and repeated generation produced identical bytes.
+No matching Python interpreter or exporter execution is needed during CI.
+
 ## Results and limitations
+
+Both smoke jobs are **advisory**, with `continue-on-error`; their outcomes do not
+gate merging. Their artifacts retain actual failures instead of rewriting them
+as proof success. A separate reporting job updates one bot comment on the
+promotion PR with service outcomes, Scan findings/coverage, agent proof scope,
+runtime, estimated model cost and links to evidence/offline HTML. Missing
+results and setup failures are labelled blocked. Evidence lasts seven days.
+Only this separate job receives permission to write PR comments; the agent and
+Scan jobs receive no GitHub token or write permission. Reporting failures are
+also non-blocking and remain visible in the workflow logs.
 
 The final proof must have authoritative service state `completed` / `proved`,
 no task error, matching session semantics and a successful final tool exit when
