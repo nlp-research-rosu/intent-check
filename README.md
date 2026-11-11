@@ -156,7 +156,7 @@ findings into formal proof or add assurance to a proof's recorded claims.
 ## Development
 
 - Zero runtime dependencies; plain ESM JavaScript, Node 18+.
-- `npm test` runs existing unit checks. `npm run test:integration` loads the real Claude/Codex plugins against local mock APIs, without paid inference.
+- `npm test` runs eight core Scan and upload-safety checks. The three `cli/tests/check-cli-*.py` scripts run eight checks against the built CLI for run/validate/prove, failure results, retry identity, attempt limits, input boundaries, offline HTML, login and Ctrl-C. `npm run test:integration` checks that loading each real Claude/Codex plugin does not automatically submit code, using local mock APIs without paid inference. These checks do not replace a real Scan/Prove smoke check before release.
 - `lib/snapshot.js` builds scoped repository snapshots; `lib/scan.js` submits, waits for and collects Scans. No host session capture or worker spawning remains.
 - Backend contract: the Intent Prover service API (`nlp-research-rosu/prover`); `test/helpers/fake-prover.js` provides a controlled service for checks.
 - CLI: `cli/` (Rust). CI runs formatting, clippy, build and existing tests.

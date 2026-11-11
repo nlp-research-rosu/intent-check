@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// `npm test`: every unit test file under test/, on any OS and shell (the file list is built here, so
+// `npm test`: core Scan and upload-safety checks, on any OS and shell (the file list is built here, so
 // nothing depends on the shell or Node expanding a glob).
 // On Windows the files run one at a time to keep process-start overhead bounded.
 // Extra arguments go to `node --test` (for example --test-name-pattern).

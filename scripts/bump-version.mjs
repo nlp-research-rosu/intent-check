@@ -15,7 +15,7 @@ const PATTERNS = {
   "cli/Cargo.toml": /(\[package\][^[]*?\nversion = ")([^"]*)(")/g,
   "cli/Cargo.lock": /(name = "intent-prover"\nversion = ")([^"]*)(")/g,
 };
-// The install picker shows this version and test/install-json.test.js pins it to package.json, so plain releases bump it too.
+// The install picker shows the stable plugin version, so plain releases bump it too.
 // Prerelease bumps leave it alone so the install picker stays on the stable version.
 export const INSTALL_JSON = "docs/install.json";
 // A plain release also turns the changelog's Unreleased section into the section for that version.
