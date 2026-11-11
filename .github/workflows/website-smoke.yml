@@ -27,8 +27,8 @@ jobs:
             timeout: 2400
     env:
       PI_VERSION: 1.5.2
-      SMOKE_MODEL: anthropic/claude-haiku-5.5
-      SMOKE_THINKING: medium
+      SMOKE_MODEL: openai/gpt-6-luna
+      SMOKE_THINKING: high
       SMOKE_CASE: ${{ matrix.case }}
       SMOKE_TIMEOUT_SECONDS: ${{ matrix.timeout }}
       SMOKE_PACKAGE_ROOT: ${{ runner.temp }}/smoke-package

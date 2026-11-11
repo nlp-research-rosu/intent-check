@@ -22,6 +22,7 @@ nested commands such as `intent-prover session start --help`.
 | `intent-prover session show` | Inspect a session's pin, workspace, and used counters |
 | `intent-prover prove` | Submit a proof attempt or inspect a stuck claim |
 | `intent-prover task list / show / wait / cancel` | Inspect or recover accepted tasks without resubmitting |
+| `intent-prover view --output <new-report.html>` | Export the local HTML handoff with saved remote job links; no network or sign-in |
 
 ## Connection
 

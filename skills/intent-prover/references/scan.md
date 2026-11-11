@@ -18,7 +18,7 @@ generated and vendored files, lockfiles and `.intent/` evidence except `NOTES.md
 All submissions use `/scan`. No command reads chat transcripts, prompts,
 plans or edit history. Upload metadata is recorded in `.intent/.sent.log`.
 
-The command prints the report link and task ID, polls until completion, saves
+The command prints the remote job link and task ID, polls until completion, saves
 evidence and returns findings. Keep it running using the host's long-running
 command support. Do not submit a second Scan or implement a separate polling loop.
 
@@ -33,7 +33,10 @@ Reports live in `.intent/scan/<task-id>/` at the repository root. Preserve
 existing evidence. Commit project knowledge with source; do not blanket-ignore
 `.intent/`.
 
-Show the main findings and report link, checking findings against the submitted
-version. Offer to reproduce or fix; findings do not authorize edits. After a
+Check findings against the submitted version, then [deliver one local HTML
+report](../SKILL.md#deliver-results) using `intent-prover view --output <new-report.html>`.
+The saved remote job URL is a secondary link inside the viewer. State coverage
+and exclusions; Scan findings are not reproduced bugs or formal proofs.
+Offer to reproduce or fix; findings do not authorize edits. After a
 fix, another remote Scan requires an explicit request. When the user confirms
 intended behaviour, append a concise bullet to `.intent/NOTES.md` for later scans.

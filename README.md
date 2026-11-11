@@ -132,10 +132,31 @@ Interrupting Scan stops local waiting; the remote task may continue. If interrup
 
 `intent-prover view --output intent-report.html` exports an offline HTML snapshot without overwriting an existing file. Review evidence before sharing. Credentials, transcripts and source workspaces are not included; symlinks, hidden/temporary/binary files and files over 16 MiB are excluded. Offline exports do not refresh.
 
+After a requested Scan or Prove workflow, the agent exports this viewer and hands
+off one local HTML link with a short outcome, scope and limitations summary.
+Prove first writes or updates `.intent/prove/<target>/PROOF.md` and `SCOPE.md`;
+the viewer renders those documents rather than generating a proof narrative.
+If export is unavailable, the agent reports that limitation and supplies saved
+evidence instead. No sign-in or network is needed to export or read local HTML.
+
+Each saved Scan includes an **Open job in Prover** link. New proof, validation and
+run submissions also save their console job URL as `reportUrl` beside `task` in
+`result.json`; the viewer links these jobs from verification runs. These URLs
+retain the submission's console, including staging or a custom console path,
+even if configuration later changes. Existing evidence without a saved URL is
+still readable; the viewer does not guess its remote environment. Remote job
+pages may require sign-in, and Scan supporting detail files remain remote.
+
+Reports support direct local navigation: append
+`#view=scans&scan=scan%2F<task-id>%2Fmeta.json` for a Scan, or
+`#view=proofs&proof=prove%2F<target>%2F&proofTab=report` for a proof report.
+URL-encode any additional path characters. HTML presentation does not turn Scan
+findings into formal proof or add assurance to a proof's recorded claims.
+
 ## Development
 
 - Zero runtime dependencies; plain ESM JavaScript, Node 18+.
-- `npm test` runs existing unit checks. `npm run test:integration` loads the real Claude/Codex plugins against local mock APIs, without paid inference.
+- `npm test` runs eight core Scan and upload-safety checks. The three `cli/tests/check-cli-*.py` scripts run eight checks against the built CLI for run/validate/prove, failure results, retry identity, attempt limits, input boundaries, offline HTML, login and Ctrl-C. `npm run test:integration` checks that loading each real Claude/Codex plugin does not automatically submit code, using local mock APIs without paid inference. These checks do not replace a real Scan/Prove smoke check before release.
 - `lib/snapshot.js` builds scoped repository snapshots; `lib/scan.js` submits, waits for and collects Scans. No host session capture or worker spawning remains.
 - Backend contract: the Intent Prover service API (`nlp-research-rosu/prover`); `test/helpers/fake-prover.js` provides a controlled service for checks.
 - CLI: `cli/` (Rust). CI runs formatting, clippy, build and existing tests.

@@ -26,7 +26,7 @@ local `<source-version>-staging.0` identity is only for this unpublished test:
 no tag, release, catalog or source-version update is made.
 
 For Prove, Pi `1.5.2` on Node `22.19.0` uses OpenRouter's
-`anthropic/claude-haiku-5.5` with `medium` thinking. These pins, the 1,500-second
+`openai/gpt-6-luna` with `high` thinking. These pins, the 1,500-second
 withdrawal deadline and 2,400-second Scan deadline are visible in the workflow.
 The cases run sequentially in separate isolated jobs; failure does not skip the
 other case. The isolated CLI permits five proof attempts, five validations and
