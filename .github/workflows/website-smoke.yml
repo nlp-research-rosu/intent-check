@@ -1,0 +1,63 @@
+name: website smoke
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: read
+concurrency:
+  group: website-smoke-${{ github.event.pull_request.number }}
+  # Allow the runner to finish/cancel accepted service tasks before exiting.
+  cancel-in-progress: false
+jobs:
+  withdraw:
+    if: >-
+      github.event.pull_request.head.ref == 'staging' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PI_VERSION: 1.5.2
+      SMOKE_MODEL: anthropic/claude-haiku-5.5
+      SMOKE_THINKING: medium
+      SMOKE_TIMEOUT_SECONDS: 1500
+      SMOKE_PACKAGE_ROOT: ${{ runner.temp }}/smoke-package
+      SMOKE_OUTPUT_DIR: ${{ runner.temp }}/smoke-results
+    steps:
+      # The default PR merge ref tests the prospective main tree, not just its head.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.19.0
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - name: Install pinned Pi without lifecycle scripts
+        run: |
+          npm install --prefix "$RUNNER_TEMP/pi" --ignore-scripts --no-audit --no-fund --save-exact "@earendil-works/pi-coding-agent@$PI_VERSION"
+          echo "$RUNNER_TEMP/pi/node_modules/.bin" >> "$GITHUB_PATH"
+      - name: Build and install the unpublished staging candidate
+        run: |
+          mkdir -p "$SMOKE_PACKAGE_ROOT" "$RUNNER_TEMP/smoke-bin"
+          git archive HEAD | tar -x -C "$SMOKE_PACKAGE_ROOT"
+          cd "$SMOKE_PACKAGE_ROOT"
+          # A local packaging identity, not a release/version bump or published tag.
+          version=$(node -p 'JSON.parse(require("fs").readFileSync("package.json", "utf8")).version.split("-")[0] + "-staging.0"')
+          node scripts/package-channel.mjs staging "$version"
+          cargo build --manifest-path cli/Cargo.toml --locked --release
+          install -m 755 cli/target/release/intent-prover-staging "$RUNNER_TEMP/smoke-bin/intent-prover-staging"
+          echo "$RUNNER_TEMP/smoke-bin" >> "$GITHUB_PATH"
+      - name: Prove the website withdrawal example with Pi
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          INTENT_STAGING_API_KEY: ${{ secrets.INTENT_STAGING_API_KEY }}
+        run: node scripts/website-smoke.mjs
+      - name: Retain selected proof evidence and metrics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: withdraw-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.SMOKE_OUTPUT_DIR }}
+          include-hidden-files: true # Only the harness's selected/redacted output, including .intent/.
+          if-no-files-found: ignore
+          retention-days: 7
