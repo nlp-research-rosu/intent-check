@@ -22,7 +22,7 @@ Reachability claims establish partial correctness, not termination.
 
 ## Working context
 
-Use the global `intent-prover` CLI; [onboarding](onboarding.md) covers missing setup.
+Use the global `intent-prover-staging` CLI; [onboarding](onboarding.md) covers missing setup.
 `semantics` lists supported definitions; `session start` pins and downloads one.
 Construction and repairs share that session and its limits. Unsupported language
 behavior is a model boundary, not a reason to author replacement semantics.
@@ -46,6 +46,6 @@ and local evidence; saved `result.json` records include each new job's `reportUr
 Do not infer a historical job's console from today's configuration if no URL was saved.
 
 Then [deliver one local HTML report](../SKILL.md#deliver-results) with
-`intent-prover view --output <new-report.html>`, linking directly to this target's
+`intent-prover-staging view --output <new-report.html>`, linking directly to this target's
 Proof report. Keep remote jobs and raw evidence secondary. An HTML report or
 successful CLI exit is not additional proof assurance.
