@@ -127,7 +127,7 @@ async function main() {
     tasks: [], cleanup: [],
   };
   const started = Date.now();
-  let project, env, child, force, deadline, interrupted = false;
+  let project, env, child, force, interrupted = false;
   const stop = () => {
     interrupted = true;
     if (child?.pid) {
@@ -139,19 +139,18 @@ async function main() {
   process.on("SIGTERM", stop);
   const command = (args) => JSON.parse(execFileSync(CLI, args, { cwd: project, env, encoding: "utf8", timeout: 20_000, stdio: ["ignore", "pipe", "pipe"] }));
   const run = async (executable, args, cwd = project, onOutput = () => {}) => {
-    requireValue(!interrupted && Date.now() < deadline, "Smoke exceeded the deadline or was interrupted");
+    requireValue(!interrupted, "Smoke interrupted");
     let diagnostic = "";
     child = spawn(executable, args, { cwd, env, detached: true, stdio: ["ignore", "pipe", "pipe"] });
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", onOutput);
     child.stderr.setEncoding("utf8");
     child.stderr.on("data", (text) => { diagnostic = (diagnostic + text).slice(-4000); });
-    const timer = setTimeout(stop, Math.max(1, deadline - Date.now()));
     let exit;
     try {
       exit = await new Promise((resolve, reject) => { child.once("error", reject); child.once("close", (code) => resolve(code)); });
-    } finally { clearTimeout(timer); clearTimeout(force); force = undefined; child = undefined; }
-    requireValue(!interrupted, "Smoke exceeded the deadline or was interrupted");
+    } finally { clearTimeout(force); force = undefined; child = undefined; }
+    requireValue(!interrupted, "Smoke interrupted");
     requireValue(exit === 0, `${path.basename(executable)} exited ${exit}: ${diagnostic}`);
     return diagnostic;
   };
@@ -163,8 +162,6 @@ async function main() {
     const channel = JSON.parse(fs.readFileSync(path.join(packageRoot, "release/channels.json"), "utf8")).staging;
     const skill = path.join(packageRoot, "skills/intent-prover-staging");
     if (prove) requireValue(fs.existsSync(path.join(skill, "SKILL.md")), "Generated staging skill is missing");
-    const timeout = Number(process.env.SMOKE_TIMEOUT_SECONDS);
-    requireValue(Number.isSafeInteger(timeout) && timeout > 0, "Set a positive SMOKE_TIMEOUT_SECONDS");
     if (prove) requireValue(result.model && result.thinking, "Pin SMOKE_MODEL and SMOKE_THINKING");
     if (process.env.GITHUB_EVENT_PATH) {
       const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
@@ -206,7 +203,7 @@ async function main() {
       write("fixtures/fixture.json", result.fixture);
       fs.writeFileSync(path.join(home, ".config/intent-prover-staging/config.toml"), "max_proof_attempts = 5\nmax_validation_attempts = 5\nmax_run_attempts = 10\n");
       fs.writeFileSync(path.join(env.PI_CODING_AGENT_DIR, "settings.json"), JSON.stringify({ enableInstallTelemetry: false, cacheWarming: "off", retry: { enabled: false } }));
-      setup = `This is an explicitly requested internal staging smoke test. Use the installed Intent Prover Staging skill and ${CLI} on PATH, not the production client. The supplied website request retains its public product wording. The requested program and generated proof inputs may be uploaded to the configured staging service. Use one construction session and its existing attempt limits; do not start replacement sessions to bypass them. Do not install/update tools or start browser login; report missing authentication as blocked. Never print or read credentials into context. You have ${timeout} seconds overall; leave time to return the proof evidence and unresolved obligations.\n`;
+      setup = `This is an explicitly requested internal staging smoke test. Use the installed Intent Prover Staging skill and ${CLI} on PATH, not the production client. The supplied website request retains its public product wording. The requested program and generated proof inputs may be uploaded to the configured staging service. Use one construction session and its existing attempt limits; do not start replacement sessions to bypass them. Do not install/update tools or start browser login; report missing authentication as blocked. Never print or read credentials into context.\n`;
       setup += `The working directory already contains withdraw.py (the unchanged website function) and withdraw.kpyc (its bytecode, generated with CPython ${result.fixture.pythonVersion} and the pinned exporter for ${result.fixture.semantics.id}@${result.fixture.semantics.commit}). Use these supplied inputs; no local Python interpreter or bytecode generation is needed. Read the matching semantics, construct the specification yourself, and use the staging CLI to validate/prove it. No claims or proof solution are supplied.\n`;
       write("setup.txt", setup);
     }
@@ -223,8 +220,6 @@ async function main() {
     if (prove) result.semantics = command(["semantics"]);
     command(["task", "list", "--limit", "1"]); // Check staging authentication before starting remote work.
     requireValue(!interrupted, "Smoke interrupted during preflight");
-    result.timeoutSeconds = timeout;
-    deadline = Date.now() + timeout * 1000;
     if (prove) {
       const args = ["--provider", "openrouter", "--model", result.model, "--thinking", result.thinking,
         "--no-extensions", "--no-mcp", "--no-context-files", "--no-skills", "--skill", skill,

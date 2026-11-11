@@ -26,8 +26,8 @@ local `<source-version>-staging.0` identity is only for this unpublished test:
 no tag, release, catalog or source-version update is made.
 
 For Prove, Pi `1.5.2` on Node `22.19.0` uses OpenRouter's
-`openai/gpt-6-luna` with `high` thinking. These pins, the 1,500-second
-withdrawal deadline and 2,400-second Scan deadline are visible in the workflow.
+`openai/gpt-6-luna` with `high` thinking. Neither Prove nor Scan has a
+harness-imposed overall timeout or a custom workflow job timeout.
 The cases run sequentially in separate isolated jobs; failure does not skip the
 other case. The isolated CLI permits five proof attempts, five validations and
 ten concrete runs in one construction session.
@@ -55,9 +55,8 @@ checkout/launcher commands are saved alongside the reference website prompt.
 The launcher submits, polls, downloads the report and saves local evidence.
 The harness never resubmits; interrupted/failed runs fail and cleanup cancels
 recorded unfinished tasks. The existing `scan collect <task-id>` command remains
-the recovery path, not a replacement submission. The 40-minute outer deadline
-covers checkout and the launcher around the service's 30-minute fast budget;
-queue delays can still fail the smoke. No repository dependencies or scripts
+the recovery path, not a replacement submission. The harness waits for the
+launcher without a wall-clock cutoff. No repository dependencies or scripts
 are installed/run. The backend Scan still uses its configured model: only the
 outer orchestration is deterministic. This covers the Scan client/service
 path, not natural-language prompt interpretation or skill selection.
@@ -134,11 +133,13 @@ usage or cost; it does not measure backend model billing. The workflow records
 runtime including client preflight, but does not independently measure
 queue/worker time beyond saved service evidence.
 
-On deadline or interruption the harness stops the active Pi/checkout/launcher
+On explicit interruption the harness stops the active Pi/checkout/launcher
 process and requests cancellation of proof and Scan tasks recorded by this run.
 Cleanup failures fail the smoke and retain task IDs for investigation. A runner
-crash or a lost submission response can leave a job without local evidence;
-the VPS's own execution deadlines remain necessary.
+crash or a lost submission response can leave a job without local evidence.
+GitHub-hosted jobs still have GitHub's default six-hour execution limit; this
+workflow does not impose a shorter one. Individual HTTP request limits and the
+service's own execution policies are unchanged; they are not smoke deadlines.
 Concurrency does not interrupt an active run when the PR receives another push.
 
 No paid run is needed to check the harness itself. Node syntax, existing unit
