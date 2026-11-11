@@ -1,5 +1,5 @@
 {
-  "$comment": "Single source of truth for Intent Check install steps. Keyed tool > interface > os. Placeholders: {marketplace} = owner/repo; {ref} = '#name' when installing a branch/tag (Claude), empty otherwise; {codex_ref} = '@name' (Codex), empty otherwise. A cell is either full (steps, prereqs, verify, update) or a note pointing at another cell (note, see). Copied by the prover site (scripts/sync-install-json.mjs).",
+  "$comment": "Single source of truth for Intent Prover install steps. Keyed tool > interface > os. Placeholders: {marketplace} = owner/repo; {ref} = '#name' when installing a branch/tag (Claude), empty otherwise; {codex_ref} = '@name' (Codex), empty otherwise. A cell is either full (steps, prereqs, verify, update) or a note pointing at another cell (note, see). Copied by the prover site (scripts/sync-install-json.mjs).",
   "version": "1.1.2",
   "marketplace": "intentcomputing",
   "plugin": "intent",
@@ -30,7 +30,7 @@
             "Open Terminal and run `node -v`. You should see v18 or higher; if not, install Node from nodejs.org first.",
             "In the same window, run `npx -y @anthropic-ai/claude-code@latest plugin marketplace add {marketplace}{ref}`, then `npx -y @anthropic-ai/claude-code@latest plugin install intent@intentcomputing`.",
             "Restart the Claude app, then open a Code-tab session on a local folder.",
-            "Use onboarding to install the global intent-check CLI if needed, then run intent-check login explicitly. Scans and proofs run only when requested."
+            "Use onboarding to install the global intent-prover CLI if needed, then run intent-prover login explicitly. Scans and proofs run only when requested."
           ],
           "verify": "Type `/intent:doctor` in the session, or click + → Plugins to see intent listed.",
           "update": "Run `npx -y @anthropic-ai/claude-code@latest plugin update intent@intentcomputing` in Terminal, then restart the Claude app."
@@ -45,7 +45,7 @@
             "Open PowerShell and run `node -v`. You should see v18 or higher; if not, install Node from nodejs.org first.",
             "In the same window, run `npx.cmd -y @anthropic-ai/claude-code@latest plugin marketplace add {marketplace}{ref}`, then `npx.cmd -y @anthropic-ai/claude-code@latest plugin install intent@intentcomputing`.",
             "Restart the Claude app, then open a Code-tab session on a local folder.",
-            "Use onboarding to install the global intent-check CLI if needed, then run intent-check login explicitly. Scans and proofs run only when requested."
+            "Use onboarding to install the global intent-prover CLI if needed, then run intent-prover login explicitly. Scans and proofs run only when requested."
           ],
           "verify": "Type `/intent:doctor` in the session, or click + → Plugins to see intent listed.",
           "update": "Run `npx.cmd -y @anthropic-ai/claude-code@latest plugin update intent@intentcomputing` in PowerShell, then restart the Claude app."
@@ -62,7 +62,7 @@
             "Run `/plugin marketplace add {marketplace}{ref}`.",
             "Run `/plugin install intent@intentcomputing` and choose \"Install for you\".",
             "Run `/reload-plugins` (or restart Claude Code).",
-            "Use onboarding to install the global intent-check CLI if needed, then run intent-check login explicitly. Scans and proofs run only when requested."
+            "Use onboarding to install the global intent-prover CLI if needed, then run intent-prover login explicitly. Scans and proofs run only when requested."
           ],
           "verify": "Type `/intent:doctor` to check this machine's connection. Ordinary chats and edits must not start reviews or uploads.",
           "update": "Run `claude plugin update intent@intentcomputing` in your shell (or `/plugin` → Installed → Update now), then `/reload-plugins`. To get updates automatically: `/plugin` → Marketplaces → intentcomputing → Enable auto-update (it is off by default for third-party marketplaces)."
@@ -77,7 +77,7 @@
             "Run `/plugin marketplace add {marketplace}{ref}`.",
             "Run `/plugin install intent@intentcomputing` and choose \"Install for you\".",
             "Run `/reload-plugins` (or restart Claude Code).",
-            "Use onboarding to install the global intent-check CLI if needed, then run intent-check login explicitly. Scans and proofs run only when requested."
+            "Use onboarding to install the global intent-prover CLI if needed, then run intent-prover login explicitly. Scans and proofs run only when requested."
           ],
           "verify": "Type `/intent:doctor` to check this machine's connection. Ordinary chats and edits must not start reviews or uploads.",
           "update": "Run `claude plugin update intent@intentcomputing` in your shell (or `/plugin` → Installed → Update now), then `/reload-plugins`. To get updates automatically: `/plugin` → Marketplaces → intentcomputing → Enable auto-update (it is off by default for third-party marketplaces)."
@@ -92,7 +92,7 @@
             "Run `/plugin marketplace add {marketplace}{ref}`.",
             "Run `/plugin install intent@intentcomputing` and choose \"Install for you\".",
             "Run `/reload-plugins` (or restart Claude Code).",
-            "Use onboarding to install the global intent-check CLI if needed, then run intent-check login explicitly. Scans and proofs run only when requested."
+            "Use onboarding to install the global intent-prover CLI if needed, then run intent-prover login explicitly. Scans and proofs run only when requested."
           ],
           "verify": "Type `/intent:doctor` to check this machine's connection. Ordinary chats and edits must not start reviews or uploads.",
           "update": "Run `claude plugin update intent@intentcomputing` in your shell (or `/plugin` → Installed → Update now), then `/reload-plugins`. To get updates automatically: `/plugin` → Marketplaces → intentcomputing → Enable auto-update (it is off by default for third-party marketplaces)."
@@ -110,7 +110,7 @@
             "Run `npx -y @anthropic-ai/claude-code@latest plugin marketplace add {marketplace}{ref}`.",
             "Run `npx -y @anthropic-ai/claude-code@latest plugin install intent@intentcomputing`.",
             "Reload the VS Code window (Command Palette → Developer: Reload Window) and open the Claude Code panel.",
-            "Use onboarding to install the global intent-check CLI if needed, then run intent-check login explicitly. Scans and proofs run only when requested."
+            "Use onboarding to install the global intent-prover CLI if needed, then run intent-prover login explicitly. Scans and proofs run only when requested."
           ],
           "verify": "In the Claude Code panel, type `/intent:doctor` to check this machine's connection. Ordinary chats and edits must not start reviews or uploads.",
           "update": "Run `npx -y @anthropic-ai/claude-code@latest plugin update intent@intentcomputing` in the integrated terminal, then reload the window. To get updates automatically, type `/plugins` in the Claude Code panel, open the Marketplaces tab, select intentcomputing and choose Enable auto-update (it is off by default for third-party marketplaces)."
@@ -126,7 +126,7 @@
             "Run `npx.cmd -y @anthropic-ai/claude-code@latest plugin marketplace add {marketplace}{ref}`.",
             "Run `npx.cmd -y @anthropic-ai/claude-code@latest plugin install intent@intentcomputing`.",
             "Reload the VS Code window (Command Palette → Developer: Reload Window) and open the Claude Code panel.",
-            "Use onboarding to install the global intent-check CLI if needed, then run intent-check login explicitly. Scans and proofs run only when requested."
+            "Use onboarding to install the global intent-prover CLI if needed, then run intent-prover login explicitly. Scans and proofs run only when requested."
           ],
           "verify": "In the Claude Code panel, type `/intent:doctor` to check this machine's connection. Ordinary chats and edits must not start reviews or uploads.",
           "update": "Run `npx.cmd -y @anthropic-ai/claude-code@latest plugin update intent@intentcomputing` in the integrated terminal, then reload the window. To get updates automatically, type `/plugins` in the Claude Code panel, open the Marketplaces tab, select intentcomputing and choose Enable auto-update (it is off by default for third-party marketplaces)."
@@ -142,7 +142,7 @@
             "Run `npx -y @anthropic-ai/claude-code@latest plugin marketplace add {marketplace}{ref}`.",
             "Run `npx -y @anthropic-ai/claude-code@latest plugin install intent@intentcomputing`.",
             "Reload the VS Code window (Command Palette → Developer: Reload Window) and open the Claude Code panel.",
-            "Use onboarding to install the global intent-check CLI if needed, then run intent-check login explicitly. Scans and proofs run only when requested."
+            "Use onboarding to install the global intent-prover CLI if needed, then run intent-prover login explicitly. Scans and proofs run only when requested."
           ],
           "verify": "In the Claude Code panel, type `/intent:doctor` to check this machine's connection. Ordinary chats and edits must not start reviews or uploads.",
           "update": "Run `npx -y @anthropic-ai/claude-code@latest plugin update intent@intentcomputing` in the integrated terminal, then reload the window. To get updates automatically, type `/plugins` in the Claude Code panel, open the Marketplaces tab, select intentcomputing and choose Enable auto-update (it is off by default for third-party marketplaces)."
@@ -175,10 +175,10 @@
           "steps": [
             "Open Terminal and run `codex plugin marketplace add {marketplace}{codex_ref}`.",
             "Run `codex plugin add intent@intentcomputing`.",
-            "Restart Codex. Intent Check has no automatic hooks to approve.",
-            "Use onboarding to install the global intent-check CLI if needed, then run intent-check login explicitly. Scans and proofs run only when requested."
+            "Restart Codex. Intent Prover has no automatic hooks to approve.",
+            "Use onboarding to install the global intent-prover CLI if needed, then run intent-prover login explicitly. Scans and proofs run only when requested."
           ],
-          "verify": "Ask the agent to run the Intent Check doctor. Ordinary chats and edits must not start reviews or uploads.",
+          "verify": "Ask the agent to run the Intent Prover doctor. Ordinary chats and edits must not start reviews or uploads.",
           "update": "Run `codex plugin marketplace upgrade intentcomputing`, then restart `codex`. Close sessions using the old plugin; the updated plugin has no automatic hooks."
         },
         "windows": {
@@ -189,10 +189,10 @@
           "steps": [
             "Open PowerShell and run `codex plugin marketplace add {marketplace}{codex_ref}`.",
             "Run `codex plugin add intent@intentcomputing`.",
-            "Restart Codex. Intent Check has no automatic hooks to approve.",
-            "Use onboarding to install the global intent-check CLI if needed, then run intent-check login explicitly. Scans and proofs run only when requested."
+            "Restart Codex. Intent Prover has no automatic hooks to approve.",
+            "Use onboarding to install the global intent-prover CLI if needed, then run intent-prover login explicitly. Scans and proofs run only when requested."
           ],
-          "verify": "Ask the agent to run the Intent Check doctor. Ordinary chats and edits must not start reviews or uploads.",
+          "verify": "Ask the agent to run the Intent Prover doctor. Ordinary chats and edits must not start reviews or uploads.",
           "update": "Run `codex plugin marketplace upgrade intentcomputing`, then restart `codex`. Close sessions using the old plugin; the updated plugin has no automatic hooks."
         },
         "linux": {
@@ -203,10 +203,10 @@
           "steps": [
             "Open a terminal and run `codex plugin marketplace add {marketplace}{codex_ref}`.",
             "Run `codex plugin add intent@intentcomputing`.",
-            "Restart Codex. Intent Check has no automatic hooks to approve.",
-            "Use onboarding to install the global intent-check CLI if needed, then run intent-check login explicitly. Scans and proofs run only when requested."
+            "Restart Codex. Intent Prover has no automatic hooks to approve.",
+            "Use onboarding to install the global intent-prover CLI if needed, then run intent-prover login explicitly. Scans and proofs run only when requested."
           ],
-          "verify": "Ask the agent to run the Intent Check doctor. Ordinary chats and edits must not start reviews or uploads.",
+          "verify": "Ask the agent to run the Intent Prover doctor. Ordinary chats and edits must not start reviews or uploads.",
           "update": "Run `codex plugin marketplace upgrade intentcomputing`, then restart `codex`. Close sessions using the old plugin; the updated plugin has no automatic hooks."
         }
       },

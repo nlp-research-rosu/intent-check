@@ -1,6 +1,6 @@
 # Scan
 
-Use the plugin launcher in [Intent Check](../SKILL.md#commands), not the global
+Use the plugin launcher in [Intent Prover](../SKILL.md#commands), not the global
 Prove CLI. Before submitting, explain that the requested code will be uploaded
 to the configured service, with obvious secrets masked. A generic local-review
 request is not permission to upload code; ask if remote analysis was not requested.

@@ -22,7 +22,7 @@ Reachability claims establish partial correctness, not termination.
 
 ## Working context
 
-Use the global `intent-check` CLI; [onboarding](onboarding.md) covers missing setup.
+Use the global `intent-prover` CLI; [onboarding](onboarding.md) covers missing setup.
 `semantics` lists supported definitions; `session start` pins and downloads one.
 Construction and repairs share that session and its limits. Unsupported language
 behavior is a model boundary, not a reason to author replacement semantics.

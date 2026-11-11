@@ -29,8 +29,8 @@ test("console base: INTENT_CONSOLE_URL, then the compiled default", () => {
 });
 
 const creds = (keys, mode = 0o600) => (dir) => {
-  fs.mkdirSync(path.join(dir, "xdg", "intent-check"), { recursive: true });
-  fs.writeFileSync(path.join(dir, "xdg", "intent-check", "credentials.json"), JSON.stringify({ keys }), { mode });
+  fs.mkdirSync(path.join(dir, "xdg", "intent-prover"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "xdg", "intent-prover", "credentials.json"), JSON.stringify({ keys }), { mode });
 };
 
 test("API key: INTENT_API_KEY, then the credentials file entry for the API origin", () => {
@@ -46,7 +46,7 @@ test("API key: INTENT_API_KEY, then the credentials file entry for the API origi
 
 test("a credentials file others can read is not used, and the problem is named", { skip: process.platform === "win32" }, () => {
   const u = "http://127.0.0.1:1";
-  const p = probe({ XDG: true, INTENT_API_URL: u }, {}, (dir) => { creds({ [u]: "opaque-one" }, 0o644)(dir); fs.chmodSync(path.join(dir, "xdg", "intent-check", "credentials.json"), 0o644); });
+  const p = probe({ XDG: true, INTENT_API_URL: u }, {}, (dir) => { creds({ [u]: "opaque-one" }, 0o644)(dir); fs.chmodSync(path.join(dir, "xdg", "intent-prover", "credentials.json"), 0o644); });
   assert.deepEqual(p.key, { key: null, source: null });
   assert.match(p.problem, /readable by others/);
 });

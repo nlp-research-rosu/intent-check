@@ -171,7 +171,7 @@ test("an interrupted Scan keeps its task record and collect resumes without anot
 test("missing auth, environment opt-outs and invalid targets never submit", async () => {
   const ctx = setup({ key: false });
   assert.equal((await cli([], ctx)).code, 1);
-  assert.match((await cli([], ctx)).err, /intent-check login/);
+  assert.match((await cli([], ctx)).err, /intent-prover login/);
   const connected = setup();
   assert.equal((await cli([], connected, { INTENT_DISABLED: "1" })).code, 1);
   assert.match((await cli(["missing.py"], connected)).out, /not found/);
