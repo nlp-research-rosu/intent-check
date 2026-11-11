@@ -13,7 +13,7 @@ test("marketplace and manifests share one plugin version", () => {
   assert.equal(marketplace.plugins[0].source.ref, `v${marketplace.plugins[0].version}`);
   const version = read("package.json").version;
   assert.match(version, /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
-  for (const name of [".claude-plugin/plugin.json", ".codex-plugin/plugin.json"]) {
+  for (const name of [".claude-plugin/plugin.json", ".codex-plugin/plugin.json", ".antigravity-plugin/plugin.json"]) {
     assert.equal(read(name).version, version);
     assert.equal(read(name).hooks, undefined);
   }

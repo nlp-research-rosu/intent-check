@@ -57,3 +57,12 @@ test("Scan environment opt-outs and plugin version", () => {
   assert.equal(probe({ DO_NOT_TRACK: "1" }).off, "DO_NOT_TRACK");
   assert.equal(probe({}).v, JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version);
 });
+
+test("plugin data directory follows the host's install path", async () => {
+  const { dataDirFromRoot } = await import("../lib/config.js");
+  const home = path.resolve("/home/u");
+  const at = (...p) => path.join(home, ...p);
+  assert.equal(dataDirFromRoot(at(".claude/plugins/cache/intentcomputing/intent/1.1.2")), at(".claude/plugins/data/intent-intentcomputing"));
+  assert.equal(dataDirFromRoot(at(".gemini/config/plugins/intent")), at(".gemini/config/plugin-data/intent"));
+  assert.equal(dataDirFromRoot(at("src/intent-check")), null);
+});

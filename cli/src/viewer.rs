@@ -93,6 +93,9 @@ fn plugin_directories(explicit: Vec<PathBuf>) -> Vec<PathBuf> {
             dirs.push(base.join("plugins/data/intent-intentcomputing"));
         }
     }
+    if let Some(home) = &home {
+        dirs.push(home.join(".gemini/config/plugin-data/intent"));
+    }
     dirs.sort();
     dirs.dedup();
     dirs

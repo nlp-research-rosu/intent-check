@@ -9,7 +9,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-export const FILES = ["package.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "cli/Cargo.toml", "cli/Cargo.lock"];
+export const FILES = ["package.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json", ".antigravity-plugin/plugin.json", "cli/Cargo.toml", "cli/Cargo.lock"];
 // The CLI ships in the same release, so its crate version follows the plugin's. Only the package's own entry counts.
 const PATTERNS = {
   "cli/Cargo.toml": /(\[package\][^[]*?\nversion = ")([^"]*)(")/g,
