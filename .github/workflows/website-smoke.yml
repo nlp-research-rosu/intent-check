@@ -31,8 +31,6 @@ jobs:
       SMOKE_THINKING: high
       SMOKE_CASE: ${{ matrix.case }}
       SMOKE_TIMEOUT_SECONDS: ${{ matrix.timeout }}
-      SMOKE_PACKAGE_ROOT: ${{ runner.temp }}/smoke-package
-      SMOKE_OUTPUT_DIR: ${{ runner.temp }}/smoke-results
     steps:
       # The default PR merge ref tests the prospective main tree, not just its head.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -42,6 +40,10 @@ jobs:
         with:
           node-version: 22.19.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - name: Configure temporary smoke paths
+        run: |
+          echo "SMOKE_PACKAGE_ROOT=$RUNNER_TEMP/smoke-package" >> "$GITHUB_ENV"
+          echo "SMOKE_OUTPUT_DIR=$RUNNER_TEMP/smoke-results" >> "$GITHUB_ENV"
       - name: Install pinned Pi without lifecycle scripts
         if: matrix.case == 'withdraw'
         run: |
