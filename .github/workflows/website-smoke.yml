@@ -24,7 +24,7 @@ jobs:
         case: [withdraw, mle-bench]
     env:
       PI_VERSION: 1.5.2
-      SMOKE_MODEL: openai/gpt-6-luna
+      SMOKE_MODEL: deepseek/deepseek-v4.1-flash-1017
       SMOKE_THINKING: high
       SMOKE_CASE: ${{ matrix.case }}
     steps:

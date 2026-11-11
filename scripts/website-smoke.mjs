@@ -201,7 +201,21 @@ async function main() {
         write(`fixtures/${name}`, bytes.toString("utf8"));
       }
       write("fixtures/fixture.json", result.fixture);
-      fs.writeFileSync(path.join(home, ".config/intent-prover-staging/config.toml"), "max_proof_attempts = 5\nmax_validation_attempts = 5\nmax_run_attempts = 10\n");
+      fs.writeFileSync(path.join(home, ".config/intent-prover-staging/config.toml"), "max_proof_attempts = 50\nmax_validation_attempts = 50\nmax_run_attempts = 50\n");
+      const modelConfig = {
+        providers: {
+          openrouter: {
+            modelOverrides: {
+              [result.model]: {
+                maxTokens: 393216,
+                compat: { openRouterRouting: { zdr: true, data_collection: "deny", require_parameters: true, allow_fallbacks: true } },
+              },
+            },
+          },
+        },
+      };
+      fs.writeFileSync(path.join(env.PI_CODING_AGENT_DIR, "models.json"), JSON.stringify(modelConfig));
+      write("model-config.json", modelConfig);
       fs.writeFileSync(path.join(env.PI_CODING_AGENT_DIR, "settings.json"), JSON.stringify({ enableInstallTelemetry: false, cacheWarming: "off", retry: { enabled: false } }));
       setup = `This is an explicitly requested internal staging smoke test. Use the installed Intent Prover Staging skill and ${CLI} on PATH, not the production client. The supplied website request retains its public product wording. The requested program and generated proof inputs may be uploaded to the configured staging service. Use one construction session and its existing attempt limits; do not start replacement sessions to bypass them. Do not install/update tools or start browser login; report missing authentication as blocked. Never print or read credentials into context.\n`;
       setup += `The working directory already contains withdraw.py (the unchanged website function) and withdraw.kpyc (its bytecode, generated with CPython ${result.fixture.pythonVersion} and the pinned exporter for ${result.fixture.semantics.id}@${result.fixture.semantics.commit}). Use these supplied inputs; no local Python interpreter or bytecode generation is needed. Read the matching semantics, construct the specification yourself, and use the staging CLI to validate/prove it. No claims or proof solution are supplied.\n`;

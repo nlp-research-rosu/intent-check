@@ -26,14 +26,21 @@ local `<source-version>-staging.0` identity is only for this unpublished test:
 no tag, release, catalog or source-version update is made.
 
 For Prove, Pi `1.5.2` on Node `22.19.0` uses OpenRouter's
-`openai/gpt-6-luna` with `high` thinking. Neither Prove nor Scan has a
+`deepseek/deepseek-v4.1-flash-1017` with `high` thinking. Neither Prove nor Scan has a
 harness-imposed overall timeout or a custom workflow job timeout.
 The cases run sequentially in separate isolated jobs; failure does not skip the
-other case. The isolated CLI permits five proof attempts, five validations and
-ten concrete runs in one construction session.
+other case. The isolated CLI permits 50 proof attempts, 50 validations and
+50 concrete runs in one construction session.
 There is no whole-scenario retry or model fallback. Normal proof repairs happen
-inside that session. Model-provider routing follows the test key's OpenRouter
-settings; freeze those restrictions for comparisons.
+inside that session. Pi's isolated model configuration explicitly requires
+OpenRouter zero data retention (`zdr: true`), no data collection
+(`data_collection: "deny"`) and support for the requested parameters. OpenRouter
+may fall back between privacy-compatible providers for this same model; no
+first-party provider or precision is guaranteed. Account/key restrictions still
+apply and are not relaxed by the harness. Provider prices vary; reconcile actual
+OpenRouter billing rather than assuming first-party rates. The per-response output
+ceiling is 393,216 tokens, also constrained by remaining model context. This is
+not a conversation-turn limit. The effective model configuration is retained.
 
 `test/smoke/withdraw.txt` and `test/smoke/mle-bench.txt` are the public Prove and
 default Scan requests retrieved from <https://prover.intentcomputing.org/> on
