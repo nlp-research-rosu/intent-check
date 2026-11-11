@@ -27,7 +27,7 @@ export function createFakeProver(opts = {}) {
     const m = vparts(st.minVersion);
     return !a || [0, 1, 2].some((i) => { const d = a[i] - m[i]; return d !== 0 && [0, 1, 2].slice(0, i).every((j) => a[j] === m[j]) && d < 0; });
   };
-  const upgrade = (res) => json(res, 426, { code: "UPGRADE_REQUIRED", message: `Intent Check needs plugin version ${st.minVersion} or later. Update the plugin.`, details: { reason: "plugin_version" } });
+  const upgrade = (res) => json(res, 426, { code: "UPGRADE_REQUIRED", message: `Intent Prover needs plugin version ${st.minVersion} or later. Update the plugin.`, details: { reason: "plugin_version" } });
 
   function json(res, status, body) {
     const b = JSON.stringify(body);

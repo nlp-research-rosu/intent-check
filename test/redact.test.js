@@ -35,8 +35,8 @@ for (const [rule, secret] of Object.entries(SECRETS)) {
 // Service keys are opaque, so the stored values themselves are masked wherever they appear.
 test("redacts the exact keys this machine holds (environment and credentials file), whatever their shape", () => {
   const dir = tmpdir("intent-redact-");
-  fs.mkdirSync(path.join(dir, "intent-check"));
-  fs.writeFileSync(path.join(dir, "intent-check", "credentials.json"), JSON.stringify({ keys: { "https://a.test": "plain-opaque-key-1", "https://b.test": "short" } }), { mode: 0o600 });
+  fs.mkdirSync(path.join(dir, "intent-prover"));
+  fs.writeFileSync(path.join(dir, "intent-prover", "credentials.json"), JSON.stringify({ keys: { "https://a.test": "plain-opaque-key-1", "https://b.test": "short" } }), { mode: 0o600 });
   const keep = { x: process.env.XDG_CONFIG_HOME, k: process.env.INTENT_API_KEY };
   process.env.XDG_CONFIG_HOME = dir;
   process.env.INTENT_API_KEY = "another opaque value";

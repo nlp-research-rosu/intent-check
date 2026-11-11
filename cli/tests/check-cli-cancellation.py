@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the built CLI against isolated loopback cancellation failures.
 
-Usage: python3 cli/tests/check-cli-cancellation.py /absolute/path/to/intent-check
+Usage: python3 cli/tests/check-cli-cancellation.py /absolute/path/to/intent-prover
 """
 
 import json
@@ -127,7 +127,7 @@ class CancellationTests(unittest.TestCase):
             prefix="codex-cli-cancellation-", dir=shared,
         ) as directory, Server(scenario) as server:
             root = Path(directory)
-            config = root / "config/intent-check"
+            config = root / "config/intent-prover"
             config.mkdir(parents=True)
             (config / "config.toml").write_text(
                 f'server_url = "http://127.0.0.1:{server.server_port}"\n'
@@ -141,7 +141,7 @@ class CancellationTests(unittest.TestCase):
                 }}))
                 credentials.chmod(0o600)
             (root / "spec.k").write_text("module TEST endmodule\n")
-            seed(root / "config/intent-check")
+            seed(root / "config/intent-prover")
             env = dict(os.environ, XDG_CONFIG_HOME=str(root / "config"))
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()

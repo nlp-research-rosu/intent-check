@@ -6,7 +6,7 @@ allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js":*)
 
 The user requested: $ARGUMENTS
 
-For a new Scan, tell the user before running it that a snapshot of the selected file, folder or repository will be uploaded to the configured Intent Check service, with obvious secrets masked. Project notes in `.intent/NOTES.md` are included when they fall within the selected scope; other `.intent/` evidence and chat transcripts are not uploaded. Do not widen the requested scope.
+For a new Scan, tell the user before running it that a snapshot of the selected file, folder or repository will be uploaded to the configured Intent Prover service, with obvious secrets masked. Project notes in `.intent/NOTES.md` are included when they fall within the selected scope; other `.intent/` evidence and chat transcripts are not uploaded. Do not widen the requested scope.
 
 Run `node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" scan --data "${CLAUDE_PLUGIN_DATA}"` from the project, adding the arguments:
 

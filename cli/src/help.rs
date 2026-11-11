@@ -1,7 +1,7 @@
-pub const ROOT: &str = r#"The Intent Check plugin bundles agent skills and the intent-check CLI.
-intent-check connects to the remote Intent Check service.
-Use `intent-check <command> --help` for options, examples, and result details.
-For nested commands, use e.g. `intent-check session start --help`.
+pub const ROOT: &str = r#"The Intent Prover plugin bundles agent skills and the intent-prover CLI.
+intent-prover connects to the remote Intent Prover service.
+Use `intent-prover <command> --help` for options, examples, and result details.
+For nested commands, use e.g. `intent-prover session start --help`.
 
 Sessions automatically use the repository root, even from a subdirectory.
 Outside a repository they use the current directory. --project <directory>
@@ -28,43 +28,43 @@ exhausted and exit 20 without submitting a task. Inspect the JSON to distinguish
 these local cases from a backend tool returning the same number.
 Argument errors exit 2. Help and version output are plain text.
 
-The budget shows attempts used when the Intent Check service accepted this task.
+The budget shows attempts used when the Intent Prover service accepted this task.
 Other commands can use more attempts while it runs. Use
-`intent-check session show <SESSION_ID>` to see the latest counts.
-Use `intent-check task --help` to inspect or recover accepted tasks without
+`intent-prover session show <SESSION_ID>` to see the latest counts.
+Use `intent-prover task --help` to inspect or recover accepted tasks without
 submitting again or consuming another attempt.
 
-Use `intent-check config --help` for settings, timeouts, and cancellation behavior."#;
+Use `intent-prover config --help` for settings, timeouts, and cancellation behavior."#;
 
-pub const LOGIN: &str = r#"Run `intent-check login` and give the user verification_url.
+pub const LOGIN: &str = r#"Run `intent-prover login` and give the user verification_url.
 The link includes the connection code. The user signs in and approves the machine.
 The command keeps running, collects the API key, saves it without printing it,
 and exits with status connected. No user terminal interaction is needed.
 Production server and portal URLs are the defaults. To override them, set
 INTENT_API_URL and INTENT_CONSOLE_URL, or edit config.toml; see
-`intent-check config --help`. INTENT_API_KEY, when set, is used instead of
+`intent-prover config --help`. INTENT_API_KEY, when set, is used instead of
 the saved key.
 
 Credentials are saved in credentials.json beside config.toml, scoped to the
-Intent Check service origin, with mode 600 on Unix. Do not read this file into agent context.
+Intent Prover service origin, with mode 600 on Unix. Do not read this file into agent context.
 Config and login output never print a credential. If login expires, is stopped,
-or loses its one-time key response, run intent-check login again."#;
+or loses its one-time key response, run intent-prover login again."#;
 
-pub const CONFIG: &str = r#"Run `intent-check config` to see effective settings and the configuration file location.
+pub const CONFIG: &str = r#"Run `intent-prover config` to see effective settings and the configuration file location.
 To change settings, edit the TOML configuration file. Its location is the
 first applicable path:
-  $XDG_CONFIG_HOME/intent-check/config.toml
-  %APPDATA%/intent-check/config.toml (Windows)
-  ~/.config/intent-check/config.toml
+  $XDG_CONFIG_HOME/intent-prover/config.toml
+  %APPDATA%/intent-prover/config.toml (Windows)
+  ~/.config/intent-prover/config.toml
 
-The plugin reads this same file through the global intent-check CLI for API
+The plugin reads this same file through the global intent-prover CLI for API
 and console endpoints. INTENT_API_URL and INTENT_CONSOLE_URL override it;
 blank variables count as unset.
 
 Settings:
-  server_url                Intent Check service HTTP endpoint.
+  server_url                Intent Prover service HTTP endpoint.
                             Default: https://api.prover.intentcomputing.org.
-  portal_url                Intent Check web origin for browser login.
+  portal_url                Intent Prover web origin for browser login.
                             Default: https://prover-console.intentcomputing.org.
   request_timeout_seconds   Limit for each HTTP request.
   poll_interval_seconds     Delay between task-status polls.
@@ -73,7 +73,7 @@ Settings:
   max_proof_attempts        Proof-attempt limit per session. Default: 50.
 
 All numeric settings must be positive and are read on each command.
-The Intent Check service owns task execution limits. Run, validate, and prove do not send a
+The Intent Prover service owns task execution limits. Run, validate, and prove do not send a
 timeout override or impose a local task or queue-wait deadline. The CLI polls
 until the service reports a terminal status, polling retries are exhausted, a
 non-retryable request fails, or the user interrupts.
@@ -83,7 +83,7 @@ Task-status polls retry connection errors, timeouts, and HTTP 408, 429, 500,
 resets this allowance. Authentication errors, invalid JSON and other HTTP
 errors fail immediately. Submissions and cancellation requests are not retried.
 If polling stops, the task may still run. Use task wait to reconnect, not prove
-or validate to resubmit. See `intent-check task --help`.
+or validate to resubmit. See `intent-prover task --help`.
 Session counters live in sessions/<ID>/session.json beside config.toml; shared
 language sources live in semantics/<id>/<commit>/ there too.
 The same XDG_CONFIG_HOME / APPDATA / home-directory rules apply to all three.
@@ -107,15 +107,15 @@ Cancellation:
   in that race.
   The client cancels only this command's task, not other tasks in the session."#;
 
-pub const HEALTH: &str = r#"Example: intent-check health
+pub const HEALTH: &str = r#"Example: intent-prover health
 Returns the server health response and exits 0 only when status is ok.
-Use `intent-check config` to inspect the endpoint if the request fails."#;
+Use `intent-prover config` to inspect the endpoint if the request fails."#;
 
 pub const TASK: &str = r#"Examples:
-  intent-check task list --status running
-  intent-check task show <TASK_ID>
-  intent-check task wait <TASK_ID> --session <SESSION_ID>
-  intent-check task cancel <TASK_ID>
+  intent-prover task list --status running
+  intent-prover task show <TASK_ID>
+  intent-prover task wait <TASK_ID> --session <SESSION_ID>
+  intent-prover task cancel <TASK_ID>
 
 These commands use the configured server and saved credential. They never
 submit a new task or increment any session counter, even at the attempt limit.
@@ -132,7 +132,7 @@ stdout, stderr and metrics without resubmitting. Its output and backend exit
 code follow run, validate or prove; budget reflects current session counts.
 Use it after the original waiting process has stopped. Logs and other remote
 files may already have expired; local evidence cannot reconstruct them.
-Polling and Ctrl-C cancellation follow `intent-check config --help`.
+Polling and Ctrl-C cancellation follow `intent-prover config --help`.
 
 Cancel sends one cancellation request and checks confirmation for up to five
 seconds. It returns task and cancellation, including cancellationConfirmed,
@@ -140,15 +140,15 @@ and exits 0 only when terminal cancellation is confirmed. Otherwise it exits
 1; inspect the returned task, which may have completed during cancellation.
 Cancel does not update local evidence; use wait afterward to collect it."#;
 
-pub const SEMANTICS: &str = r#"Example: intent-check semantics
+pub const SEMANTICS: &str = r#"Example: intent-prover semantics
 Lists the configured server's current {id, commit} identities.
-Use `intent-check semantics fetch --help` to download and select a revision.
+Use `intent-prover semantics fetch --help` to download and select a revision.
 The returned ID selects a language definition for a new session."#;
 
-pub const SEMANTICS_FETCH: &str = r#"Example: intent-check semantics fetch <SEMANTICS_ID>
+pub const SEMANTICS_FETCH: &str = r#"Example: intent-prover semantics fetch <SEMANTICS_ID>
 
-Downloads the current bundled sources from the configured Intent Check service's authenticated
-/semantics/<id>/archive endpoint. Run `intent-check login` to connect first.
+Downloads the current bundled sources from the configured Intent Prover service's authenticated
+/semantics/<id>/archive endpoint. Run `intent-prover login` to connect first.
 The ZIP must match the catalog's semantics ID and commit before it is cached.
 Download or extraction failures leave existing cached sources unchanged.
 
@@ -160,8 +160,8 @@ It does not change existing session pins. Unsupported revisions are rejected
 by the server."#;
 
 pub const RUN: &str = r#"Start a session, then use its returned sessionId:
-  intent-check session start --semantics <SEMANTICS_ID>
-  intent-check run --session <SESSION_ID> \
+  intent-prover session start --semantics <SEMANTICS_ID>
+  intent-prover run --session <SESSION_ID> \
     --program .intent/prove/sessions/<SESSION_ID>/inputs/program
 
 Create session-specific programs in <workspaceDir>/inputs/.
@@ -179,12 +179,12 @@ result and exit code are not overwritten.
 task.result is success or error; the configuration is in saved stdout.
 Evidence is stored under <workspaceDir>/run-NNN/result.json, with inline
 stdout and stderr. The snapshot is updated from acceptance to completion.
-See `intent-check config --help` for timeout and cancellation behavior."#;
+See `intent-prover config --help` for timeout and cancellation behavior."#;
 
 pub const SESSION: &str = r#"Examples:
-  intent-check session start --semantics <SEMANTICS_ID>
-  intent-check session start --project /absolute/path/to/project --semantics <SEMANTICS_ID>
-  intent-check session show <SESSION_ID>
+  intent-prover session start --semantics <SEMANTICS_ID>
+  intent-prover session start --project /absolute/path/to/project --semantics <SEMANTICS_ID>
+  intent-prover session show <SESSION_ID>
 
 Start detects the repository root automatically from the current directory
 or --project directory. Worktrees and submodules use their own repository root.
@@ -218,7 +218,7 @@ const SOURCE_EXAMPLES: &str = r#"Source examples:
   --spec and --verification include the first two files. Supply both other
   files explicitly, including the indirect dependency lib/math.k:
 
-    intent-check validate --session <SESSION_ID> \
+    intent-prover validate --session <SESSION_ID> \
       --spec inputs/spec.k --spec-module SPEC \
       --verification inputs/verification.k --verification-module VERIFICATION \
       --source inputs/helper.k --source inputs/lib/math.k
@@ -226,12 +226,12 @@ const SOURCE_EXAMPLES: &str = r#"Source examples:
   Repeat the same source options when proving; validation does not save an
   upload list for later commands:
 
-    intent-check prove --session <SESSION_ID> \
+    intent-prover prove --session <SESSION_ID> \
       --spec inputs/spec.k --spec-module SPEC \
       --verification inputs/verification.k --verification-module VERIFICATION \
       --source inputs/helper.k --source inputs/lib/math.k
 
-  Start with `intent-check session start --semantics <id>` and use its sessionId.
+  Start with `intent-prover session start --semantics <id>` and use its sessionId.
   Proof file paths are relative to workspaceDir, not the shell directory.
   This example assumes modules SPEC and VERIFICATION in the named files."#;
 
@@ -260,9 +260,9 @@ Parallel proofs:
   Start separate prove commands without waiting for the first to finish.
   Use the same session ID:
 
-    intent-check prove --session <SESSION_ID> \
+    intent-prover prove --session <SESSION_ID> \
       --spec inputs/spec.k --spec-module SPEC --claim SPEC.first
-    intent-check prove --session <SESSION_ID> \
+    intent-prover prove --session <SESSION_ID> \
       --spec inputs/spec.k --spec-module SPEC --claim SPEC.second
 
   Both commands count towards the same proof-attempt limit.
@@ -271,7 +271,7 @@ Parallel proofs:
   One command does not reuse proofs from another command."#;
 
 const EVIDENCE: &str = r#"Evidence:
-  The CLI automatically polls the Intent Check service while the command runs. The evidenceDir
+  The CLI automatically polls the Intent Prover service while the command runs. The evidenceDir
   contains only result.json: it starts with the accepted task, then each poll
   replaces it with the latest task response. Earlier snapshots are not kept.
   At completion it adds inline stdout and stderr. The file holds the last
@@ -305,10 +305,10 @@ const EVIDENCE: &str = r#"Evidence:
   Task and saved backend evidence remain unchanged.
   CLI budget data is not duplicated in evidence files. Local errors include
   a message with the task ID and evidence location when available.
-  Recover an accepted task with task wait; see `intent-check task --help`.
+  Recover an accepted task with task wait; see `intent-prover task --help`.
   A polling failure retains the last task response. A failed log download
   retains previously saved logs and records stdoutError or stderrError.
-  See `intent-check config --help` for timeouts and cancellation details."#;
+  See `intent-prover config --help` for timeouts and cancellation details."#;
 
 pub fn validate() -> String {
     format!(
@@ -361,9 +361,9 @@ Bounded diagnosis:
     )
 }
 pub const VIEW: &str = r#"Examples:
-  intent-check view
-  intent-check view --output intent-report.html
-  intent-check --project ../my-repo view --plugin-data /path/to/plugin/data
+  intent-prover view
+  intent-prover view --output intent-report.html
+  intent-prover --project ../my-repo view --plugin-data /path/to/plugin/data
 
 Without --output, serves a read-only viewer on 127.0.0.1. Open the printed URL;
 Ctrl-C stops the server. The page refreshes local artifacts and active checks

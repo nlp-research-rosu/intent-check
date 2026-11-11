@@ -83,7 +83,7 @@ impl Api {
     pub fn health(&self) -> Result<Value> {
         let health = self.get("/healthz")?;
         if health["status"] != "ok" {
-            bail!("Intent Check service health check failed");
+            bail!("Intent Prover service health check failed");
         }
         Ok(health)
     }
@@ -100,7 +100,7 @@ impl Api {
         let status = response.status();
         if !status.is_success() {
             bail!(
-                "Intent Check service semantics archive returned HTTP {status}; check the endpoint and saved connection"
+                "Intent Prover service semantics archive returned HTTP {status}; check the endpoint and saved connection"
             );
         }
         Ok(response)
@@ -186,7 +186,7 @@ impl Api {
         write_json(&evidence, "result.json", &snapshot)?;
         let waited = waited.map_err(|error| {
             anyhow!(
-                "Task {id}: {error}; evidence: {}; resume with intent-check task wait {id} --session {}",
+                "Task {id}: {error}; evidence: {}; resume with intent-prover task wait {id} --session {}",
                 evidence.display(), session.session_id
             )
         })?;
@@ -342,7 +342,7 @@ impl Api {
                 }
             };
             if task_id(&task)? != id {
-                bail!("Intent Check service response task ID is mismatched");
+                bail!("Intent Prover service response task ID is mismatched");
             }
             failures = 0;
             snapshot.as_object_mut().unwrap().remove("wait");
@@ -357,7 +357,7 @@ impl Api {
                     return Ok(WaitResult { task, stop: None });
                 }
                 Some("queued" | "running") => {}
-                status => bail!("Unknown Intent Check service task status: {status:?}"),
+                status => bail!("Unknown Intent Prover service task status: {status:?}"),
             }
             if signal.recv_timeout(Duration::from_secs(poll)).is_ok() {
                 return Ok(self.stop(id, task, "interrupted"));
@@ -388,7 +388,7 @@ impl Api {
                 Ok(snapshot) if task_id(&snapshot).ok() == Some(id) => task = snapshot,
                 Ok(_) => {
                     observation_error =
-                        Some("Intent Check service response task ID is mismatched".into());
+                        Some("Intent Prover service response task ID is mismatched".into());
                     break;
                 }
                 Err(error) => {
@@ -458,7 +458,7 @@ impl Api {
     pub fn cancel_task(&self, id: &str) -> Result<Value> {
         let task = self.task(id)?;
         if task_id(&task)? != id {
-            bail!("Intent Check service response task ID is mismatched");
+            bail!("Intent Prover service response task ID is mismatched");
         }
         let stopped = self.stop(id, task, "requested");
         Ok(json!({"task": stopped.task, "cancellation": stopped.stop}))
@@ -476,7 +476,7 @@ impl Api {
         }
         let body = response.text()?;
         bail!(
-            "Intent Check service cancellation returned HTTP {status}: {}",
+            "Intent Prover service cancellation returned HTTP {status}: {}",
             error_detail(&body)
         )
     }
@@ -512,11 +512,11 @@ impl Api {
             let location = response
                 .headers()
                 .get(LOCATION)
-                .ok_or_else(|| anyhow!("Intent Check service file link has no Location header"))?
+                .ok_or_else(|| anyhow!("Intent Prover service file link has no Location header"))?
                 .to_str()?;
             let url = response.url().join(location)?;
             if !url.username().is_empty() || url.password().is_some() {
-                bail!("Intent Check service file link contains unexpected credentials");
+                bail!("Intent Prover service file link contains unexpected credentials");
             }
             // Signed links carry their own authorization, even on the same host.
             self.files
@@ -528,7 +528,7 @@ impl Api {
         };
         let status = response.status();
         if !status.is_success() {
-            bail!("Intent Check service {name} download returned HTTP {status}");
+            bail!("Intent Prover service {name} download returned HTTP {status}");
         }
         Ok(response)
     }
@@ -543,20 +543,20 @@ impl Api {
         let status = response.status();
         if status == StatusCode::UNAUTHORIZED {
             bail!(
-                "Intent Check service requires a valid API key; run intent-check login and give the user its browser link and code"
+                "Intent Prover service requires a valid API key; run intent-prover login and give the user its browser link and code"
             );
         }
         let status_error = response.error_for_status_ref().err();
         let body = response.text()?;
         if let Some(error) = status_error {
             return Err(anyhow::Error::new(error).context(format!(
-                "Intent Check service returned HTTP {status}: {}",
+                "Intent Prover service returned HTTP {status}: {}",
                 error_detail(&body)
             )));
         }
         if !status.is_success() {
             bail!(
-                "Intent Check service returned HTTP {status}: {}",
+                "Intent Prover service returned HTTP {status}: {}",
                 error_detail(&body)
             );
         }
@@ -592,7 +592,7 @@ pub fn write_json(directory: &Path, name: &str, value: &Value) -> Result<()> {
 pub fn task_id(value: &Value) -> Result<&str> {
     value["id"]
         .as_str()
-        .ok_or_else(|| anyhow!("Intent Check service response has no task ID"))
+        .ok_or_else(|| anyhow!("Intent Prover service response has no task ID"))
 }
 
 fn error_detail(body: &str) -> String {

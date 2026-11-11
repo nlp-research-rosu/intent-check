@@ -133,7 +133,7 @@ function overview(r) {
   return heading(data.name, 'Scan and proof results for this repository.')
     + `<div class="stack"><div class="metrics">${[[r.active.length, 'Active checks'], [r.scans.length, 'Scans'], [r.paths.length, 'Local artifacts']].map(([n, label]) => `<div class="card metric"><div class="label">${label}</div><div class="value">${n}</div></div>`).join('')}</div>`
     + activeChecks(r)
-    + (rows.length ? `<section><div class="section-heading"><h2>Saved results</h2></div><div class="card table-wrap"><table><thead><tr><th>Target</th><th>Result</th><th>Task</th><th>Recorded</th></tr></thead><tbody>${rows.join('')}</tbody></table></div></section>` : empty('No saved results yet', 'Run Intent Check in this repository.'))
+    + (rows.length ? `<section><div class="section-heading"><h2>Saved results</h2></div><div class="card table-wrap"><table><thead><tr><th>Target</th><th>Result</th><th>Task</th><th>Recorded</th></tr></thead><tbody>${rows.join('')}</tbody></table></div></section>` : empty('No saved results yet', 'Run Intent Prover in this repository.'))
     + '</div>';
 }
 function finding(card) {
@@ -184,7 +184,7 @@ function proofsPage(r) {
     + (target ? `<div class="row" style="margin-top:16px">${r.paths.filter(p => p.startsWith(target) && !p.slice(target.length).includes('/') && !['PROOF.md', 'SCOPE.md'].includes(p.slice(target.length))).map(p => fileButton(p, p.slice(target.length))).join('')}</div>` : '');
 }
 function artifactsPage(r) {
-  if (!r.artifacts.length) return heading('All artifacts', 'Local evidence files.') + empty('No artifacts saved yet', 'Run Intent Check in this repository.');
+  if (!r.artifacts.length) return heading('All artifacts', 'Local evidence files.') + empty('No artifacts saved yet', 'Run Intent Prover in this repository.');
   if (!r.artifacts.includes(state.file)) state.file = r.artifacts[0];
   const groups = new Map();
   for (const path of r.artifacts) {
@@ -210,7 +210,7 @@ function render() {
   const r = records();
   document.getElementById('repo-name').textContent = data.name;
   document.getElementById('breadcrumb').textContent = data.name;
-  document.title = `${data.name} · Intent Check`;
+  document.title = `${data.name} · Intent Prover`;
   navigation(r);
   document.getElementById('warnings').innerHTML = data.warnings.length ? `<div class="callout"><strong>Some artifacts could not be included</strong>${data.warnings.map(escape).join('<br>')}</div>` : '';
   page.innerHTML = ({ overview, scans: scansPage, proofs: proofsPage, artifacts: artifactsPage })[state.view](r);
