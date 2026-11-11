@@ -10,17 +10,27 @@ concurrency:
   # Allow the runner to finish/cancel accepted service tasks before exiting.
   cancel-in-progress: false
 jobs:
-  withdraw:
+  website:
     if: >-
       github.event.pull_request.head.ref == 'staging' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - case: withdraw
+            timeout: 1500
+          - case: mle-bench
+            timeout: 2400
     env:
       PI_VERSION: 1.5.2
       SMOKE_MODEL: anthropic/claude-haiku-5.5
       SMOKE_THINKING: medium
-      SMOKE_TIMEOUT_SECONDS: 1500
+      SMOKE_CASE: ${{ matrix.case }}
+      SMOKE_TIMEOUT_SECONDS: ${{ matrix.timeout }}
       SMOKE_PACKAGE_ROOT: ${{ runner.temp }}/smoke-package
       SMOKE_OUTPUT_DIR: ${{ runner.temp }}/smoke-results
     steps:
@@ -47,16 +57,16 @@ jobs:
           cargo build --manifest-path cli/Cargo.toml --locked --release
           install -m 755 cli/target/release/intent-prover-staging "$RUNNER_TEMP/smoke-bin/intent-prover-staging"
           echo "$RUNNER_TEMP/smoke-bin" >> "$GITHUB_PATH"
-      - name: Prove the website withdrawal example with Pi
+      - name: Run the website example with Pi
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           INTENT_STAGING_API_KEY: ${{ secrets.INTENT_STAGING_API_KEY }}
         run: node scripts/website-smoke.mjs
-      - name: Retain selected proof evidence and metrics
+      - name: Retain selected evidence and metrics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: withdraw-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ${{ matrix.case }}-smoke-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.SMOKE_OUTPUT_DIR }}
           include-hidden-files: true # Only the harness's selected/redacted output, including .intent/.
           if-no-files-found: ignore
