@@ -132,4 +132,4 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 - Scan: a scan of the whole repo, with a choice of depth (`fast`, `balanced`, `full`).
 
-Earlier releases are listed at https://github.com/nlp-research-rosu/intent-check/releases.
+Earlier releases are listed at https://github.com/nlp-research-rosu/intent-prover/releases.
