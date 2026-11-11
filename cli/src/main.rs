@@ -1,5 +1,6 @@
 mod api;
 mod auth;
+mod channel;
 mod config;
 mod help;
 mod inputs;
@@ -14,7 +15,7 @@ use std::{path::PathBuf, process};
 use uuid::Uuid;
 
 #[derive(Parser)]
-#[command(name = "intent-prover", version, about = "Intent Prover CLI for remote analysis and verification", after_help = help::ROOT)]
+#[command(name = channel::settings().cli, version, about = channel::help("Intent Prover CLI for remote analysis and verification"), after_help = channel::help(help::ROOT))]
 struct Cli {
     /// Project directory; automatically uses its repository root when inside a repo.
     #[arg(long, global = true)]
@@ -26,46 +27,46 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// View local check artifacts live, or export a self-contained HTML report.
-    #[command(after_help = help::VIEW)]
+    #[command(after_help = channel::help(help::VIEW))]
     View(viewer::ViewArgs),
     /// Connect this machine in the browser; save the credential without displaying it.
-    #[command(after_help = help::LOGIN)]
+    #[command(after_help = channel::help(help::LOGIN))]
     Login,
     /// Show the effective configuration and its file location.
-    #[command(after_help = help::CONFIG)]
+    #[command(after_help = channel::help(help::CONFIG))]
     Config,
     /// Check whether the configured Intent Prover service is healthy.
-    #[command(after_help = help::HEALTH)]
+    #[command(after_help = channel::help(help::HEALTH))]
     Health,
     /// List supported language definitions and their versions.
-    #[command(after_help = help::SEMANTICS)]
+    #[command(after_help = channel::help(help::SEMANTICS))]
     Semantics {
         #[command(subcommand)]
         command: Option<SemanticsCommand>,
     },
     /// Execute a program using a supported language definition.
-    #[command(after_help = help::RUN)]
+    #[command(after_help = channel::help(help::RUN))]
     Run(RunArgs),
     /// Check verification inputs without proving their claims.
-    #[command(after_help = help::validate())]
+    #[command(after_help = channel::help(&help::validate()))]
     Validate(ProofArgs),
     /// Create or inspect explicit verification sessions.
     #[command(subcommand)]
     Session(SessionCommand),
     /// Inspect or recover accepted server tasks without resubmitting them.
-    #[command(subcommand, after_help = help::TASK)]
+    #[command(subcommand, after_help = channel::help(help::TASK))]
     Task(TaskCommand),
     /// Submit one proof attempt in an existing session.
-    #[command(after_help = help::prove())]
+    #[command(after_help = channel::help(&help::prove()))]
     Prove(ProveArgs),
 }
 
 #[derive(Subcommand)]
 enum SemanticsCommand {
     /// Download reference sources for a supported language definition.
-    #[command(after_help = help::SEMANTICS_FETCH)]
+    #[command(after_help = channel::help(help::SEMANTICS_FETCH))]
     Fetch {
-        /// Stable semantics ID returned by intent-prover semantics.
+        /// Stable semantics ID returned by the semantics command.
         id: String,
     },
 }
@@ -86,7 +87,7 @@ pub struct RunArgs {
 #[derive(Subcommand)]
 enum SessionCommand {
     /// Create a new session with fresh budgets for the project.
-    #[command(after_help = help::SESSION)]
+    #[command(after_help = channel::help(help::SESSION))]
     Start {
         /// Server-supported semantics ID to pin for this session.
         #[arg(long)]
@@ -99,7 +100,7 @@ enum SessionCommand {
 #[derive(Subcommand)]
 pub enum TaskCommand {
     /// List this account's tasks, newest first.
-    #[command(after_help = help::TASK)]
+    #[command(after_help = channel::help(help::TASK))]
     List {
         #[arg(long)]
         status: Option<String>,
@@ -112,7 +113,7 @@ pub enum TaskCommand {
     /// Fetch a task's current server response without waiting.
     Show { id: Uuid },
     /// Resume waiting and save results in the task's original evidence folder.
-    #[command(after_help = help::TASK)]
+    #[command(after_help = channel::help(help::TASK))]
     Wait {
         id: Uuid,
         /// Existing local session that submitted this task.

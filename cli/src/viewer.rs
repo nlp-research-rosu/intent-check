@@ -1,4 +1,4 @@
-use crate::{CommandResult, session};
+use crate::{CommandResult, channel, session};
 use anyhow::{Context, Result, ensure};
 use clap::Args;
 use serde::Serialize;
@@ -90,7 +90,11 @@ fn plugin_directories(explicit: Vec<PathBuf>) -> Vec<PathBuf> {
             .map(PathBuf::from)
             .or_else(|| home.as_ref().map(|h| h.join(default)))
         {
-            dirs.push(base.join("plugins/data/intent-intentcomputing"));
+            let selected = channel::settings();
+            dirs.push(
+                base.join("plugins/data")
+                    .join(format!("{}-{}", selected.plugin, selected.marketplace)),
+            );
         }
     }
     dirs.sort();

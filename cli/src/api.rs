@@ -186,8 +186,10 @@ impl Api {
         write_json(&evidence, "result.json", &snapshot)?;
         let waited = waited.map_err(|error| {
             anyhow!(
-                "Task {id}: {error}; evidence: {}; resume with intent-prover task wait {id} --session {}",
-                evidence.display(), session.session_id
+                "Task {id}: {error}; evidence: {}; resume with {} task wait {id} --session {}",
+                evidence.display(),
+                crate::channel::settings().cli,
+                session.session_id
             )
         })?;
         let semantics = &session.semantics;
@@ -543,7 +545,8 @@ impl Api {
         let status = response.status();
         if status == StatusCode::UNAUTHORIZED {
             bail!(
-                "Intent Prover service requires a valid API key; run intent-prover login and give the user its browser link and code"
+                "Intent Prover service requires a valid API key; run {} login and give the user its browser link and code",
+                crate::channel::settings().cli
             );
         }
         let status_error = response.error_for_status_ref().err();

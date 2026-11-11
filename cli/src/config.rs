@@ -1,9 +1,8 @@
+use crate::channel;
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{env, fs, path::PathBuf};
-
-pub const DEFAULT_SERVER_URL: &str = "https://api.prover.intentcomputing.org";
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
@@ -22,8 +21,8 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            server_url: DEFAULT_SERVER_URL.into(),
-            portal_url: "https://prover-console.intentcomputing.org".into(),
+            server_url: channel::settings().api_url.into(),
+            portal_url: channel::settings().console_url.into(),
             request_timeout_seconds: 30,
             poll_interval_seconds: 10,
             max_run_attempts: 50,
@@ -42,8 +41,8 @@ pub fn load() -> Result<Config> {
     };
     // Same variables as the plugin, so both talk to the same service.
     for (name, field) in [
-        ("INTENT_API_URL", &mut config.server_url),
-        ("INTENT_CONSOLE_URL", &mut config.portal_url),
+        (channel::env_name("API_URL"), &mut config.server_url),
+        (channel::env_name("CONSOLE_URL"), &mut config.portal_url),
     ] {
         if let Ok(url) = env::var(name)
             && !url.trim().is_empty()
@@ -58,7 +57,7 @@ pub fn load() -> Result<Config> {
 }
 
 pub fn view() -> Result<Value> {
-    Ok(json!({"configPath": path()?, "config": load()?}))
+    Ok(json!({"channel": channel::NAME.trim(), "configPath": path()?, "config": load()?}))
 }
 
 pub fn directory() -> Result<PathBuf> {
@@ -67,14 +66,21 @@ pub fn directory() -> Result<PathBuf> {
 
 fn path() -> Result<PathBuf> {
     if let Some(path) = env::var_os("XDG_CONFIG_HOME") {
-        return Ok(PathBuf::from(path).join("intent-prover/config.toml"));
+        return Ok(PathBuf::from(path)
+            .join(channel::settings().config_dir)
+            .join("config.toml"));
     }
     #[cfg(windows)]
     if let Some(path) = env::var_os("APPDATA") {
-        return Ok(PathBuf::from(path).join("intent-prover/config.toml"));
+        return Ok(PathBuf::from(path)
+            .join(channel::settings().config_dir)
+            .join("config.toml"));
     }
     let home = env::var_os("HOME").ok_or_else(|| anyhow::anyhow!("HOME is not set"))?;
-    Ok(PathBuf::from(home).join(".config/intent-prover/config.toml"))
+    Ok(PathBuf::from(home)
+        .join(".config")
+        .join(channel::settings().config_dir)
+        .join("config.toml"))
 }
 
 fn validate(config: &Config) -> Result<()> {
@@ -86,7 +92,10 @@ fn validate(config: &Config) -> Result<()> {
         || config.max_validation_attempts == 0
         || config.max_proof_attempts == 0
     {
-        bail!("intent-prover configuration contains an invalid value");
+        bail!(
+            "{} configuration contains an invalid value",
+            channel::settings().cli
+        );
     }
     Ok(())
 }
