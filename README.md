@@ -94,7 +94,7 @@ Claude Code updates a plugin only when its version changes. Third-party marketpl
 
 The shared marketplace pins the plugin source to a published tag and exact commit for both Claude Code and Codex. Merging code into a branch does not advertise it as a plugin update. Fresh installs and host updates use the release named by the marketplace, not the checkout's development files.
 
-Maintainers: use the release workflow to choose the branch and version bump (minor when removing or renaming commands). It prepares the version commit and changelog, builds and uploads the CLI assets, then publishes the release. Only after publication does it commit the marketplace's version, tag and SHA and fast-forward the branch. Failed publication leaves the advertised release unchanged; concurrent branch changes prevent the push. Other branches publish prereleases and advance their own marketplace pin. Every user-visible PR needs an Unreleased entry in [CHANGELOG.md](CHANGELOG.md).
+Maintainers: use the release workflow to choose the source branch, channel and exact version (for example `1.3.0` or `1.3.0-staging.1`). Versions are entered manually, not automatically incremented. The workflow prepares the matching plugin/CLI package, builds and uploads all CLI assets, then publishes the release before advancing its catalog. Production releases run from `main`; staging releases update only their separate catalog, not the source branch or production installer/catalog. Concurrent catalog changes prevent a non-fast-forward push. See [release channels](docs/releases.md). Every user-visible PR needs an Unreleased entry in [CHANGELOG.md](CHANGELOG.md).
 
 ## Install (Codex CLI 0.147 or newer)
 

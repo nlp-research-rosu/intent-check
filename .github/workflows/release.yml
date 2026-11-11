@@ -1,18 +1,18 @@
 name: release
-# Run from the Actions tab and pick a branch. On main this cuts a release (vX.Y.Z), whose notes are the Unreleased
-# section of CHANGELOG.md; on any other branch it cuts a
-# prerelease (vX.Y.Z-<branch>.N). Each branch's marketplace points to its last published release.
-# The release carries the intent-prover CLI builds for six targets and the two standalone installers; it is created as a
-# draft and published only after every asset is uploaded. The branch and marketplace pin advance only after publication.
-# Pushes made with GITHUB_TOKEN do not trigger ci.yml; that is fine because the test job below runs first.
+# Versions are supplied manually. Staging packages live at immutable tags; only
+# catalog-staging advances, never the staging development branch or stable catalog.
 on:
   workflow_dispatch:
     inputs:
-      bump:
-        description: Version bump
+      channel:
+        description: Release channel
         type: choice
-        options: [patch, minor, major]
-        default: patch
+        options: [production, staging]
+        default: production
+      version:
+        description: Explicit version (e.g. 1.3.0 or 1.3.0-staging.1)
+        type: string
+        required: true
 permissions:
   contents: read
 concurrency:
@@ -31,20 +31,21 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: node --test test/*.test.js
-  # The real claude/codex CLIs on Linux, macOS and Windows (LLM-free), before anything is released.
   integration:
     uses: ./.github/workflows/integration.yml
-  bump:
+  prepare:
     needs: [test, integration]
     if: github.ref_type == 'branch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      v: ${{ steps.bump.outputs.v }}
-      sha: ${{ steps.bump.outputs.sha }}
+      v: ${{ steps.prepare.outputs.v }}
+      sha: ${{ steps.prepare.outputs.sha }}
+      cli: ${{ steps.prepare.outputs.cli }}
+      catalog: ${{ steps.prepare.outputs.catalog }}
     env:
-      GH_TOKEN: ${{ github.token }}
-      BUMP: ${{ inputs.bump }}
+      CHANNEL: ${{ inputs.channel }}
+      V: ${{ inputs.version }}
       BRANCH: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -53,65 +54,64 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
-      - name: Configure git
+      - name: Prepare versioned channel package
+        id: prepare
         run: |
+          if [ "$CHANNEL" = production ]; then test "$BRANCH" = main; fi
+          node --input-type=module -e '
+            const {channel, version} = {channel: process.env.CHANNEL, version: process.env.V};
+            const valid = channel === "staging" ? /^\d+\.\d+\.\d+-staging\.\d+$/ : /^\d+\.\d+\.\d+$/;
+            if (!["production", "staging"].includes(channel) || !valid.test(version)) process.exit(1);
+          '
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
-      - name: Prepare release commit
-        id: bump
-        run: |
-          CURRENT=$(node -p 'require("./package.json").version')
-          if [ "$(git log -1 --format=%s)" = "release: publish v$CURRENT" ]; then
-            # A completed release has a catalog commit after the tagged source commit.
-            V=$CURRENT
+          if git rev-parse -q --verify "refs/tags/v$V" >/dev/null; then
             git checkout --detach "v$V"
-          elif [ "$(git log -1 --format=%s)" = "release: v$CURRENT" ]; then
-            # the last commit is already this release's bump (a rerun after a partial failure): do not bump again, only tag if missing
-            V=$CURRENT
-            if ! git rev-parse -q --verify "refs/tags/v$V" >/dev/null; then
-              git tag "v$V"
-            fi
           else
-            if [ "$BRANCH" = main ]; then
-              V=$(node scripts/bump-version.mjs "$BUMP")
-            else
-              SLUG=$(printf '%s' "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g; s/^-*//; s/-*$//')
-              case "$SLUG" in ''|*[!0-9]*) ;; *) SLUG="b$SLUG" ;; esac
-              V=$(node scripts/bump-version.mjs "$BUMP" --pre "$SLUG")
-            fi
-            if git rev-parse -q --verify "refs/tags/v$V" >/dev/null; then
-              echo "tag v$V already exists" >&2
-              exit 1
-            fi
-            git add package.json .claude-plugin/plugin.json .codex-plugin/plugin.json cli/Cargo.toml cli/Cargo.lock docs/install.json CHANGELOG.md
-            git commit -m "release: v$V"
+            node scripts/package-channel.mjs "$CHANNEL" "$V"
+            git add package.json .claude-plugin/plugin.json .codex-plugin/plugin.json cli/Cargo.toml cli/Cargo.lock docs/install.json CHANGELOG.md release/channel commands skills 'scripts/install-intent-prover*'
+            git commit -m "release: $CHANNEL v$V"
             git tag "v$V"
           fi
+          node --input-type=module -e '
+            import fs from "node:fs";
+            if (fs.readFileSync("release/channel", "utf8").trim() !== process.env.CHANNEL ||
+                JSON.parse(fs.readFileSync("package.json", "utf8")).version !== process.env.V) process.exit(1);
+          '
           test "$(git rev-parse "v$V")" = "$(git rev-parse HEAD)"
           git bundle create "$RUNNER_TEMP/release.bundle" "v$V"
           echo "v=$V" >> "$GITHUB_OUTPUT"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const c = JSON.parse(fs.readFileSync("release/channels.json", "utf8"))[process.env.CHANNEL];
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `cli=${c.cli}\ncatalog=${c.catalog_branch}\n`);
+          '
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-source
           path: ${{ runner.temp }}/release.bundle
   build:
-    needs: bump
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { runner: macos-15, asset: intent-prover-darwin-arm64, windows: false }
-          - { runner: macos-15-intel, asset: intent-prover-darwin-x64, windows: false }
-          - { runner: ubuntu-latest, asset: intent-prover-linux-x64, windows: false }
-          - { runner: ubuntu-24.04-arm, asset: intent-prover-linux-arm64, windows: false }
-          - { runner: windows-latest, asset: intent-prover-windows-x64, windows: true }
-          - { runner: windows-11-arm, asset: intent-prover-windows-arm64, windows: true }
+          - { runner: macos-15, platform: darwin-arm64, windows: false }
+          - { runner: macos-15-intel, platform: darwin-x64, windows: false }
+          - { runner: ubuntu-latest, platform: linux-x64, windows: false }
+          - { runner: ubuntu-24.04-arm, platform: linux-arm64, windows: false }
+          - { runner: windows-latest, platform: windows-x64, windows: true }
+          - { runner: windows-11-arm, platform: windows-arm64, windows: true }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     defaults:
       run:
         working-directory: cli
+    env:
+      CLI: ${{ needs.prepare.outputs.cli }}
+      V: ${{ needs.prepare.outputs.v }}
+      ASSET: ${{ needs.prepare.outputs.cli }}-${{ matrix.platform }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -124,8 +124,7 @@ jobs:
         working-directory: .
         shell: bash
         env:
-          V: ${{ needs.bump.outputs.v }}
-          RELEASE_SHA: ${{ needs.bump.outputs.sha }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
         run: |
           git fetch "$RUNNER_TEMP/release.bundle" "refs/tags/v$V:refs/tags/v$V"
           test "$(git rev-parse "v$V")" = "$RELEASE_SHA"
@@ -135,26 +134,26 @@ jobs:
       - if: ${{ !matrix.windows }}
         shell: bash
         run: |
-          test "$(target/release/intent-prover --version)" = "intent-prover ${{ needs.bump.outputs.v }}"
-          tar -C target/release -czf "${{ matrix.asset }}.tar.gz" intent-prover
+          test "$("target/release/$CLI" --version)" = "$CLI $V"
+          tar -C target/release -czf "$ASSET.tar.gz" "$CLI"
           if command -v sha256sum >/dev/null; then
-            sha256sum "${{ matrix.asset }}.tar.gz" > "${{ matrix.asset }}.tar.gz.sha256"
+            sha256sum "$ASSET.tar.gz" > "$ASSET.tar.gz.sha256"
           else
-            shasum -a 256 "${{ matrix.asset }}.tar.gz" > "${{ matrix.asset }}.tar.gz.sha256"
+            shasum -a 256 "$ASSET.tar.gz" > "$ASSET.tar.gz.sha256"
           fi
       - if: ${{ matrix.windows }}
         shell: pwsh
         run: |
-          if ((& target/release/intent-prover.exe --version) -ne "intent-prover ${{ needs.bump.outputs.v }}") { throw "CLI version mismatch" }
-          Compress-Archive target/release/intent-prover.exe "${{ matrix.asset }}.zip"
-          $hash = (Get-FileHash "${{ matrix.asset }}.zip" -Algorithm SHA256).Hash.ToLower()
-          "$hash  ${{ matrix.asset }}.zip" | Set-Content "${{ matrix.asset }}.zip.sha256"
+          if ((& "target/release/$env:CLI.exe" --version) -ne "$env:CLI $env:V") { throw "CLI version mismatch" }
+          Compress-Archive "target/release/$env:CLI.exe" "$env:ASSET.zip"
+          $hash = (Get-FileHash "$env:ASSET.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $env:ASSET.zip" | Set-Content "$env:ASSET.zip.sha256"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: ${{ matrix.asset }}
-          path: cli/${{ matrix.asset }}.*
+          name: ${{ env.ASSET }}
+          path: cli/${{ env.ASSET }}.*
   publish:
-    needs: [bump, build]
+    needs: [prepare, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -162,8 +161,11 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       BRANCH: ${{ github.ref_name }}
-      V: ${{ needs.bump.outputs.v }}
-      RELEASE_SHA: ${{ needs.bump.outputs.sha }}
+      CHANNEL: ${{ inputs.channel }}
+      V: ${{ needs.prepare.outputs.v }}
+      CLI: ${{ needs.prepare.outputs.cli }}
+      RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+      CATALOG_BRANCH: ${{ needs.prepare.outputs.catalog }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -183,58 +185,73 @@ jobs:
           pattern: intent-prover-*
           path: dist
           merge-multiple: true
-      - name: GitHub release
+      - name: Publish complete GitHub release
         run: |
-          # Never overwrite branch changes made while the builds were running.
           git fetch origin "$BRANCH"
           head=$(git rev-parse FETCH_HEAD)
-          if [ "$head" != "$GITHUB_SHA" ] && [ "$head" != "$RELEASE_SHA" ]; then
-            # A rerun may find the catalog commit from this same release already pushed.
+          if [ "$CHANNEL" = production ] && [ "$head" != "$GITHUB_SHA" ] && [ "$head" != "$RELEASE_SHA" ]; then
             test "$(git log -1 --format=%s FETCH_HEAD)" = "release: publish v$V"
             test "$(git rev-parse FETCH_HEAD^)" = "$RELEASE_SHA"
           fi
           git push origin "refs/tags/v$V"
-          # gh release view does not find drafts, so look the tag up in the list
           state=$(gh release list --limit 1000 --json tagName,isDraft --jq ".[] | select(.tagName == \"v$V\") | .isDraft")
           if [ "$state" = false ]; then
             echo "release v$V already published"
             exit 0
           fi
-          for e in sh ps1; do sed "s/__INTENT_PROVER_RELEASE_TAG__/v$V/" "scripts/install-intent-prover.$e" > "dist/install-intent-prover.$e"; done
-          ! grep -l __INTENT_PROVER_RELEASE_TAG__ dist/install-intent-prover.* || { echo "release tag placeholder left in an installer" >&2; exit 1; }
+          for e in sh ps1; do sed "s/__INTENT_PROVER_RELEASE_TAG__/v$V/" "scripts/install-$CLI.$e" > "dist/install-$CLI.$e"; done
+          ! grep -l __INTENT_PROVER_RELEASE_TAG__ "dist/install-$CLI."* || { echo "installer release tag missing" >&2; exit 1; }
           assets=(dist/*)
-          printf '%s\n' intent-prover-{darwin,linux}-{x64,arm64}.tar.gz{,.sha256} \
-            intent-prover-windows-{x64,arm64}.zip{,.sha256} install-intent-prover.sh install-intent-prover.ps1 |
+          printf '%s\n' "$CLI"-{darwin,linux}-{x64,arm64}.tar.gz{,.sha256} \
+            "$CLI"-windows-{x64,arm64}.zip{,.sha256} "install-$CLI.sh" "install-$CLI.ps1" |
             sort > "$RUNNER_TEMP/expected.txt"
           printf '%s\n' "${assets[@]#dist/}" | sort > "$RUNNER_TEMP/local-assets.txt"
           diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/local-assets.txt"
           if [ -z "$state" ]; then
-            if [ "$BRANCH" = main ]; then
-              # The release notes are this version's CHANGELOG.md section; generated notes when it is empty or cannot be read.
-              node scripts/bump-version.mjs --notes "$V" > "$RUNNER_TEMP/notes.md" || : > "$RUNNER_TEMP/notes.md"
-              if [ -s "$RUNNER_TEMP/notes.md" ]; then
-                gh release create "v$V" --draft --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
-              else
-                gh release create "v$V" --draft --generate-notes --verify-tag
-              fi
+            if [ "$CHANNEL" = production ]; then
+              node scripts/bump-version.mjs --notes "$V" > "$RUNNER_TEMP/notes.md"
+              gh release create "v$V" --draft --notes-file "$RUNNER_TEMP/notes.md" --verify-tag --latest=false
             else
-              gh release create "v$V" --draft --generate-notes --prerelease --verify-tag
+              gh release create "v$V" --draft --generate-notes --prerelease --verify-tag --latest=false
             fi
           fi
           gh release upload "v$V" "${assets[@]}" --clobber
           gh release view "v$V" --json assets --jq '.assets[].name' | sort > "$RUNNER_TEMP/uploaded.txt"
           diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/uploaded.txt"
-          gh release edit "v$V" --draft=false
-      - name: Expose published version to plugin installations
-        run: |
-          git fetch origin "$BRANCH"
-          if [ "$(git log -1 --format=%s FETCH_HEAD)" = "release: publish v$V" ] && [ "$(git rev-parse FETCH_HEAD^)" = "$RELEASE_SHA" ]; then
-            echo "marketplace already points to v$V"
-            exit 0
+          if [ "$CHANNEL" = production ]; then
+            gh release edit "v$V" --draft=false --latest
+          else
+            gh release edit "v$V" --draft=false --latest=false
           fi
-          node scripts/bump-version.mjs --pin-marketplace "$V" "$RELEASE_SHA"
+      - name: Expose published version in its channel catalog
+        run: |
+          node scripts/package-channel.mjs "$CHANNEL" "$V" "$RELEASE_SHA" > "$RUNNER_TEMP/marketplace.json"
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
-          git add .claude-plugin/marketplace.json
-          git commit -m "release: publish v$V"
-          git push origin "HEAD:refs/heads/$BRANCH"
+          if [ "$CHANNEL" = production ]; then
+            git fetch origin "$CATALOG_BRANCH"
+            if git show FETCH_HEAD:.claude-plugin/marketplace.json | cmp -s - "$RUNNER_TEMP/marketplace.json"; then exit 0; fi
+            cp "$RUNNER_TEMP/marketplace.json" .claude-plugin/marketplace.json
+            git add .claude-plugin/marketplace.json
+            git commit -m "release: publish v$V"
+            git push origin "HEAD:refs/heads/$CATALOG_BRANCH"
+          else
+            # A catalog-only branch preserves source branches and its own history.
+            export GIT_INDEX_FILE="$RUNNER_TEMP/catalog.index"
+            parent=()
+            remote=$(git ls-remote origin "refs/heads/$CATALOG_BRANCH")
+            if [ -n "$remote" ]; then
+              git fetch origin "refs/heads/$CATALOG_BRANCH"
+              previous=$(git rev-parse FETCH_HEAD)
+              if git show "$previous":.claude-plugin/marketplace.json | cmp -s - "$RUNNER_TEMP/marketplace.json"; then exit 0; fi
+              git read-tree "$previous"
+              parent=(-p "$previous")
+            else
+              git read-tree --empty
+            fi
+            blob=$(git hash-object -w "$RUNNER_TEMP/marketplace.json")
+            git update-index --add --cacheinfo "100644,$blob,.claude-plugin/marketplace.json"
+            tree=$(git write-tree)
+            commit=$(git commit-tree "$tree" "${parent[@]}" -m "release: staging catalog v$V")
+            git push origin "$commit:refs/heads/$CATALOG_BRANCH"
+          fi
