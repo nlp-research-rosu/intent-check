@@ -1,5 +1,5 @@
 use crate::{ProofArgs, RunArgs, auth, config::Config, inputs, session::Session};
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use reqwest::{
     StatusCode,
     blocking::{Client, RequestBuilder, Response, multipart},
@@ -16,6 +16,7 @@ use std::{
 
 pub struct Api {
     base: String,
+    portal: reqwest::Url,
     http: Client,
     files: Client,
     request_timeout: Duration,
@@ -62,6 +63,15 @@ const SUBMIT_RETRIES: u32 = 3;
 
 impl Api {
     pub fn new(config: &Config) -> Result<Self> {
+        let portal = reqwest::Url::parse(&config.portal_url).context("Invalid console URL")?;
+        ensure!(
+            matches!(portal.scheme(), "http" | "https")
+                && portal.username().is_empty()
+                && portal.password().is_none()
+                && portal.query().is_none()
+                && portal.fragment().is_none(),
+            "Console URL must be HTTP(S) without credentials, query or fragment"
+        );
         let mut http = Client::builder()
             .timeout(Duration::from_secs(config.request_timeout_seconds))
             .redirect(reqwest::redirect::Policy::none());
@@ -72,6 +82,7 @@ impl Api {
         }
         Ok(Self {
             base: config.server_url.trim_end_matches('/').into(),
+            portal,
             http: http.build()?,
             files: Client::builder()
                 .timeout(Duration::from_secs(config.request_timeout_seconds))
@@ -139,6 +150,23 @@ impl Api {
 
     pub fn submit_proof(&self, upload: &Upload) -> Result<Value> {
         self.submit("/proofs", upload)
+    }
+
+    pub fn record_submission(&self, accepted: &Value, evidence: &Path) -> Result<()> {
+        let mut report_url = self.portal.clone();
+        report_url
+            .path_segments_mut()
+            .map_err(|_| anyhow!("Console URL cannot contain a task path"))?
+            .pop_if_empty()
+            .push("tasks")
+            .push(task_id(accepted)?);
+        fs::create_dir_all(evidence)?;
+        // Keep the submission's console even if configuration changes before collection/export.
+        write_json(
+            evidence,
+            "result.json",
+            &json!({"task": accepted, "reportUrl": report_url.as_str()}),
+        )
     }
 
     pub fn complete(
@@ -578,11 +606,6 @@ fn retryable_error(error: &anyhow::Error) -> bool {
                 Some(408 | 429 | 500 | 502 | 503 | 504)
             )
     })
-}
-
-pub fn record_submission(accepted: &Value, evidence: &Path) -> Result<()> {
-    fs::create_dir_all(evidence)?;
-    write_json(evidence, "result.json", &json!({"task": accepted}))
 }
 
 pub fn write_json(directory: &Path, name: &str, value: &Value) -> Result<()> {

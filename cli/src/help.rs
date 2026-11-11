@@ -308,6 +308,12 @@ const EVIDENCE: &str = r#"Evidence:
   Recover an accepted task with task wait; see `intent-prover task --help`.
   A polling failure retains the last task response. A failed log download
   retains previously saved logs and records stdoutError or stderrError.
+  New submissions save reportUrl beside task: it points to the console configured
+  when the job was accepted and survives later configuration changes.
+  For a user handoff, update .intent/prove/<target>/PROOF.md and SCOPE.md, then run
+  intent-prover view --output <new-report.html> from the project root. Present the
+  local HTML first; remote jobs and raw evidence are secondary. Export is local
+  and needs no sign-in. Preserve the actual outcome, scope and assumptions.
   See `intent-prover config --help` for timeouts and cancellation details."#;
 
 pub fn validate() -> String {
@@ -369,11 +375,21 @@ Without --output, serves a read-only viewer on 127.0.0.1. Open the printed URL;
 Ctrl-C stops the server. The page refreshes local artifacts and active checks
 every ten seconds. It never submits tasks or contacts the remote service.
 
---output writes a self-contained offline HTML snapshot, including its font.
+--output writes a self-contained offline HTML snapshot using system fonts.
 It never overwrites an existing file. Share it only with people who may read
 the included .intent evidence. It does not include source workspaces,
 credentials, plugin prompts or transcripts. Symlinks and hidden files are not
-exported; explicit Scans are represented by task metadata only.
+exported. Saved Scan reports include findings, coverage and source metadata;
+supporting Scan detail files remain remote. Proofs display existing PROOF.md,
+SCOPE.md and session evidence; the viewer does not generate those documents.
+Present one local HTML link as the user handoff, not raw JSON or a console login.
+The HTML includes optional Open job in Prover links from saved Scan URLs and new
+proof-operation reportUrl records. It never guesses missing historical URLs
+from current configuration. Remote jobs may require sign-in; local viewing does not.
+
+Append #view=scans&scan=scan%2F<TASK_ID>%2Fmeta.json to open a specific Scan, or
+#view=proofs&proof=prove%2F<TARGET>%2F&proofTab=report for a proof report.
+URL-encode paths in these fragments. Hash links select local content only.
 
 The name comes from the origin repository name, falling back to the root folder.
 Scan reports and proof sessions come from this project's .intent directory.

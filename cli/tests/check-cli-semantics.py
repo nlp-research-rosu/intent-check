@@ -377,7 +377,9 @@ class Tests(unittest.TestCase):
             kind = {"run": "run", "validate": "validation", "prove": "proof"}[command]
             self.assertEqual(evidence.name, f"{kind}-001")
             snapshot = json.loads((evidence / "result.json").read_text())
-            self.assertEqual(set(snapshot), {"task", "stdout", "stderr", "metrics"})
+            self.assertEqual(set(snapshot), {"task", "stdout", "stderr", "metrics", "reportUrl"})
+            self.assertEqual(snapshot["reportUrl"],
+                             f'https://prover-console.intentcomputing.org/tasks/{result["task"]["id"]}')
             self.assertEqual(snapshot["metrics"], {})
             self.assertEqual(snapshot["task"]["result"], self.server.outcome)
             self.assertEqual(snapshot["task"]["definitionId"], "test-definition")
@@ -396,6 +398,58 @@ class Tests(unittest.TestCase):
             self.assertNotIn('name="timeout"', body)
         self.assertEqual(self.show()["attemptsUsed"], 1)
         self.assertEqual(self.show()["validationsUsed"], 1)
+
+    def test_report_link_retains_submission_console_when_waiting_and_exporting(self):
+        self.server.override_id = str(uuid.uuid4())
+        self.env["INTENT_CONSOLE_URL"] = "https://staging-console.example.test/prover/"
+        result = self.operation("prove")
+        evidence = Path(result["evidenceDir"]) / "result.json"
+        expected = f'https://staging-console.example.test/prover/tasks/{result["task"]["id"]}'
+        self.assertEqual(json.loads(evidence.read_text())["reportUrl"], expected)
+
+        self.env["INTENT_CONSOLE_URL"] = "https://production-console.example.test"
+        recovered = self.cli("task", "wait", result["task"]["id"],
+                             "--session", self.session["sessionId"])
+        self.assertEqual(recovered["task"], result["task"])
+        self.assertEqual(json.loads(evidence.read_text())["reportUrl"], expected)
+
+        target = self.root / ".intent/prove/example"
+        target.mkdir()
+        (target / "PROOF.md").write_text("# Proof report\nSelected claims and assumptions.\n")
+        (target / "SCOPE.md").write_text("# Scope\nOnly the selected claims.\n")
+        output = self.base / "report.html"
+        requests = len(self.server.file_requests)
+        exported = self.cli("view", "--output", str(output),
+                            "--plugin-data", str(self.base / "no-plugin-data"))
+        self.assertEqual(exported["status"], "exported")
+        html = output.read_text()
+        payload = json.loads(html.split('<script type="application/json" id="data">', 1)[1]
+                             .split('</script>', 1)[0])
+        self.assertIsNone(payload["dataUrl"])
+        saved = json.loads(payload["snapshot"]["files"][evidence.relative_to(self.root / ".intent").as_posix()])
+        self.assertEqual(saved["reportUrl"], expected)
+        self.assertIn("prove/example/PROOF.md", payload["snapshot"]["files"])
+        self.assertEqual(len(self.server.file_requests), requests)
+        self.assertIn("Output already exists", self.cli("view", "--output", str(output), code=1)["message"])
+
+        historical = json.loads(evidence.read_text())
+        del historical["reportUrl"]
+        evidence.write_text(json.dumps(historical))
+        legacy_output = self.base / "historical.html"
+        self.cli("view", "--output", str(legacy_output),
+                 "--plugin-data", str(self.base / "no-plugin-data"))
+        legacy_html = legacy_output.read_text()
+        self.assertNotIn("production-console.example.test", legacy_html)
+        self.assertNotIn(expected, legacy_html)
+
+    def test_console_link_rejects_credentials_and_non_http_urls_before_submission(self):
+        for url in ("javascript:alert(1)", "https://name:secret@example.test",
+                    "https://console.example.test?token=secret"):
+            with self.subTest(url=url):
+                self.env["INTENT_CONSOLE_URL"] = url
+                result = self.operation("prove", code=1)
+                self.assertIn("Console URL must be HTTP(S)", result["message"])
+                self.assertEqual(self.server.uploads, [])
 
     def test_obsolete_timeout_settings_are_ignored(self):
         with self.config.open("a") as config:

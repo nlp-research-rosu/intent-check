@@ -1,4 +1,6 @@
-use crate::{CommandResult, ProofArgs, ProveArgs, RunArgs, TaskCommand, api::Api, config, session};
+use crate::{
+    CommandResult, ProofArgs, ProveArgs, RunArgs, TaskCommand, api::Api, channel, config, session,
+};
 use anyhow::{Context, bail, ensure};
 use serde_json::{Value, json};
 
@@ -21,7 +23,7 @@ pub fn run_program(args: RunArgs) -> CommandResult {
     session::save(&proof_session)?;
     let evidence =
         session::workspace(&proof_session).join(format!("run-{:03}", proof_session.runs_used));
-    crate::api::record_submission(&response, &evidence)?;
+    api.record_submission(&response, &evidence)?;
     drop(lock);
     let task = api.complete(
         &response,
@@ -64,7 +66,7 @@ pub fn validate(args: ProofArgs) -> CommandResult {
     proof_session.validations_used += 1;
     session::save(&proof_session)?;
     let evidence = root.join(format!("validation-{:03}", proof_session.validations_used));
-    crate::api::record_submission(&response, &evidence)?;
+    api.record_submission(&response, &evidence)?;
     drop(lock);
     let task = api.complete(
         &response,
@@ -110,7 +112,7 @@ pub fn prove(args: ProveArgs) -> CommandResult {
     proof_session.attempts_used += 1;
     session::save(&proof_session)?;
     let evidence = root.join(format!("proof-{:03}", proof_session.attempts_used));
-    crate::api::record_submission(&response, &evidence)?;
+    api.record_submission(&response, &evidence)?;
     drop(lock);
     let task = api.complete(
         &response,
@@ -232,6 +234,11 @@ fn finish(
             response["error"] = json!(error);
         }
     }
+    eprintln!(
+        "Local HTML report: after updating PROOF.md and SCOPE.md, run {} --project <projectRoot> view --output <new-file.html>. projectRoot: {}. Present the HTML first; saved remote job links are inside.",
+        channel::settings().cli,
+        proof_session.project_root.display()
+    );
     Ok((exit.unwrap_or(i32::from(!completed_without_run)), response))
 }
 

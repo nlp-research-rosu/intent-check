@@ -82,9 +82,12 @@ test("repository Scan submits once, polls through running and saves the report b
   assert.match(result.err, /If interrupted, resume with scan collect/);
   assert.match(result.out, /Scan finished/);
   assert.equal(read(record).report_status, "saved");
+  assert.match(result.out, /Local HTML report:.*intent-prover view --output <new-file.html>/);
+  assert.ok(result.out.includes(`#view=scans&scan=${encodeURIComponent(`scan/${id}/meta.json`)}`));
   const collected = await cli(["collect", id], ctx);
   assert.equal(collected.code, 0, collected.err);
   assert.match(collected.out, /Scan finished/);
+  assert.match(collected.out, /Local HTML report:/);
   assert.equal(read(record).report_status, "saved");
   const reportDir = path.join(ctx.repo, ".intent", "scan", id);
   assert.ok(read(path.join(reportDir, "report.json")).coverage);
