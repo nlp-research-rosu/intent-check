@@ -1,0 +1,118 @@
+name: Smoke tests
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: read
+concurrency:
+  group: website-smoke-${{ github.event.pull_request.number }}
+  # Allow the runner to finish/cancel accepted service tasks before exiting.
+  cancel-in-progress: false
+jobs:
+  website:
+    name: Smoke (${{ matrix.case }})
+    # These are observational runs, not promotion gates. Keep real outcomes in artifacts.
+    continue-on-error: true
+    if: >-
+      github.event.pull_request.head.ref == 'staging' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    outputs:
+      withdraw: ${{ steps.prove.outputs.withdraw }}
+      mle-bench: ${{ steps.scan.outputs['mle-bench'] }}
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [withdraw, mle-bench]
+    env:
+      PI_VERSION: 1.5.2
+      SMOKE_MODEL: deepseek/deepseek-v4.1-flash-1017
+      SMOKE_THINKING: high
+      SMOKE_CASE: ${{ matrix.case }}
+    steps:
+      # The default PR merge ref tests the prospective main tree, not just its head.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.19.0
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - name: Configure temporary smoke paths
+        run: |
+          echo "SMOKE_PACKAGE_ROOT=$RUNNER_TEMP/smoke-package" >> "$GITHUB_ENV"
+          echo "SMOKE_OUTPUT_DIR=$RUNNER_TEMP/smoke-results" >> "$GITHUB_ENV"
+      - name: Install pinned Pi without lifecycle scripts
+        if: matrix.case == 'withdraw'
+        run: |
+          npm install --prefix "$RUNNER_TEMP/pi" --ignore-scripts --no-audit --no-fund --save-exact "@earendil-works/pi-coding-agent@$PI_VERSION"
+          echo "$RUNNER_TEMP/pi/node_modules/.bin" >> "$GITHUB_PATH"
+      - name: Build and install the unpublished staging candidate
+        run: |
+          mkdir -p "$SMOKE_PACKAGE_ROOT" "$RUNNER_TEMP/smoke-bin"
+          git archive HEAD | tar -x -C "$SMOKE_PACKAGE_ROOT"
+          cd "$SMOKE_PACKAGE_ROOT"
+          # A local packaging identity, not a release/version bump or published tag.
+          version=$(node -p 'JSON.parse(require("fs").readFileSync("package.json", "utf8")).version.split("-")[0] + "-staging.0"')
+          node scripts/package-channel.mjs staging "$version"
+          cargo build --manifest-path cli/Cargo.toml --locked --release
+          install -m 755 cli/target/release/intent-prover-staging "$RUNNER_TEMP/smoke-bin/intent-prover-staging"
+          echo "$RUNNER_TEMP/smoke-bin" >> "$GITHUB_PATH"
+      - name: Prove the withdrawal example with Pi
+        id: prove
+        if: matrix.case == 'withdraw'
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          INTENT_STAGING_API_KEY: ${{ secrets.INTENT_STAGING_API_KEY }}
+        run: node scripts/smoke-tests.mjs
+      - name: Scan the pinned MLE-bench example directly
+        id: scan
+        if: matrix.case == 'mle-bench'
+        env:
+          INTENT_STAGING_API_KEY: ${{ secrets.INTENT_STAGING_API_KEY }}
+        run: node scripts/smoke-tests.mjs
+      - name: Retain .intent evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ matrix.case }}-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.SMOKE_OUTPUT_DIR }}/artifact
+          include-hidden-files: true # The ZIP contains only the redacted .intent/ folder.
+          if-no-files-found: ignore
+          retention-days: 7
+  report:
+    name: Smoke tests report
+    needs: website
+    if: >-
+      !cancelled() &&
+      needs.website.result != 'cancelled' &&
+      github.event.pull_request.head.ref == 'staging' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.19.0
+      - name: Download selected smoke evidence
+        id: evidence
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: '*-smoke-${{ github.run_id }}-${{ github.run_attempt }}'
+          path: ${{ runner.temp }}/smoke-evidence
+      - name: Update PR result comment
+        if: ${{ !cancelled() }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SMOKE_EVIDENCE_DIR: ${{ runner.temp }}/smoke-evidence
+          SMOKE_RESULTS: ${{ toJSON(needs.website.outputs) }}
+        run: node scripts/smoke-tests-comment.mjs

@@ -40,7 +40,7 @@ export function baseEnv(dataDir, apiUrl, extra = {}) {
 // Saves the key for one service URL.
 // The credentials file lives under XDG_CONFIG_HOME; each test gets its own next to its data dir.
 export const xdgDir = (dataDir) => path.join(dataDir, "xdg");
-export const credentialsPath = (dataDir) => path.join(xdgDir(dataDir), "intent-check", "credentials.json");
+export const credentialsPath = (dataDir) => path.join(xdgDir(dataDir), "intent-prover", "credentials.json");
 
 export function saveKey(dataDir, key, url) {
   const file = credentialsPath(dataDir);

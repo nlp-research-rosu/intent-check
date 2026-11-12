@@ -1,0 +1,15 @@
+Use Intent Check Prove to verify this Python function:
+
+```python
+def withdraw(balance, amount):
+    if amount > balance:
+        raise ValueError("Insufficient funds")
+    return balance - amount
+```
+
+Assume balance and amount are nonnegative Python integers, excluding booleans.
+
+Prove for every valid input that:
+1. Any returned balance is nonnegative.
+2. If amount <= balance, it returns balance - amount.
+3. If amount > balance, it raises ValueError("Insufficient funds").

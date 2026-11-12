@@ -1,9 +1,9 @@
 {
   "name": "intent",
   "version": "1.1.2",
-  "description": "Code analysis and verification for AI coding assistants.",
+  "description": "Intent Prover: code analysis and verification for AI coding assistants.",
   "author": { "name": "Intent Computing" },
-  "homepage": "https://check.intentcomputing.org/privacy",
-  "repository": "https://github.com/nlp-research-rosu/intent-check",
+  "homepage": "https://prover.intentcomputing.org/privacy",
+  "repository": "https://github.com/nlp-research-rosu/intent-prover",
   "keywords": ["code-review", "intent", "formal-verification"]
 }

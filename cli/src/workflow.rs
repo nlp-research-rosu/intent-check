@@ -1,4 +1,6 @@
-use crate::{CommandResult, ProofArgs, ProveArgs, RunArgs, TaskCommand, api::Api, config, session};
+use crate::{
+    CommandResult, ProofArgs, ProveArgs, RunArgs, TaskCommand, api::Api, channel, config, session,
+};
 use anyhow::{Context, bail, ensure};
 use serde_json::{Value, json};
 
@@ -21,7 +23,7 @@ pub fn run_program(args: RunArgs) -> CommandResult {
     session::save(&proof_session)?;
     let evidence =
         session::workspace(&proof_session).join(format!("run-{:03}", proof_session.runs_used));
-    crate::api::record_submission(&response, &evidence)?;
+    api.record_submission(&response, &evidence)?;
     drop(lock);
     let task = api.complete(
         &response,
@@ -64,7 +66,7 @@ pub fn validate(args: ProofArgs) -> CommandResult {
     proof_session.validations_used += 1;
     session::save(&proof_session)?;
     let evidence = root.join(format!("validation-{:03}", proof_session.validations_used));
-    crate::api::record_submission(&response, &evidence)?;
+    api.record_submission(&response, &evidence)?;
     drop(lock);
     let task = api.complete(
         &response,
@@ -110,7 +112,7 @@ pub fn prove(args: ProveArgs) -> CommandResult {
     proof_session.attempts_used += 1;
     session::save(&proof_session)?;
     let evidence = root.join(format!("proof-{:03}", proof_session.attempts_used));
-    crate::api::record_submission(&response, &evidence)?;
+    api.record_submission(&response, &evidence)?;
     drop(lock);
     let task = api.complete(
         &response,
@@ -214,7 +216,7 @@ fn finish(
         .and_then(|code| i32::try_from(code).ok());
     let timed_out = task["status"] == "timed_out"
         || last_run.and_then(|run| run["outcome"].as_str()) == Some("timeout");
-    // The Intent Check service can reuse a completed result without executing a tool in this task.
+    // The Intent Prover service can reuse a completed result without executing a tool in this task.
     let completed_without_run = tool_runs.is_some_and(Vec::is_empty)
         && task["status"] == "completed"
         && !task["result"].is_null()
@@ -225,13 +227,18 @@ fn finish(
         response["exitCode"] = Value::Null;
         if !completed_without_run {
             let error = if timed_out {
-                "Intent Check service task timed out."
+                "Intent Prover service task timed out."
             } else {
                 "Backend did not provide a final tool exit code."
             };
             response["error"] = json!(error);
         }
     }
+    eprintln!(
+        "Local HTML report: after updating PROOF.md and SCOPE.md, run {} --project <projectRoot> view --output <new-file.html>. projectRoot: {}. Present the HTML first; saved remote job links are inside.",
+        channel::settings().cli,
+        proof_session.project_root.display()
+    );
     Ok((exit.unwrap_or(i32::from(!completed_without_run)), response))
 }
 

@@ -1,5 +1,5 @@
 use crate::{ProofArgs, RunArgs, auth, config::Config, inputs, session::Session};
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use reqwest::{
     StatusCode,
     blocking::{Client, RequestBuilder, Response, multipart},
@@ -16,6 +16,7 @@ use std::{
 
 pub struct Api {
     base: String,
+    portal: reqwest::Url,
     http: Client,
     files: Client,
     request_timeout: Duration,
@@ -62,6 +63,15 @@ const SUBMIT_RETRIES: u32 = 3;
 
 impl Api {
     pub fn new(config: &Config) -> Result<Self> {
+        let portal = reqwest::Url::parse(&config.portal_url).context("Invalid console URL")?;
+        ensure!(
+            matches!(portal.scheme(), "http" | "https")
+                && portal.username().is_empty()
+                && portal.password().is_none()
+                && portal.query().is_none()
+                && portal.fragment().is_none(),
+            "Console URL must be HTTP(S) without credentials, query or fragment"
+        );
         let mut http = Client::builder()
             .timeout(Duration::from_secs(config.request_timeout_seconds))
             .redirect(reqwest::redirect::Policy::none());
@@ -72,6 +82,7 @@ impl Api {
         }
         Ok(Self {
             base: config.server_url.trim_end_matches('/').into(),
+            portal,
             http: http.build()?,
             files: Client::builder()
                 .timeout(Duration::from_secs(config.request_timeout_seconds))
@@ -83,7 +94,7 @@ impl Api {
     pub fn health(&self) -> Result<Value> {
         let health = self.get("/healthz")?;
         if health["status"] != "ok" {
-            bail!("Intent Check service health check failed");
+            bail!("Intent Prover service health check failed");
         }
         Ok(health)
     }
@@ -100,7 +111,7 @@ impl Api {
         let status = response.status();
         if !status.is_success() {
             bail!(
-                "Intent Check service semantics archive returned HTTP {status}; check the endpoint and saved connection"
+                "Intent Prover service semantics archive returned HTTP {status}; check the endpoint and saved connection"
             );
         }
         Ok(response)
@@ -139,6 +150,23 @@ impl Api {
 
     pub fn submit_proof(&self, upload: &Upload) -> Result<Value> {
         self.submit("/proofs", upload)
+    }
+
+    pub fn record_submission(&self, accepted: &Value, evidence: &Path) -> Result<()> {
+        let mut report_url = self.portal.clone();
+        report_url
+            .path_segments_mut()
+            .map_err(|_| anyhow!("Console URL cannot contain a task path"))?
+            .pop_if_empty()
+            .push("tasks")
+            .push(task_id(accepted)?);
+        fs::create_dir_all(evidence)?;
+        // Keep the submission's console even if configuration changes before collection/export.
+        write_json(
+            evidence,
+            "result.json",
+            &json!({"task": accepted, "reportUrl": report_url.as_str()}),
+        )
     }
 
     pub fn complete(
@@ -186,8 +214,10 @@ impl Api {
         write_json(&evidence, "result.json", &snapshot)?;
         let waited = waited.map_err(|error| {
             anyhow!(
-                "Task {id}: {error}; evidence: {}; resume with intent-check task wait {id} --session {}",
-                evidence.display(), session.session_id
+                "Task {id}: {error}; evidence: {}; resume with {} task wait {id} --session {}",
+                evidence.display(),
+                crate::channel::settings().cli,
+                session.session_id
             )
         })?;
         let semantics = &session.semantics;
@@ -342,7 +372,7 @@ impl Api {
                 }
             };
             if task_id(&task)? != id {
-                bail!("Intent Check service response task ID is mismatched");
+                bail!("Intent Prover service response task ID is mismatched");
             }
             failures = 0;
             snapshot.as_object_mut().unwrap().remove("wait");
@@ -357,7 +387,7 @@ impl Api {
                     return Ok(WaitResult { task, stop: None });
                 }
                 Some("queued" | "running") => {}
-                status => bail!("Unknown Intent Check service task status: {status:?}"),
+                status => bail!("Unknown Intent Prover service task status: {status:?}"),
             }
             if signal.recv_timeout(Duration::from_secs(poll)).is_ok() {
                 return Ok(self.stop(id, task, "interrupted"));
@@ -388,7 +418,7 @@ impl Api {
                 Ok(snapshot) if task_id(&snapshot).ok() == Some(id) => task = snapshot,
                 Ok(_) => {
                     observation_error =
-                        Some("Intent Check service response task ID is mismatched".into());
+                        Some("Intent Prover service response task ID is mismatched".into());
                     break;
                 }
                 Err(error) => {
@@ -458,7 +488,7 @@ impl Api {
     pub fn cancel_task(&self, id: &str) -> Result<Value> {
         let task = self.task(id)?;
         if task_id(&task)? != id {
-            bail!("Intent Check service response task ID is mismatched");
+            bail!("Intent Prover service response task ID is mismatched");
         }
         let stopped = self.stop(id, task, "requested");
         Ok(json!({"task": stopped.task, "cancellation": stopped.stop}))
@@ -476,7 +506,7 @@ impl Api {
         }
         let body = response.text()?;
         bail!(
-            "Intent Check service cancellation returned HTTP {status}: {}",
+            "Intent Prover service cancellation returned HTTP {status}: {}",
             error_detail(&body)
         )
     }
@@ -512,11 +542,11 @@ impl Api {
             let location = response
                 .headers()
                 .get(LOCATION)
-                .ok_or_else(|| anyhow!("Intent Check service file link has no Location header"))?
+                .ok_or_else(|| anyhow!("Intent Prover service file link has no Location header"))?
                 .to_str()?;
             let url = response.url().join(location)?;
             if !url.username().is_empty() || url.password().is_some() {
-                bail!("Intent Check service file link contains unexpected credentials");
+                bail!("Intent Prover service file link contains unexpected credentials");
             }
             // Signed links carry their own authorization, even on the same host.
             self.files
@@ -528,7 +558,7 @@ impl Api {
         };
         let status = response.status();
         if !status.is_success() {
-            bail!("Intent Check service {name} download returned HTTP {status}");
+            bail!("Intent Prover service {name} download returned HTTP {status}");
         }
         Ok(response)
     }
@@ -543,20 +573,21 @@ impl Api {
         let status = response.status();
         if status == StatusCode::UNAUTHORIZED {
             bail!(
-                "Intent Check service requires a valid API key; run intent-check login and give the user its browser link and code"
+                "Intent Prover service requires a valid API key; run {} login and give the user its browser link and code",
+                crate::channel::settings().cli
             );
         }
         let status_error = response.error_for_status_ref().err();
         let body = response.text()?;
         if let Some(error) = status_error {
             return Err(anyhow::Error::new(error).context(format!(
-                "Intent Check service returned HTTP {status}: {}",
+                "Intent Prover service returned HTTP {status}: {}",
                 error_detail(&body)
             )));
         }
         if !status.is_success() {
             bail!(
-                "Intent Check service returned HTTP {status}: {}",
+                "Intent Prover service returned HTTP {status}: {}",
                 error_detail(&body)
             );
         }
@@ -577,11 +608,6 @@ fn retryable_error(error: &anyhow::Error) -> bool {
     })
 }
 
-pub fn record_submission(accepted: &Value, evidence: &Path) -> Result<()> {
-    fs::create_dir_all(evidence)?;
-    write_json(evidence, "result.json", &json!({"task": accepted}))
-}
-
 pub fn write_json(directory: &Path, name: &str, value: &Value) -> Result<()> {
     let temporary = directory.join(format!(".{name}-{}.tmp", uuid::Uuid::new_v4()));
     fs::write(&temporary, serde_json::to_vec_pretty(value)?)?;
@@ -592,7 +618,7 @@ pub fn write_json(directory: &Path, name: &str, value: &Value) -> Result<()> {
 pub fn task_id(value: &Value) -> Result<&str> {
     value["id"]
         .as_str()
-        .ok_or_else(|| anyhow!("Intent Check service response has no task ID"))
+        .ok_or_else(|| anyhow!("Intent Prover service response has no task ID"))
 }
 
 fn error_detail(body: &str) -> String {

@@ -60,7 +60,7 @@ claim [loop-inv]:
 
 ## Claim labels
 
-Use `intent-check prove --help` for label spelling, claim selection, and
+Use `intent-prover prove --help` for label spelling, claim selection, and
 filtering
 errors. See [claim structure](spec-authoring.md#claim-structure-and-reuse)
 for claim reuse attributes.
