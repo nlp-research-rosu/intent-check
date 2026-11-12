@@ -4,7 +4,7 @@
   "title": "Intent Prover Scan API, contract v1",
   "description": "The body of POST /scan: a gzip'd JSON snapshot of the repo. Shared by the intent plugin and the prover. Changes are additive only.",
   "$defs": {
-    "Host": { "enum": ["claude-code", "codex"] },
+    "Host": { "enum": ["claude-code", "codex", "antigravity"] },
     "Sha1or256": { "type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$" },
     "RepoPath": {
       "description": "Relative, forward-slash path inside the repo: no leading slash, no drive letter, no backslash, no empty or '..' segments, no NUL.",

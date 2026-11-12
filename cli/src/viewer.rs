@@ -97,6 +97,9 @@ fn plugin_directories(explicit: Vec<PathBuf>) -> Vec<PathBuf> {
             );
         }
     }
+    if let Some(home) = &home {
+        dirs.push(home.join(".gemini/config/plugin-data/intent"));
+    }
     dirs.sort();
     dirs.dedup();
     dirs

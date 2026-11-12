@@ -20,9 +20,10 @@ export function prepareChannel(name, version, root = ROOT) {
 
   writeVersion(version, root);
   write(root, "release/channel", `${name}\n`);
-  for (const file of [".claude-plugin/plugin.json", ".codex-plugin/plugin.json"]) {
+  for (const file of [".claude-plugin/plugin.json", ".codex-plugin/plugin.json", ".antigravity-plugin/plugin.json"]) {
     const manifest = JSON.parse(read(root, file));
     manifest.name = selected.plugin;
+    if (file === ".antigravity-plugin/plugin.json") manifest.displayName = selected.display_name;
     manifest.description = `${selected.display_name}: code analysis and verification for AI coding assistants.`;
     write(root, file, `${JSON.stringify(manifest, null, 2)}\n`);
   }
