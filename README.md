@@ -20,8 +20,6 @@ Project knowledge and evidence under `.intent/` are meant to be committed with s
 
 ## Install (Claude Code)
 
-Detailed tool/interface/OS instructions are in [docs/install.json](docs/install.json).
-
 Requirements: Node.js 18+ for Scan commands, and the global `intent-prover` CLI for sign-in and Prove.
 
 In Claude Code:
@@ -94,7 +92,7 @@ Claude Code updates a plugin only when its version changes. Third-party marketpl
 
 The shared marketplace pins the plugin source to a published tag and exact commit for both Claude Code and Codex. Merging code into a branch does not advertise it as a plugin update. Fresh installs and host updates use the release named by the marketplace, not the checkout's development files.
 
-Maintainers: use the release workflow to choose the source branch, channel and exact version (for example `1.3.0` or `1.3.0-staging.1`). Versions are entered manually, not automatically incremented. The workflow prepares the matching plugin/CLI package, builds and uploads all CLI assets, then publishes the release before advancing its catalog. Production releases run from `main`; staging releases update only their separate catalog, not the source branch or production installer/catalog. Concurrent catalog changes prevent a non-fast-forward push. See [release channels](docs/releases.md). Every user-visible PR needs an Unreleased entry in [CHANGELOG.md](CHANGELOG.md).
+Maintainers: use the release workflow to choose the source branch, channel and exact version (for example `1.3.0` or `1.3.0-staging.1`). Versions are entered manually, not automatically incremented. The workflow prepares the matching plugin/CLI package, builds and uploads all CLI assets, then publishes the release before advancing its catalog. Production releases run from `main`; staging releases update only their separate catalog, not the source branch or production installer/catalog. Concurrent catalog changes prevent a non-fast-forward push. Every user-visible PR needs an Unreleased entry in [CHANGELOG.md](CHANGELOG.md).
 
 ## Install (Codex CLI 0.147 or newer)
 
@@ -160,4 +158,3 @@ findings into formal proof or add assurance to a proof's recorded claims.
 - `lib/snapshot.js` builds scoped repository snapshots; `lib/scan.js` submits, waits for and collects Scans. No host session capture or worker spawning remains.
 - Backend contract: the Intent Prover service API (`nlp-research-rosu/prover`); `test/helpers/fake-prover.js` provides a controlled service for checks.
 - CLI: `cli/` (Rust). CI runs formatting, clippy, build and existing tests.
-- `NOTICE` retains attribution for code derived from Anthropic's security-guidance plugin.

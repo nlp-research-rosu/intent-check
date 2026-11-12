@@ -69,7 +69,7 @@ jobs:
             git checkout --detach "v$V"
           else
             node scripts/package-channel.mjs "$CHANNEL" "$V"
-            git add package.json .claude-plugin/plugin.json .codex-plugin/plugin.json cli/Cargo.toml cli/Cargo.lock docs/install.json CHANGELOG.md release/channel commands skills 'scripts/install-intent-prover*'
+            git add package.json .claude-plugin/plugin.json .codex-plugin/plugin.json cli/Cargo.toml cli/Cargo.lock CHANGELOG.md release/channel commands skills 'scripts/install-intent-prover*'
             git commit -m "release: $CHANNEL v$V"
             git tag "v$V"
           fi
