@@ -10,7 +10,8 @@ test("marketplace and manifests share one plugin version", () => {
   const marketplace = read(".claude-plugin/marketplace.json");
   assert.equal(marketplace.name, "intentcomputing");
   assert.equal(marketplace.plugins[0].name, "intent");
-  assert.equal(marketplace.plugins[0].source.ref, `v${marketplace.plugins[0].version}`);
+  assert.equal(marketplace.plugins[0].source.ref, "main");
+  assert.equal(marketplace.plugins[0].source.sha, undefined);
   const version = read("package.json").version;
   assert.match(version, /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
   for (const name of [".claude-plugin/plugin.json", ".codex-plugin/plugin.json", ".antigravity-plugin/plugin.json"]) {

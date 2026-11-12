@@ -12,8 +12,7 @@
       "source": {
         "source": "url",
         "url": "https://github.com/nlp-research-rosu/intent-check.git",
-        "ref": "v1.1.2",
-        "sha": "2fac89b4082561968b679db3f9432cd8fba3afd3"
+        "ref": "main"
       },
       "description": "Code analysis and verification for AI coding assistants.",
       "version": "1.1.2"

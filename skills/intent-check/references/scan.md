@@ -1,5 +1,8 @@
 # Scan
 
+Start with the [CLI update check](onboarding.md#check-cli-updates) once for this
+requested workflow. Reuse saved sign-in.
+
 Use the plugin launcher in [Intent Check](../SKILL.md#commands), not the global
 Prove CLI. Before submitting, explain that the requested code will be uploaded
 to the configured service, with obvious secrets masked. A generic local-review

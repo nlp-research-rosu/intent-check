@@ -92,9 +92,11 @@ Reload or restart the host after updating. Close sessions using an older plugin 
 
 Claude Code updates a plugin only when its version changes. Third-party marketplace auto-update is optional; enable it under `/plugin` → Marketplaces → intentcomputing. A running session needs `/reload-plugins` or a restart to use a new version.
 
-The shared marketplace pins the plugin source to a published tag and exact commit for both Claude Code and Codex. Merging code into a branch does not advertise it as a plugin update. Fresh installs and host updates use the release named by the marketplace, not the checkout's development files.
+The shared marketplace loads plugin files from `main` for both Claude Code and Codex. Main is the current published plugin and skill source; GitHub releases provide versioned CLI binaries. Native hosts still use plugin manifest versions to detect updates.
 
-Maintainers: use the release workflow to choose the branch and version bump (minor when removing or renaming commands). It prepares the version commit and changelog, builds and uploads the CLI assets, then publishes the release. Only after publication does it commit the marketplace's version, tag and SHA and fast-forward the branch. Failed publication leaves the advertised release unchanged; concurrent branch changes prevent the push. Other branches publish prereleases and advance their own marketplace pin. Every user-visible PR needs an Unreleased entry in [CHANGELOG.md](CHANGELOG.md).
+For skill-only installs, use `npx skills add nlp-research-rosu/intent-prover#main --skill '*' --agent <agent> --global`. Run `npx skills update --global` to refresh installed skills. At the start of requested Scan or Prove work, the skill checks for a newer released CLI and updates it if needed, preserving configuration and sign-in. Ordinary messages and diagnostics do not install updates.
+
+Maintainers: use the release workflow to choose the branch and version bump (minor when removing or renaming commands). It prepares the plugin and CLI versions and changelog, builds and uploads the CLI assets, then publishes the release. After publication it updates the catalog's version without pinning plugin files to a tag or commit. Concurrent branch changes prevent the push. Other branches publish prereleases. Every user-visible PR needs an Unreleased entry in [CHANGELOG.md](CHANGELOG.md).
 
 ## Install (Codex CLI 0.147 or newer)
 
