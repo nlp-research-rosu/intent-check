@@ -4,6 +4,7 @@ mod channel;
 mod config;
 mod help;
 mod inputs;
+mod scan;
 mod semantics;
 mod session;
 mod viewer;
@@ -26,6 +27,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Submit a repository Scan, wait for findings, or collect an interrupted task.
+    #[command(after_help = help::SCAN)]
+    Scan(scan::ScanArgs),
+    /// Show plugin Scan configuration and check the saved credential.
+    Doctor(scan::PluginArgs),
     /// View local check artifacts live, or export a self-contained HTML report.
     #[command(after_help = help::VIEW)]
     View(viewer::ViewArgs),
@@ -202,7 +208,28 @@ pub struct ProveArgs {
 pub type CommandResult = anyhow::Result<(i32, Value)>;
 
 fn main() {
-    let (exit, value) = dispatch(Cli::parse()).unwrap_or_else(|error| {
+    let cli = Cli::parse();
+    if matches!(cli.command, Command::Scan(_) | Command::Doctor(_)) {
+        let result = (|| -> anyhow::Result<String> {
+            if let Some(project) = cli.project {
+                std::env::set_current_dir(session::project_root(&project)?)?;
+            }
+            match cli.command {
+                Command::Scan(args) => scan::run(args),
+                Command::Doctor(args) => scan::doctor(args),
+                _ => unreachable!("text command was checked"),
+            }
+        })();
+        match result {
+            Ok(text) => println!("{text}"),
+            Err(error) => {
+                eprintln!("Intent Prover: {error}");
+                process::exit(1);
+            }
+        }
+        return;
+    }
+    let (exit, value) = dispatch(cli).unwrap_or_else(|error| {
         (
             1,
             json!({"status": "failure", "message": error.to_string()}),
@@ -231,6 +258,9 @@ fn dispatch(cli: Cli) -> CommandResult {
         std::env::set_current_dir(project)?;
     }
     match cli.command {
+        Command::Scan(_) | Command::Doctor(_) => {
+            unreachable!("text commands are dispatched separately")
+        }
         Command::View(args) => viewer::view(args),
         Command::Login => auth::login(),
         Command::Config => Ok((0, config::view()?)),

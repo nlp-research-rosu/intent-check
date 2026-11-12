@@ -7,7 +7,8 @@ selects another project, with the same root detection. Execution commands use
 --session <ID>; --project on them asserts the saved project matches.
 Configuration is shared.
 
-Commands print one JSON object to stdout; diagnostics may also go to stderr.
+Scan and doctor print readable text; other commands print one JSON object to
+stdout. Diagnostics may also go to stderr.
 View prints a listening URL when its local server starts and a final stopped
 object on Ctrl-C; --output exports HTML and returns immediately.
 Login first prints a pending JSON object, waits for browser approval, then
@@ -32,6 +33,27 @@ the latest counts. Task inspection and recovery do not submit new work or
 consume another attempt.
 
 Configuration help explains settings, timeouts, and cancellation behavior."#;
+
+pub const SCAN: &str = r#"Submits tracked and non-ignored working-tree text from a Git repository.
+The optional file or folder is resolved from the current directory. Evidence
+always goes under .intent/scan/<task-id>/ at the repository root.
+An optional depth word selects fast (default), balanced or full. Place the
+target and depth in either order. Give only one target and one depth.
+
+The collect action accepts an optional task ID. It resumes an existing local
+record for this project and service without another upload. Without an ID it
+collects pending records. Existing saved reports survive failed downloads.
+
+Scan waits until the service finishes; there is no overall client deadline.
+Ctrl-C stops waiting, not the remote task. Its saved record can be collected
+later. Findings are analysis, not reproduced bugs or proof results.
+Completion prints the existing offline HTML export handoff and remote job link.
+Scan and doctor print readable text rather than a JSON envelope.
+
+Plugin data and host options preserve the installed plugin's recovery location
+and snapshot metadata. They do not select the service or distribution channel.
+Authentication and API/console settings use this CLI's channel configuration.
+INTENT_DISABLED=1 and DO_NOT_TRACK=1 prevent Scan submissions and collection."#;
 
 pub const LOGIN: &str = r#"Give the user the returned verification_url.
 The link includes the connection code. The user signs in and approves the machine.

@@ -1,4 +1,4 @@
-// Pi constructs the proof; Scan invokes the existing Node launcher directly.
+// Pi constructs the proof; Scan invokes the native CLI directly.
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -278,14 +278,12 @@ async function main() {
       requireValue(files(path.join(project, ".intent/prove")).some((file) => path.basename(file) === "SCOPE.md"), "Pi did not save SCOPE.md");
     } else {
       const repo = path.join(project, "mle-bench");
-      const launcher = path.join(packageRoot, "bin/intent.js");
-      requireValue(fs.existsSync(launcher), "Generated staging Scan launcher is missing");
       result.scanCommands = [
         { executable: "git", args: ["init", "--quiet", repo], cwd: project },
         { executable: "git", args: ["remote", "add", "origin", SCAN.remote], cwd: repo },
         { executable: "git", args: ["fetch", "--depth=1", "origin", SCAN.commit], cwd: repo },
         { executable: "git", args: ["checkout", "--quiet", "--detach", SCAN.commit], cwd: repo },
-        { executable: process.execPath, args: [launcher, "scan", SCAN.scope, "fast"], cwd: repo },
+        { executable: CLI, args: ["scan", SCAN.scope, "fast"], cwd: repo },
       ];
       write("scan-plan.json", { ...SCAN, depth: "fast", commands: result.scanCommands });
       write("upload-scope.txt", `Upload the public ${SCAN.remote} repository at ${SCAN.commit}, folder ${SCAN.scope}/, using the existing staging Scan launcher's snapshot filtering and redaction. No repository dependencies or scripts are installed/run.\n`);

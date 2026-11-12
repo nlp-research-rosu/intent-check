@@ -105,6 +105,19 @@ pub fn api_key(server: &str) -> Result<Option<String>> {
     Ok(key)
 }
 
+// Scan masks every locally held credential, not only the selected API origin.
+pub(crate) fn stored_keys() -> Result<Vec<String>> {
+    let mut keys = Vec::new();
+    if let Ok(key) = std::env::var(channel::env_name("API_KEY")) {
+        keys.push(key.trim().to_owned());
+    }
+    if let Ok(credentials) = read(&file()?) {
+        keys.extend(credentials.keys.into_values());
+    }
+    keys.retain(|key| key.len() >= 8);
+    Ok(keys)
+}
+
 // A 429 from the portal, with how long it asked us to wait.
 #[derive(Debug)]
 struct RateLimited(Option<u64>);

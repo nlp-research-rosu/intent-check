@@ -8,7 +8,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node scripts/test.mjs",
+    "test": "cargo build --locked --manifest-path cli/Cargo.toml && cargo test --locked --manifest-path cli/Cargo.toml && node scripts/test.mjs",
     "test:integration": "node --test test/integration/*.test.js"
   }
 }
