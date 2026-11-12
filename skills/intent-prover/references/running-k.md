@@ -1,11 +1,11 @@
-# Running K through Intent Check
+# Running K through Intent Prover
 
 Use this for input preparation, proof controls and results. Exact command syntax:
-`intent-check <command> --help`. For connection, limits and recovery, see [CLI help](proof-help.md).
+`intent-prover <command> --help`. For connection, limits and recovery, see [CLI help](proof-help.md).
 
 ## Shell setup
 
-Use the global `intent-check` CLI on `PATH`; the service executes K remotely.
+Use the global `intent-prover` CLI on `PATH`; the service executes K remotely.
 Use [onboarding](onboarding.md) for missing setup and `health` for reachability.
 
 ## CLI contract

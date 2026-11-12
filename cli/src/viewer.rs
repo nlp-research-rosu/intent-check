@@ -1,4 +1,4 @@
-use crate::{CommandResult, session};
+use crate::{CommandResult, channel, session};
 use anyhow::{Context, Result, ensure};
 use clap::Args;
 use serde::Serialize;
@@ -90,7 +90,11 @@ fn plugin_directories(explicit: Vec<PathBuf>) -> Vec<PathBuf> {
             .map(PathBuf::from)
             .or_else(|| home.as_ref().map(|h| h.join(default)))
         {
-            dirs.push(base.join("plugins/data/intent-intentcomputing"));
+            let selected = channel::settings();
+            dirs.push(
+                base.join("plugins/data")
+                    .join(format!("{}-{}", selected.plugin, selected.marketplace)),
+            );
         }
     }
     dirs.sort();
@@ -194,24 +198,6 @@ fn snapshot(root: &Path, name: &str, data_dirs: &[PathBuf]) -> Result<Snapshot> 
     Ok(snapshot)
 }
 
-fn base64(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    for chunk in bytes.chunks(3) {
-        let bits = (u32::from(chunk[0]) << 16)
-            | (u32::from(*chunk.get(1).unwrap_or(&0)) << 8)
-            | u32::from(*chunk.get(2).unwrap_or(&0));
-        for index in 0..4 {
-            out.push(if index > chunk.len() {
-                '='
-            } else {
-                ALPHABET[((bits >> (18 - index * 6)) & 63) as usize] as char
-            });
-        }
-    }
-    out
-}
-
 fn html(snapshot: &Snapshot, data_url: Option<&str>) -> Result<String> {
     let payload = serde_json::to_string(&json!({"snapshot": snapshot, "dataUrl": data_url}))?
         .replace('<', "\\u003c")
@@ -219,13 +205,7 @@ fn html(snapshot: &Snapshot, data_url: Option<&str>) -> Result<String> {
         .replace('\u{2029}', "\\u2029");
     Ok(include_str!("viewer/index.html")
         .replace("__STYLE__", include_str!("viewer/style.css"))
-        .replace(
-            "__FONT__",
-            &base64(include_bytes!("viewer/geist-latin.woff2")),
-        )
         .replace("__SCRIPT__", include_str!("viewer/app.js"))
-        .replace("__LOGO__", include_str!("viewer/mark.svg"))
-        .replace("__FONT_LICENSE__", include_str!("viewer/Geist-OFL.txt"))
         .replace(
             "__CONNECT__",
             if data_url.is_some() {

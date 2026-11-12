@@ -1,7 +1,7 @@
 # Onboarding
 
-Complete setup once for this machine and Intent Check service endpoint. A working CLI and
-an accepted saved credential let subsequent Intent Check tasks proceed without repeating
+Complete setup once for this machine and Intent Prover service endpoint. A working CLI and
+an accepted saved credential let subsequent Intent Prover tasks proceed without repeating
 onboarding. Use this guide when setup is missing or the user requests it.
 
 Install and connect the CLI; the user only needs to open the login
@@ -11,20 +11,20 @@ answering questions about the components, settings or saved data.
 
 ## Detect the CLI
 
-Intent Check requires `intent-check` on `PATH`.
+Intent Prover requires `intent-prover` on `PATH`.
 
 On macOS or Linux, run:
 
 ```bash
-command -v intent-check
-intent-check --version
+command -v intent-prover
+intent-prover --version
 ```
 
 On Windows PowerShell, run:
 
 ```powershell
-Get-Command intent-check
-intent-check --version
+Get-Command intent-prover
+intent-prover --version
 ```
 
 Check for CLI updates using the released installer below, even if the CLI
@@ -34,45 +34,45 @@ On macOS or Linux, install or update with:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/nlp-research-rosu/intent-check/releases/latest/download/install-intent-check.sh | sh
+  https://github.com/nlp-research-rosu/intent-prover/releases/latest/download/install-intent-prover.sh | sh
 ```
 
 On Windows PowerShell:
 
 ```powershell
 Invoke-WebRequest `
-  https://github.com/nlp-research-rosu/intent-check/releases/latest/download/install-intent-check.ps1 `
-  -OutFile install-intent-check.ps1
-& ./install-intent-check.ps1
+  https://github.com/nlp-research-rosu/intent-prover/releases/latest/download/install-intent-prover.ps1 `
+  -OutFile install-intent-prover.ps1
+& ./install-intent-prover.ps1
 ```
 
 The installers select the platform binary, verify its checksum and configure
 PATH. Start a new terminal or agent session, or run the shell command printed
 by the installer, then repeat the detection commands above.
 
-## Connect to Intent Check
+## Connect to Intent Prover
 
 Sign-in runs only when explicitly requested for setup. Reuse an already-running
-login rather than starting another. Check the connection with `intent-check health`.
+login rather than starting another. Check the connection with `intent-prover health`.
 
-For first-time setup, run `intent-check login` and show the user its
+For first-time setup, run `intent-prover login` and show the user its
 `verification_url`. The user signs in and approves. Keep the command running
 until it saves the key and exits with `connected`.
 
-Once connected, run normal Intent Check commands with the saved key. If a command
+Once connected, run normal Intent Prover commands with the saved key. If a command
 returns an authentication or permission error, use that response to resolve
-the connection; follow `intent-check login --help` when reconnection is
+the connection; follow `intent-prover login --help` when reconnection is
 needed. Never ask for a key in chat or read credential files into context.
 If login is denied, stop setup.
 
 ## Finish setup
 
-For a formal proof task, run `intent-check config` and briefly explain the effective proof, validation
-and concrete-run attempt limits and the configuration path. The Intent Check service owns
-execution timeouts. Use `intent-check config --help` for default values.
+For a formal proof task, run `intent-prover config` and briefly explain the effective proof, validation
+and concrete-run attempt limits and the configuration path. The Intent Prover service owns
+execution timeouts. Use `intent-prover config --help` for default values.
 Distinguish built-in defaults from configured overrides. Each session tracks
 its own attempt counts; configuration changes apply to sessions using that
 configuration. One accepted proof submission can contain several claims.
 
-Confirm that Intent Check is ready and return to the user's task. Do not repeat this
+Confirm that Intent Prover is ready and return to the user's task. Do not repeat this
 introduction on subsequent tasks unless settings change or the user asks.

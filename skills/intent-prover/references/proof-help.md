@@ -7,26 +7,27 @@ Use [onboarding](onboarding.md) for missing setup; setup questions do not start 
 
 ## CLI commands
 
-Use `intent-check --help` and `<command> --help` for exact syntax, including
-nested commands such as `intent-check session start --help`.
+Use `intent-prover --help` and `<command> --help` for exact syntax, including
+nested commands such as `intent-prover session start --help`.
 
 | Command | When it helps |
 |---|---|
-| `intent-check config` | Inspect the endpoint and effective resource limits |
-| `intent-check health` | Check whether live verification is available |
-| `intent-check semantics` | List server-supported language revisions |
-| `intent-check semantics fetch` | Download shared semantics sources for inspection |
-| `intent-check run` | Check the program's concrete behavior under that definition |
-| `intent-check validate` | Check source and module structure without proving claims |
-| `intent-check session start` | Create a session and locate its working directory |
-| `intent-check session show` | Inspect a session's pin, workspace, and used counters |
-| `intent-check prove` | Submit a proof attempt or inspect a stuck claim |
-| `intent-check task list / show / wait / cancel` | Inspect or recover accepted tasks without resubmitting |
+| `intent-prover config` | Inspect the endpoint and effective resource limits |
+| `intent-prover health` | Check whether live verification is available |
+| `intent-prover semantics` | List server-supported language revisions |
+| `intent-prover semantics fetch` | Download shared semantics sources for inspection |
+| `intent-prover run` | Check the program's concrete behavior under that definition |
+| `intent-prover validate` | Check source and module structure without proving claims |
+| `intent-prover session start` | Create a session and locate its working directory |
+| `intent-prover session show` | Inspect a session's pin, workspace, and used counters |
+| `intent-prover prove` | Submit a proof attempt or inspect a stuck claim |
+| `intent-prover task list / show / wait / cancel` | Inspect or recover accepted tasks without resubmitting |
+| `intent-prover view --output <new-report.html>` | Export the local HTML handoff with saved remote job links; no network or sign-in |
 
 ## Connection
 
 Reuse saved login or `INTENT_API_KEY`. For authentication/permission errors, run
-`intent-check login`, show `verification_url` and wait for saved approval. Never
+`intent-prover login`, show `verification_url` and wait for saved approval. Never
 read credential files into context.
 
 If polling fails after acceptance, recover by task ID with `task show/wait`;
