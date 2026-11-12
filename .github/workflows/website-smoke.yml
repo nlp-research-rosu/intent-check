@@ -1,4 +1,4 @@
-name: website smoke
+name: Smoke tests
 on:
   pull_request:
     branches: [main]
@@ -11,6 +11,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   website:
+    name: Smoke (${{ matrix.case }})
     # These are observational runs, not promotion gates. Keep real outcomes in artifacts.
     continue-on-error: true
     if: >-
@@ -55,13 +56,13 @@ jobs:
           cargo build --manifest-path cli/Cargo.toml --locked --release
           install -m 755 cli/target/release/intent-prover-staging "$RUNNER_TEMP/smoke-bin/intent-prover-staging"
           echo "$RUNNER_TEMP/smoke-bin" >> "$GITHUB_PATH"
-      - name: Prove the website withdrawal example with Pi
+      - name: Prove the withdrawal example with Pi
         if: matrix.case == 'withdraw'
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           INTENT_STAGING_API_KEY: ${{ secrets.INTENT_STAGING_API_KEY }}
         run: node scripts/website-smoke.mjs
-      - name: Scan the pinned website repository directly
+      - name: Scan the pinned MLE-bench example directly
         if: matrix.case == 'mle-bench'
         env:
           INTENT_STAGING_API_KEY: ${{ secrets.INTENT_STAGING_API_KEY }}
@@ -76,7 +77,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
   report:
-    name: website smoke report (advisory)
+    name: Smoke tests report
     needs: website
     if: >-
       always() &&
@@ -102,7 +103,7 @@ jobs:
         with:
           pattern: '*-smoke-${{ github.run_id }}-${{ github.run_attempt }}'
           path: ${{ runner.temp }}/smoke-evidence
-      - name: Update advisory PR result comment
+      - name: Update PR result comment
         if: always()
         env:
           GITHUB_TOKEN: ${{ github.token }}

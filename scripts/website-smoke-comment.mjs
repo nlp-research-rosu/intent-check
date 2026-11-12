@@ -24,7 +24,7 @@ export function renderReport({ directory, runId, attempt, runUrl, jobs, artifact
     const dir = path.join(directory, artifactName);
     const artifact = artifacts.find((item) => item.name === artifactName);
     const result = readJson(path.join(dir, "result.json"));
-    const job = jobs.find((item) => item.name === `website (${name})`);
+    const job = jobs.find((item) => item.name === `Smoke (${name})`);
     let outcome = job?.conclusion === "cancelled" ? "Cancelled" : "Blocked";
     if (result) {
       const tasks = files(dir).filter((file) => /^task-[0-9a-f-]+\.json$/.test(path.basename(file))).map(readJson);
@@ -48,7 +48,7 @@ export function renderReport({ directory, runId, attempt, runUrl, jobs, artifact
     const report = artifact ? `[Download](${runUrl}/artifacts/${artifact.id})` : "Unavailable";
     rows.push(`| ${name === "withdraw" ? "Prove" : "Scan"} | ${outcome} | ${duration} | ${report} |`);
   }
-  return [MARKER, "## Website smoke", rows.join("\n"),
+  return [MARKER, "## Smoke tests", rows.join("\n"),
     `[Workflow run](${runUrl}) · Downloads include the HTML report and evidence (7 days).`].join("\n\n") + "\n";
 }
 
@@ -83,7 +83,7 @@ async function main() {
   const comment = existing
     ? await api(`/issues/comments/${existing.id}`, "PATCH", { body })
     : await api(`/issues/${pr.number}/comments`, "POST", { body });
-  console.log(`Updated advisory smoke report: ${comment.html_url}`);
+  console.log(`Updated smoke test report: ${comment.html_url}`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
