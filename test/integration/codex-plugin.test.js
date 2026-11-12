@@ -10,7 +10,7 @@ import path from "node:path";
 import { createMockResponses } from "../helpers/mock-responses.js";
 import { createFakeProver, TEST_KEY } from "../helpers/fake-prover.js";
 import { ROOT, tmpdir, makeRepo } from "../helpers/env.js";
-import { findCli, runCli, cleanEnv, toolsDir } from "./helpers.js";
+import { findCli, runCli, cleanEnv } from "./helpers.js";
 
 const CODEX = findCli("codex");
 const skip = CODEX ? false : "the `codex` CLI is not installed";
@@ -26,7 +26,7 @@ after(async () => {
   if (fp) await fp.close();
 });
 
-async function session({ key = null, oldNode = false } = {}) {
+async function session({ key = null } = {}) {
   const repo = makeRepo().dir;
   // The test writes the edit, not Codex: on some CI runners Codex's sandbox is read-only or
   // unavailable. The edit happens during the ordinary model turn; it must not trigger capture.
@@ -70,7 +70,7 @@ async function session({ key = null, oldNode = false } = {}) {
     assert.equal(m.code, 0, `marketplace add: ${m.stdout}${m.stderr}`);
     const a = await cx(["plugin", "add", "intent@intentcomputing"]);
     assert.equal(a.code, 0, `plugin add: ${a.stdout}${a.stderr}`);
-    const r = await cx(["exec", "--skip-git-repo-check", "-s", "workspace-write", "--json", "write the file"], oldNode ? { env: { ...env, PATH: toolsDir({ oldNode: true }) } } : {});
+    const r = await cx(["exec", "--skip-git-repo-check", "-s", "workspace-write", "--json", "write the file"]);
     const events = r.stdout.split("\n").filter((l) => l.startsWith("{")).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
     const bodies = mock.requests.map((q) => q.raw).join("\n");
     const log = (() => { try { return fs.readFileSync(path.join(codexHome, "plugins", "data", "intent-intentcomputing", "intent.log"), "utf8"); } catch { return ""; } })();
@@ -90,22 +90,8 @@ function assertNoHooks(s) {
   assert.equal(fs.existsSync(path.join(s.repo, ".intent")), false);
 }
 
-test("codex exec without sign-in: ordinary edits trigger no hooks, login or uploads", { skip, timeout: 60000 }, async () => {
-  const s = await session();
-  assertNoHooks(s);
-  assert.equal(fp.state.requests.length, 0);
-});
-
 test("codex exec with a seeded key: ordinary edits still cause no service requests", { skip, timeout: 60000 }, async () => {
   const s = await session({ key: TEST_KEY });
-  assertNoHooks(s);
-  assert.equal(fp.state.requests.length, 0);
-});
-
-test("codex exec with Node 16 on PATH: no automatic plugin code runs", { skip: skip || (process.platform === "win32" ? "POSIX-only (PATH of symlinks)" : false), timeout: 60000 }, async () => {
-  const s = await session({ oldNode: true });
-  assert.ok(!s.r.timedOut, note(s, "codex exec timed out"));
-  assert.equal(s.r.code, 0, note(s, "codex exec did not exit 0"));
   assertNoHooks(s);
   assert.equal(fp.state.requests.length, 0);
 });

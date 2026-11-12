@@ -1,0 +1,87 @@
+#Kpyc(
+    b"3.14.6",
+    b"2b0e0d0a",
+    b"2",
+    #MarshalCode(
+        #CoArgcount(0),
+        #CoPosonlyargcount(0),
+        #CoKwonlyargcount(0),
+        #CoStacksize(1),
+        #CoFlags(0),
+        #CoCode(#MarshalDef(0, #CoCodeValue(
+            RESUME(0),
+            LOAD_CONST(0),
+            MAKE_FUNCTION(0),
+            STORE_NAME(0),
+            LOAD_CONST(1),
+            RETURN_VALUE(0),
+            .CoCodeValueItems
+        ))),
+        #CoConsts(#MarshalTuple(
+            #MarshalCode(
+                #CoArgcount(2),
+                #CoPosonlyargcount(0),
+                #CoKwonlyargcount(0),
+                #CoStacksize(3),
+                #CoFlags(3),
+                #CoCode(#MarshalDef(1, #CoCodeValue(
+                    RESUME(0),
+                    LOAD_FAST_BORROW_LOAD_FAST_BORROW(16),
+                    COMPARE_OP(148),
+                    CACHE(0),
+                    POP_JUMP_IF_FALSE(12),
+                    CACHE(0),
+                    NOT_TAKEN(0),
+                    LOAD_GLOBAL(1),
+                    CACHE(0),
+                    CACHE(0),
+                    CACHE(0),
+                    CACHE(0),
+                    LOAD_CONST(0),
+                    CALL(1),
+                    CACHE(0),
+                    CACHE(0),
+                    CACHE(0),
+                    RAISE_VARARGS(1),
+                    LOAD_FAST_BORROW_LOAD_FAST_BORROW(1),
+                    BINARY_OP(10),
+                    CACHE(0),
+                    CACHE(0),
+                    CACHE(0),
+                    CACHE(0),
+                    CACHE(0),
+                    RETURN_VALUE(0),
+                    .CoCodeValueItems
+                ))),
+                #CoConsts(#MarshalTuple(#MarshalStr(b"Insufficient funds"), .MarshalTupleItems)),
+                #CoNames(#MarshalTuple(
+                    #MarshalDef(2, #MarshalInternedStr(b"ValueError")),
+                    .MarshalTupleItems
+                )),
+                #CoLocalsplusnames(#MarshalTuple(
+                    #MarshalDef(3, #MarshalInternedStr(b"balance")),
+                    #MarshalDef(4, #MarshalInternedStr(b"amount")),
+                    .MarshalTupleItems
+                )),
+                #CoLocalspluskinds(#MarshalBytes(b"&&")),
+                #CoFilename(#MarshalDef(5, #MarshalInternedStr(b"withdraw.py"))),
+                #CoName(#MarshalDef(6, #MarshalInternedStr(b"withdraw"))),
+                #CoQualname(#MarshalRef(6)),
+                #CoFirstlineno(1),
+                #CoLinetable(#MarshalBytes(b"\x80\x00\xd8\x07\x0d\xd4\x07\x17\xdc\x0e\x18\xd0\x19-\xd3\x0e.\xd0\x08.\xd8\x0b\x12\xd5\x0b\x1b\xd0\x04\x1b")),
+                #CoExceptiontable(#MarshalDef(7, #CoExceptiontableValue(.CoExceptiontableValueItems)))
+            ),
+            #MarshalNone(),
+            .MarshalTupleItems
+        )),
+        #CoNames(#MarshalTuple(#MarshalRef(6), .MarshalTupleItems)),
+        #CoLocalsplusnames(#MarshalDef(8, #MarshalTuple(.MarshalTupleItems))),
+        #CoLocalspluskinds(#MarshalRef(7)),
+        #CoFilename(#MarshalRef(5)),
+        #CoName(#MarshalDef(9, #MarshalInternedStr(b"<module>"))),
+        #CoQualname(#MarshalRef(9)),
+        #CoFirstlineno(1),
+        #CoLinetable(#MarshalBytes(b"\xf0\x03\x01\x01\x01\xf4\x02\x03\x01\x1c")),
+        #CoExceptiontable(#MarshalRef(7))
+    )
+)

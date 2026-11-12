@@ -22,7 +22,7 @@ Reachability claims establish partial correctness, not termination.
 
 ## Working context
 
-Use the global `intent-check` CLI. Start with the
+Use the global `intent-prover` CLI. Start with the
 [CLI update check](onboarding.md#check-cli-updates) once for this requested
 workflow; complete onboarding only if setup is missing.
 `semantics` lists supported definitions; `session start` pins and downloads one.
@@ -38,3 +38,16 @@ Completion means the requested property is established for the agreed domain,
 with matching program/claim bytes, terminal evidence and explicit assumptions.
 Otherwise report the narrower result or unresolved obligation. Tool success
 alone does not show that the claims describe the intended program behavior.
+
+## Report and handoff
+
+Update `PROOF.md` and `SCOPE.md` with the actual outcome, selected claims, program
+version, pinned semantics, assumptions/trusted claims, reused results, remaining
+obligations and assurance checks actually performed. Cite the supporting task IDs
+and local evidence; saved `result.json` records include each new job's `reportUrl`.
+Do not infer a historical job's console from today's configuration if no URL was saved.
+
+Then [deliver one local HTML report](../SKILL.md#deliver-results) with
+`intent-prover view --output <new-report.html>`, linking directly to this target's
+Proof report. Keep remote jobs and raw evidence secondary. An HTML report or
+successful CLI exit is not additional proof assurance.

@@ -1,0 +1,15 @@
+{
+  "semantics": {
+    "id": "python-3-14-6",
+    "commit": "e5d24a5429a4"
+  },
+  "pythonVersion": "3.14.6",
+  "pycMagic": "2b0e0d0a",
+  "exporterVersionLock": 2,
+  "exporterSourceSha256": "bd3ca32a878396e80215ff84f32cda35cf206ad85c7f86ec1f94e00525020dd6",
+  "generator": "python3.14 -B -m exporter withdraw.py --check --pretty",
+  "files": {
+    "withdraw.py": "4954a54dd3c8dccd74b9c67ffb75777a778bdd43a3346958529160164d0be56c",
+    "withdraw.kpyc": "7e3a6ee19a26d0fc4d0bd56878fd4689b1d1f9d8abe1fbe9383a56d41751e4a8"
+  }
+}

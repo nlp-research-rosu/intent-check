@@ -1,0 +1,13 @@
+Use Intent Check Scan to review this MLE-bench competition grader against its documented scoring rules.
+
+Clone this repository into a new demo folder:
+https://github.com/openai/mle-bench
+
+Check out this commit:
+507f92e1138bb6e40dac5c6ee7a6758e6424bf97
+
+Explain the upload scope, then run one fast Scan of:
+
+mlebench/competitions/jigsaw-unintended-bias-in-toxicity-classification/
+
+Wait for completion and return the main findings, source locations and report link. Leave the code unchanged. If interrupted, collect the existing task rather than submitting again.

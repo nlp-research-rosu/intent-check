@@ -4,17 +4,17 @@
     "name": "Intent Computing"
   },
   "metadata": {
-    "description": "Code analysis and verification for AI coding assistants."
+    "description": "Intent Prover: code analysis and verification for AI coding assistants."
   },
   "plugins": [
     {
       "name": "intent",
       "source": {
         "source": "url",
-        "url": "https://github.com/nlp-research-rosu/intent-check.git",
+        "url": "https://github.com/nlp-research-rosu/intent-prover.git",
         "ref": "main"
       },
-      "description": "Code analysis and verification for AI coding assistants.",
+      "description": "Intent Prover: code analysis and verification for AI coding assistants.",
       "version": "1.1.2"
     }
   ]

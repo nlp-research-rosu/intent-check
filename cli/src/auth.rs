@@ -1,4 +1,4 @@
-use crate::{CommandResult, config};
+use crate::{CommandResult, channel, config};
 use anyhow::{Context, Result, anyhow, bail};
 use reqwest::{Url, blocking::Client, redirect::Policy};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -92,7 +92,7 @@ fn write(path: &Path, value: &Credentials) -> Result<()> {
 }
 
 pub fn api_key(server: &str) -> Result<Option<String>> {
-    if let Ok(key) = std::env::var("INTENT_API_KEY")
+    if let Ok(key) = std::env::var(channel::env_name("API_KEY"))
         && !key.trim().is_empty()
     {
         return Ok(Some(key.trim().into()));

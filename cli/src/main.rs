@@ -1,5 +1,6 @@
 mod api;
 mod auth;
+mod channel;
 mod config;
 mod help;
 mod inputs;
@@ -14,7 +15,7 @@ use std::{path::PathBuf, process};
 use uuid::Uuid;
 
 #[derive(Parser)]
-#[command(name = "intent-check", version, about = "intent-check CLI for the remote Intent Check service", after_help = help::ROOT)]
+#[command(name = channel::settings().cli, version, about = "Remote code analysis and verification", after_help = help::ROOT)]
 struct Cli {
     /// Project directory; automatically uses its repository root when inside a repo.
     #[arg(long, global = true)]
@@ -29,12 +30,12 @@ enum Command {
     #[command(after_help = help::VIEW)]
     View(viewer::ViewArgs),
     /// Connect this machine in the browser; save the credential without displaying it.
-    #[command(after_help = help::LOGIN)]
+    #[command(after_help = channel::help(help::LOGIN))]
     Login,
     /// Show the effective configuration and its file location.
-    #[command(after_help = help::CONFIG)]
+    #[command(after_help = channel::help(help::CONFIG))]
     Config,
-    /// Check whether the configured Intent Check service is healthy.
+    /// Check whether the configured Intent Prover service is healthy.
     #[command(after_help = help::HEALTH)]
     Health,
     /// List supported language definitions and their versions.
@@ -65,7 +66,7 @@ enum SemanticsCommand {
     /// Download reference sources for a supported language definition.
     #[command(after_help = help::SEMANTICS_FETCH)]
     Fetch {
-        /// Stable semantics ID returned by intent-check semantics.
+        /// Stable semantics ID returned by the semantics command.
         id: String,
     },
 }
@@ -93,7 +94,10 @@ enum SessionCommand {
         semantics: String,
     },
     /// Inspect a session without changing its state.
-    Show { id: Uuid },
+    Show {
+        /// Existing local session ID.
+        id: Uuid,
+    },
 }
 
 #[derive(Subcommand)]
@@ -101,19 +105,25 @@ pub enum TaskCommand {
     /// List this account's tasks, newest first.
     #[command(after_help = help::TASK)]
     List {
+        /// Filter by server task status.
         #[arg(long)]
         status: Option<String>,
         /// Pagination cursor from the previous page's last task.
         #[arg(long)]
         before: Option<String>,
+        /// Maximum number of tasks in this page.
         #[arg(long, default_value_t = 50, value_parser = clap::value_parser!(u32).range(1..=100))]
         limit: u32,
     },
     /// Fetch a task's current server response without waiting.
-    Show { id: Uuid },
+    Show {
+        /// Server task ID from a saved result or task listing.
+        id: Uuid,
+    },
     /// Resume waiting and save results in the task's original evidence folder.
     #[command(after_help = help::TASK)]
     Wait {
+        /// Server task ID submitted by the local session.
         id: Uuid,
         /// Existing local session that submitted this task.
         #[arg(long)]
@@ -121,7 +131,10 @@ pub enum TaskCommand {
     },
     /// Request cancellation and check whether it is confirmed.
     #[command(after_help = help::TASK)]
-    Cancel { id: Uuid },
+    Cancel {
+        /// Server task ID from a saved result or task listing.
+        id: Uuid,
+    },
 }
 
 #[derive(Args)]
@@ -177,7 +190,7 @@ pub struct ProveArgs {
     /// Stop symbolic execution at this diagnostic depth.
     ///
     /// Bounds rewrite steps along each execution path, not time: one step can
-    /// still diverge. The Intent Check service's execution limits apply. Compare stdout residuals
+    /// still diverge. The Intent Prover service's execution limits apply. Compare stdout residuals
     /// at increasing depths to diagnose progress; remove this bound before
     /// claiming proof success.
     #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
