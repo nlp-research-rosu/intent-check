@@ -357,10 +357,10 @@ async function main() {
     result.runtimeSeconds = (Date.now() - started) / 1000;
     write("result.json", result);
     const runner = prove ? `Model: ${result.model}; thinking: ${result.thinking}\n\nPi estimated cost: $${result.usage.estimatedUsd.toFixed(4)} (backend compute excluded).` : "Deterministic Scan launcher; no outer Pi/model call. Backend Scan model/compute costs are not measured here.";
-    const summary = `## Website ${result.case} smoke: ${result.status}\n\n${runner}\n\nRuntime: ${result.runtimeSeconds.toFixed(1)}s.\n\n${result.adequacyReview}\n\n${result.error ? `Failure: ${result.error}\n\n` : ""}Task IDs: ${result.tasks.join(", ") || "none recorded"}.\n`;
+    const summary = `## Smoke tests: ${result.case} — ${result.status}\n\n${runner}\n\nRuntime: ${result.runtimeSeconds.toFixed(1)}s.\n\n${result.adequacyReview}\n\n${result.error ? `Failure: ${result.error}\n\n` : ""}Task IDs: ${result.tasks.join(", ") || "none recorded"}.\n`;
     write("summary.md", summary);
     if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, redact(summary));
-    console.log(`Website ${result.case} smoke: ${result.status}; selected evidence: ${output}`);
+    console.log(`Smoke tests (${result.case}): ${result.status}; selected evidence: ${output}`);
     process.off("SIGINT", stop);
     process.off("SIGTERM", stop);
   }
