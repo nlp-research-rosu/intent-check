@@ -15,9 +15,6 @@ const PATTERNS = {
   "cli/Cargo.toml": /(\[package\][^[]*?\nversion = ")([^"]*)(")/g,
   "cli/Cargo.lock": /(name = "intent-prover"\nversion = ")([^"]*)(")/g,
 };
-// The install picker shows the stable plugin version, so plain releases bump it too.
-// Prerelease bumps leave it alone so the install picker stays on the stable version.
-export const INSTALL_JSON = "docs/install.json";
 // A plain release also turns the changelog's Unreleased section into the section for that version.
 export const CHANGELOG = "CHANGELOG.md";
 const UNRELEASED = "## [Unreleased]";
@@ -76,11 +73,9 @@ export function writeVersion(v, root = ROOT, date = new Date().toISOString().sli
   const vs = readVersions(root);
   for (const [f, cur] of vs) if (cur !== vs[0][1]) throw new Error(`versions disagree: ${f} has ${cur}, ${vs[0][0]} has ${vs[0][1]}`);
   const plain = !parse(v).pre;
-  const targets = plain ? [...FILES, INSTALL_JSON] : FILES;
-  if (plain) readVersions(root, [INSTALL_JSON]); // throws unless exactly one version field, before anything is written
   const log = path.join(root, CHANGELOG);
   const rolled = plain && fs.existsSync(log) ? rollChangelog(fs.readFileSync(log, "utf8"), v, date) : null; // throws before anything is written
-  for (const f of targets) {
+  for (const f of FILES) {
     const p = path.join(root, f);
     fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace(fieldOf(f), `$1${v}$3`));
   }
