@@ -68,6 +68,18 @@ async function main() {
     if (!response.ok) throw new Error(`GitHub reporting request failed (${response.status})`);
     return response.json();
   };
+  const canReport = async () => {
+    const [run, { jobs }] = await Promise.all([
+      api(`/actions/runs/${runId}`),
+      api(`/actions/runs/${runId}/attempts/${attempt}/jobs?per_page=100`),
+    ]);
+    if (run.conclusion === "cancelled" || jobs.some((job) => job.conclusion === "cancelled")) {
+      console.log("Cancelled smoke run; leaving the PR comment unchanged.");
+      return false;
+    }
+    return true;
+  };
+  if (!await canReport()) return;
   const [jobData, artifactData] = await Promise.all([
     api(`/actions/runs/${runId}/attempts/${attempt}/jobs?per_page=100`),
     api(`/actions/runs/${runId}/artifacts?per_page=100`),
@@ -83,6 +95,7 @@ async function main() {
     existing = comments.find((comment) => comment.user?.login === "github-actions[bot]" && comment.body?.startsWith(MARKER));
     if (comments.length < 100) break;
   }
+  if (!await canReport()) return;
   const comment = existing
     ? await api(`/issues/comments/${existing.id}`, "PATCH", { body })
     : await api(`/issues/${pr.number}/comments`, "POST", { body });

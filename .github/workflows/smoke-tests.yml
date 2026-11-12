@@ -85,7 +85,8 @@ jobs:
     name: Smoke tests report
     needs: website
     if: >-
-      always() &&
+      !cancelled() &&
+      needs.website.result != 'cancelled' &&
       github.event.pull_request.head.ref == 'staging' &&
       github.event.pull_request.head.repo.full_name == github.repository
     continue-on-error: true
@@ -109,7 +110,7 @@ jobs:
           pattern: '*-smoke-${{ github.run_id }}-${{ github.run_attempt }}'
           path: ${{ runner.temp }}/smoke-evidence
       - name: Update PR result comment
-        if: always()
+        if: ${{ !cancelled() }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
           SMOKE_EVIDENCE_DIR: ${{ runner.temp }}/smoke-evidence
