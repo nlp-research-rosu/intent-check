@@ -1,5 +1,6 @@
 // Prepare a release checkout, never the development branch's permanent identity.
 // node scripts/package-channel.mjs <production|staging> <X.Y.Z[-staging.N]>
+// node scripts/package-channel.mjs --marketplace <production|staging> <X.Y.Z[-staging.N]>
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -84,17 +85,17 @@ export function prepareChannel(name, version, root = ROOT) {
   return selected;
 }
 
-export function marketplace(name, version, sha, root = ROOT) {
-  if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error("Marketplace pin requires a full commit SHA");
-  const selected = JSON.parse(read(root, "release/channels.json"))[name];
+export function marketplace(name, version, root = ROOT) {
+  const channels = JSON.parse(read(root, "release/channels.json"));
+  const selected = channels[name];
   if (!selected) throw new Error(`Unknown release channel: ${name}`);
   return {
     name: selected.marketplace,
     owner: { name: "Intent Computing" },
     metadata: { description: `${selected.display_name}: code analysis and verification for AI coding assistants.` },
     plugins: [{
-      name: selected.plugin,
-      source: { source: "url", url: `https://github.com/${REPOSITORY}.git`, ref: `v${version}`, sha },
+      name: channels.production.plugin,
+      source: { source: "url", url: `https://github.com/${REPOSITORY}.git`, ref: name === "staging" ? "staging" : "main" },
       description: `${selected.display_name}: code analysis and verification for AI coding assistants.`,
       version,
     }],
@@ -103,8 +104,11 @@ export function marketplace(name, version, sha, root = ROOT) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    const [name, version, sha] = process.argv.slice(2);
-    if (sha) process.stdout.write(`${JSON.stringify(marketplace(name, version, sha), null, 2)}\n`);
+    const args = process.argv.slice(2);
+    const catalog = args[0] === "--marketplace";
+    if (catalog) args.shift();
+    const [name, version] = args;
+    if (catalog) process.stdout.write(`${JSON.stringify(marketplace(name, version), null, 2)}\n`);
     else process.stdout.write(`${JSON.stringify(prepareChannel(name, version))}\n`);
   } catch (error) {
     console.error(error.message);

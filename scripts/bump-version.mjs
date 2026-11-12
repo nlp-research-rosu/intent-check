@@ -1,6 +1,6 @@
 // node scripts/bump-version.mjs <patch|minor|major|X.Y.Z[-pre]> [--pre <id>]
 // node scripts/bump-version.mjs --notes <X.Y.Z>   prints that version's CHANGELOG.md section (the release notes)
-// node scripts/bump-version.mjs --pin-marketplace <X.Y.Z[-pre]> <sha>   advertises an already-published release
+// node scripts/bump-version.mjs --update-marketplace <X.Y.Z[-pre]>   updates catalog metadata while tracking main
 // patch/minor/major bump the base (prerelease stripped). With --pre <id> the result is <base>-<id>.<N>, N = 1 + the highest
 // tag v<base>-<id>.*; base = the current base if the current version is already a prerelease with that id, else the bumped base.
 import fs from "node:fs";
@@ -82,16 +82,15 @@ export function writeVersion(v, root = ROOT, date = new Date().toISOString().sli
   if (rolled !== null) fs.writeFileSync(log, rolled);
 }
 
-function pinMarketplace(v, sha) {
+function updateMarketplace(v) {
   parse(v);
-  if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error("marketplace pin needs a full lowercase commit SHA");
-  if (readVersions().some(([, version]) => version !== v)) throw new Error("marketplace pin must match the prepared release version");
+  if (readVersions().some(([, version]) => version !== v)) throw new Error("marketplace version must match the prepared release version");
   const file = path.join(ROOT, ".claude-plugin/marketplace.json");
   const marketplace = JSON.parse(fs.readFileSync(file, "utf8"));
   const plugin = marketplace.plugins.find((p) => p.name === "intent");
   plugin.version = v;
-  plugin.source.ref = `v${v}`;
-  plugin.source.sha = sha;
+  plugin.source.ref = "main";
+  delete plugin.source.sha;
   fs.writeFileSync(file, JSON.stringify(marketplace, null, 2) + "\n");
 }
 
@@ -104,9 +103,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       process.stdout.write(notes ? `${notes}\n` : "");
       process.exit(0);
     }
-    if (args[0] === "--pin-marketplace") {
-      if (args.length !== 3) throw new Error("usage: bump-version.mjs --pin-marketplace <X.Y.Z[-pre]> <sha>");
-      pinMarketplace(args[1], args[2]);
+    if (args[0] === "--update-marketplace") {
+      if (args.length !== 2) throw new Error("usage: bump-version.mjs --update-marketplace <X.Y.Z[-pre]>");
+      updateMarketplace(args[1]);
       process.exit(0);
     }
     const i = args.indexOf("--pre");

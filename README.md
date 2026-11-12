@@ -90,9 +90,13 @@ Reload or restart the host after updating. The plugin has no hook entrypoint or 
 
 Claude Code updates a plugin only when its version changes. Third-party marketplace auto-update is optional; enable it under `/plugin` → Marketplaces → intentcomputing. A running session needs `/reload-plugins` or a restart to use a new version.
 
-The shared marketplace pins the plugin source to a published tag and exact commit for both Claude Code and Codex. Merging code into a branch does not advertise it as a plugin update. Fresh installs and host updates use the release named by the marketplace, not the checkout's development files.
+The shared marketplace loads plugin files from `main` for both Claude Code and Codex. Main is the current published plugin and skill source; GitHub releases provide versioned CLI binaries. Native hosts still use plugin manifest versions to detect updates.
 
-Maintainers: use the release workflow to choose the source branch, channel and exact version (for example `1.3.0` or `1.3.0-staging.1`). Versions are entered manually, not automatically incremented. The workflow prepares the matching plugin/CLI package, builds and uploads all CLI assets, then publishes the release before advancing its catalog. Production releases run from `main`; staging releases update only their separate catalog, not the source branch or production installer/catalog. Concurrent catalog changes prevent a non-fast-forward push. Every user-visible PR needs an Unreleased entry in [CHANGELOG.md](CHANGELOG.md).
+For skill-only installs, use `npx skills add nlp-research-rosu/intent-prover#main --skill '*' --agent <agent> --global`. Run `npx skills update --global` to refresh installed skills. At the start of requested Scan or Prove work, the skill checks for a newer released CLI and updates it if needed, preserving configuration and sign-in. Ordinary messages and diagnostics do not install updates.
+
+For staging testing, use the same skill instructions from `staging` (`#staging` with npx). The staging marketplace tracks that branch with the source plugin name `intent`; its marketplace name remains `intentcomputing-staging`.
+
+Maintainers: use the release workflow to choose the source branch, channel and exact version (for example `1.3.0` or `1.3.0-staging.1`). Versions are entered manually, not automatically incremented. The workflow prepares the matching plugin/CLI package, builds and uploads all CLI assets, then publishes the release before advancing its catalog's version. Catalog sources remain on `main` or `staging`, without tag or commit pins. Production releases run from `main`; staging releases update only their separate catalog, not the source branch or production installer/catalog. Concurrent catalog changes prevent a non-fast-forward push. Every user-visible PR needs an Unreleased entry in [CHANGELOG.md](CHANGELOG.md).
 
 ## Install (Codex CLI 0.147 or newer)
 

@@ -2,7 +2,8 @@
 
 Complete setup once for this machine and Intent Prover service endpoint. A working CLI and
 an accepted saved credential let subsequent Intent Prover tasks proceed without repeating
-onboarding. Use this guide when setup is missing or the user requests it.
+onboarding. Run the CLI update check when starting requested Scan or Prove work;
+complete the rest only when setup is missing or the user requests it.
 
 Install and connect the CLI; the user only needs to open the login
 link, sign in and approve. Read
@@ -27,8 +28,14 @@ Get-Command intent-prover
 intent-prover --version
 ```
 
-Check for CLI updates using the released installer below, even if the CLI
-is already installed.
+## Check CLI updates
+
+At the start of each requested Scan or Prove workflow, compare the installed
+CLI version with `tag_name` from
+https://api.github.com/repos/nlp-research-rosu/intent-prover/releases/latest.
+If the CLI is missing or older, install or update it using the released
+installer below. Keep an equal or newer version. Check once per workflow,
+not before each command or poll; preserve configuration and saved sign-in.
 
 On macOS or Linux, install or update with:
 

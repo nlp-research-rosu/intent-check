@@ -25,6 +25,10 @@ install updates, submit jobs or deliver old results on ordinary messages.
 
 ## Commands
 
+At the start of each requested Scan or Prove workflow, follow the
+[CLI update check](references/onboarding.md#check-cli-updates). Check once per
+workflow, not before every command or poll. Reuse saved sign-in.
+
 Claude Code: `/intent:scan [file or folder] [fast|balanced|full]`, `/intent:scan collect [task-id]`, `/intent:prove`, `/intent:doctor`.
 
 For Scan and diagnostics, run:

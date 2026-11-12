@@ -225,7 +225,7 @@ jobs:
           fi
       - name: Expose published version in its channel catalog
         run: |
-          node scripts/package-channel.mjs "$CHANNEL" "$V" "$RELEASE_SHA" > "$RUNNER_TEMP/marketplace.json"
+          node scripts/package-channel.mjs --marketplace "$CHANNEL" "$V" > "$RUNNER_TEMP/marketplace.json"
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
           if [ "$CHANNEL" = production ]; then
