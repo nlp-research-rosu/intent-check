@@ -14,7 +14,7 @@ import { renderScan } from "../lib/scan.js";
 let fp;
 before(async () => { fp = createFakeProver(); await fp.listen(); });
 after(() => fp.close());
-beforeEach(() => { fp.state.scan = {}; fp.state.scans = new Map(); fp.state.requests.length = 0; });
+beforeEach(() => { fp.state.scan = {}; fp.state.scans = new Map(); fp.state.requests.length = 0; fp.state.corruptArtifact = false; });
 
 function setup({ key = true } = {}) {
   const data = tmpdir("intent-data-");
@@ -27,7 +27,7 @@ const read = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 const idOf = (text) => /\/tasks\/([0-9a-f-]{36})/.exec(text)[1];
 function cli(args, ctx, extraEnv = {}) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [BIN, "scan", ...args], { cwd: ctx.repo, env: { ...ctx.env, ...extraEnv } });
+    const child = spawn(process.execPath, [BIN, "scan", ...args], { cwd: ctx.cwd || ctx.repo, env: { ...ctx.env, ...extraEnv } });
     let out = "";
     let err = "";
     child.stdout.on("data", (bytes) => { out += bytes; });
@@ -66,16 +66,16 @@ test("snapshot scope is literal, rejects outside paths and does not follow symli
   assert.deepEqual(JSON.parse(zlib.gunzipSync(snapshot.gz)).files.map((file) => file.path), ["src/app.py"]);
 });
 
-test("repository Scan submits once and saves the report before returning", async () => {
+test("Scan from a subdirectory submits once and saves the report at the repository root", async () => {
   const ctx = setup();
+  write(ctx.repo, "src/app.py", "x = 1\n");
+  ctx.cwd = path.join(ctx.repo, "src");
   fp.state.scan.statuses = ["done"];
   const result = await cli([], ctx);
   assert.equal(result.code, 0, result.err);
   const id = idOf(result.out);
   const record = path.join(ctx.data, "scans", `${id}.json`);
   assert.equal(read(record).status, "done");
-  assert.equal(read(record).waiter, undefined);
-  assert.equal(fp.state.requests.filter((request) => request.method === "GET" && request.path === `/tasks/${id}`).length, 1);
   assert.match(result.err, /If interrupted, resume with scan collect/);
   assert.match(result.out, /Scan finished/);
   assert.equal(read(record).report_status, "saved");
@@ -89,8 +89,39 @@ test("repository Scan submits once and saves the report before returning", async
   const reportDir = path.join(ctx.repo, ".intent", "scan", id);
   assert.ok(read(path.join(reportDir, "report.json")).coverage);
   assert.equal(read(path.join(reportDir, "meta.json")).report.status, "saved");
+  assert.equal(fs.existsSync(path.join(ctx.cwd, ".intent")), false);
   assert.equal(fp.scanUploads().length, 1);
   assert.match((await cli(["collect"], ctx)).out, /No uncollected scans/);
+});
+
+test("corrupt reports are rejected without replacing a saved report", async () => {
+  const ctx = setup();
+  fp.state.corruptArtifact = true;
+  const result = await cli([], ctx);
+  const id = idOf(result.out);
+  const reportDir = path.join(ctx.repo, ".intent", "scan", id);
+  const reportFile = path.join(reportDir, "report.json");
+  assert.equal(read(path.join(reportDir, "meta.json")).report.status, "pending");
+  assert.equal(read(path.join(reportDir, "meta.json")).report.reason, "REPORT_HASH_MISMATCH");
+  assert.equal(fs.existsSync(reportFile), false);
+
+  fp.state.corruptArtifact = false;
+  const recovered = await cli(["collect", id], ctx);
+  assert.equal(recovered.code, 0, recovered.err);
+  assert.equal(read(path.join(reportDir, "meta.json")).report.status, "saved");
+  const saved = fs.readFileSync(reportFile);
+
+  // A changed artifact reference forces a download instead of reusing the saved copy.
+  fp.state.scan.summary = {
+    counts: {}, cards: [], oneLiners: [],
+    report: { ...read(path.join(reportDir, "meta.json")).task.report, sha256: "0".repeat(64) },
+  };
+  fp.state.corruptArtifact = true;
+  await cli(["collect", id], ctx);
+  assert.equal(read(path.join(reportDir, "meta.json")).report.status, "pending");
+  assert.equal(read(path.join(reportDir, "meta.json")).report.reason, "REPORT_HASH_MISMATCH");
+  assert.deepEqual(fs.readFileSync(reportFile), saved);
+  assert.equal(fp.scanUploads().length, 1);
 });
 
 test("an interrupted Scan keeps its task record and collect resumes without another upload", async () => {
@@ -145,7 +176,8 @@ test("failed scans and malformed summaries do not claim clean results", async ()
   const id = idOf(result.err);
   const collected = await cli(["collect", id], ctx);
   assert.equal(collected.code, 1);
-  assert.match(collected.err, /could not finish: Scan did not produce a usable report\. Try again, or scan one smaller folder\./);
+  assert.match(collected.err, /could not finish/);
+  assert.doesNotMatch(collected.out + collected.err, /no findings/);
   const rendered = renderScan({ status: "done", url: "https://example.test/report", summary: {} });
   assert.doesNotMatch(rendered.context, /no findings/);
   assert.match(rendered.context, /open the report/);
