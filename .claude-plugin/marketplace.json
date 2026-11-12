@@ -12,11 +12,11 @@
       "source": {
         "source": "url",
         "url": "https://github.com/nlp-research-rosu/intent-prover.git",
-        "ref": "v1.1.2",
-        "sha": "2fac89b4082561968b679db3f9432cd8fba3afd3"
+        "ref": "v1.2.0",
+        "sha": "2bbdc5b0538d30d9bf5fe4df86e7c54ade9cb93f"
       },
       "description": "Intent Prover: code analysis and verification for AI coding assistants.",
-      "version": "1.1.2"
+      "version": "1.2.0"
     }
   ]
 }
