@@ -18,6 +18,9 @@ jobs:
       github.event.pull_request.head.ref == 'staging' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    outputs:
+      withdraw: ${{ steps.prove.outputs.withdraw }}
+      mle-bench: ${{ steps.scan.outputs['mle-bench'] }}
     strategy:
       fail-fast: false
       matrix:
@@ -57,23 +60,25 @@ jobs:
           install -m 755 cli/target/release/intent-prover-staging "$RUNNER_TEMP/smoke-bin/intent-prover-staging"
           echo "$RUNNER_TEMP/smoke-bin" >> "$GITHUB_PATH"
       - name: Prove the withdrawal example with Pi
+        id: prove
         if: matrix.case == 'withdraw'
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           INTENT_STAGING_API_KEY: ${{ secrets.INTENT_STAGING_API_KEY }}
-        run: node scripts/website-smoke.mjs
+        run: node scripts/smoke-tests.mjs
       - name: Scan the pinned MLE-bench example directly
+        id: scan
         if: matrix.case == 'mle-bench'
         env:
           INTENT_STAGING_API_KEY: ${{ secrets.INTENT_STAGING_API_KEY }}
-        run: node scripts/website-smoke.mjs
-      - name: Retain selected evidence and metrics
+        run: node scripts/smoke-tests.mjs
+      - name: Retain .intent evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ matrix.case }}-smoke-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.SMOKE_OUTPUT_DIR }}
-          include-hidden-files: true # Only the harness's selected/redacted output, including .intent/.
+          path: ${{ env.SMOKE_OUTPUT_DIR }}/artifact
+          include-hidden-files: true # The ZIP contains only the redacted .intent/ folder.
           if-no-files-found: ignore
           retention-days: 7
   report:
@@ -108,4 +113,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           SMOKE_EVIDENCE_DIR: ${{ runner.temp }}/smoke-evidence
-        run: node scripts/website-smoke-comment.mjs
+          SMOKE_RESULTS: ${{ toJSON(needs.website.outputs) }}
+        run: node scripts/smoke-tests-comment.mjs

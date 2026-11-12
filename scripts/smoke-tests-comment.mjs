@@ -17,27 +17,27 @@ function files(directory) {
   });
 }
 
-export function renderReport({ directory, runId, attempt, runUrl, jobs, artifacts }) {
+export function renderReport({ directory, runId, attempt, runUrl, jobs, artifacts, results }) {
   const rows = ["| Check | Result | Time | Report |", "|---|---|---|---|"];
   for (const name of ["withdraw", "mle-bench"]) {
     const artifactName = `${name}-smoke-${runId}-${attempt}`;
     const dir = path.join(directory, artifactName);
     const artifact = artifacts.find((item) => item.name === artifactName);
-    const result = readJson(path.join(dir, "result.json"));
+    const result = results[name];
     const job = jobs.find((item) => item.name === `Smoke (${name})`);
     let outcome = job?.conclusion === "cancelled" ? "Cancelled" : "Blocked";
     if (result) {
-      const tasks = files(dir).filter((file) => /^task-[0-9a-f-]+\.json$/.test(path.basename(file))).map(readJson);
       if (name === "withdraw") {
-        const proof = tasks.find((task) => task.kind === "proof" && task.id === result.proof?.taskId);
-        // The fixed withdrawal request contains three properties, not three K claims.
-        if (result.status === "passed" && proof?.status === "completed" && proof.result === "proved") outcome = "3/3 properties proved";
+        const tasks = files(path.join(dir, ".intent/prove"))
+          .filter((file) => path.basename(file) === "result.json")
+          .map((file) => readJson(file)?.task);
+        const proof = tasks.find((task) => task?.kind === "proof" && task.id === result.proof?.taskId);
+        if (result.status === "passed" && proof?.status === "completed" && proof.result === "proved") outcome = "Proof succeeded";
         else if (proof?.result === "notProved") outcome = "Not proved";
       } else {
-        const task = tasks.find((item) => item.kind === "scan");
-        const reportPath = files(path.join(dir, ".intent/scan")).find((file) => path.basename(file) === "report.json");
+        const reportPath = result.scan?.taskId ? path.join(dir, ".intent/scan", result.scan.taskId, "report.json") : null;
         const report = reportPath ? readJson(reportPath) : null;
-        if (result.status === "passed" && task?.status === "completed" && report) {
+        if (result.status === "passed" && report) {
           const count = (report.cards ?? []).length + (report.one_liners ?? []).length;
           outcome = `Completed · ${count} finding${count === 1 ? "" : "s"}`;
         }
@@ -49,7 +49,7 @@ export function renderReport({ directory, runId, attempt, runUrl, jobs, artifact
     rows.push(`| ${name === "withdraw" ? "Prove" : "Scan"} | ${outcome} | ${duration} | ${report} |`);
   }
   return [MARKER, "## Smoke tests", rows.join("\n"),
-    `[Workflow run](${runUrl}) · Downloads include the HTML report and evidence (7 days).`].join("\n\n") + "\n";
+    `[Workflow run](${runUrl}) · Downloads contain the .intent folder (7 days).`].join("\n\n") + "\n";
 }
 
 async function main() {
@@ -72,7 +72,10 @@ async function main() {
     api(`/actions/runs/${runId}/attempts/${attempt}/jobs?per_page=100`),
     api(`/actions/runs/${runId}/artifacts?per_page=100`),
   ]);
-  const body = renderReport({ directory: process.env.SMOKE_EVIDENCE_DIR, runId, attempt, runUrl, jobs: jobData.jobs, artifacts: artifactData.artifacts });
+  const results = Object.fromEntries(Object.entries(JSON.parse(process.env.SMOKE_RESULTS ?? "{}"))
+    .filter(([, value]) => value)
+    .map(([name, value]) => [name, JSON.parse(value)]));
+  const body = renderReport({ directory: process.env.SMOKE_EVIDENCE_DIR, runId, attempt, runUrl, jobs: jobData.jobs, artifacts: artifactData.artifacts, results });
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, body);
   let existing;
   for (let page = 1; !existing; page++) {

@@ -15,7 +15,7 @@ use std::{path::PathBuf, process};
 use uuid::Uuid;
 
 #[derive(Parser)]
-#[command(name = channel::settings().cli, version, about = channel::help("Intent Prover CLI for remote analysis and verification"), after_help = channel::help(help::ROOT))]
+#[command(name = channel::settings().cli, version, about = "Remote code analysis and verification", after_help = help::ROOT)]
 struct Cli {
     /// Project directory; automatically uses its repository root when inside a repo.
     #[arg(long, global = true)]
@@ -27,7 +27,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// View local check artifacts live, or export a self-contained HTML report.
-    #[command(after_help = channel::help(help::VIEW))]
+    #[command(after_help = help::VIEW)]
     View(viewer::ViewArgs),
     /// Connect this machine in the browser; save the credential without displaying it.
     #[command(after_help = channel::help(help::LOGIN))]
@@ -36,35 +36,35 @@ enum Command {
     #[command(after_help = channel::help(help::CONFIG))]
     Config,
     /// Check whether the configured Intent Prover service is healthy.
-    #[command(after_help = channel::help(help::HEALTH))]
+    #[command(after_help = help::HEALTH)]
     Health,
     /// List supported language definitions and their versions.
-    #[command(after_help = channel::help(help::SEMANTICS))]
+    #[command(after_help = help::SEMANTICS)]
     Semantics {
         #[command(subcommand)]
         command: Option<SemanticsCommand>,
     },
     /// Execute a program using a supported language definition.
-    #[command(after_help = channel::help(help::RUN))]
+    #[command(after_help = help::RUN)]
     Run(RunArgs),
     /// Check verification inputs without proving their claims.
-    #[command(after_help = channel::help(&help::validate()))]
+    #[command(after_help = help::validate())]
     Validate(ProofArgs),
     /// Create or inspect explicit verification sessions.
     #[command(subcommand)]
     Session(SessionCommand),
     /// Inspect or recover accepted server tasks without resubmitting them.
-    #[command(subcommand, after_help = channel::help(help::TASK))]
+    #[command(subcommand, after_help = help::TASK)]
     Task(TaskCommand),
     /// Submit one proof attempt in an existing session.
-    #[command(after_help = channel::help(&help::prove()))]
+    #[command(after_help = help::prove())]
     Prove(ProveArgs),
 }
 
 #[derive(Subcommand)]
 enum SemanticsCommand {
     /// Download reference sources for a supported language definition.
-    #[command(after_help = channel::help(help::SEMANTICS_FETCH))]
+    #[command(after_help = help::SEMANTICS_FETCH)]
     Fetch {
         /// Stable semantics ID returned by the semantics command.
         id: String,
@@ -87,34 +87,43 @@ pub struct RunArgs {
 #[derive(Subcommand)]
 enum SessionCommand {
     /// Create a new session with fresh budgets for the project.
-    #[command(after_help = channel::help(help::SESSION))]
+    #[command(after_help = help::SESSION)]
     Start {
         /// Server-supported semantics ID to pin for this session.
         #[arg(long)]
         semantics: String,
     },
     /// Inspect a session without changing its state.
-    Show { id: Uuid },
+    Show {
+        /// Existing local session ID.
+        id: Uuid,
+    },
 }
 
 #[derive(Subcommand)]
 pub enum TaskCommand {
     /// List this account's tasks, newest first.
-    #[command(after_help = channel::help(help::TASK))]
+    #[command(after_help = help::TASK)]
     List {
+        /// Filter by server task status.
         #[arg(long)]
         status: Option<String>,
         /// Pagination cursor from the previous page's last task.
         #[arg(long)]
         before: Option<String>,
+        /// Maximum number of tasks in this page.
         #[arg(long, default_value_t = 50, value_parser = clap::value_parser!(u32).range(1..=100))]
         limit: u32,
     },
     /// Fetch a task's current server response without waiting.
-    Show { id: Uuid },
+    Show {
+        /// Server task ID from a saved result or task listing.
+        id: Uuid,
+    },
     /// Resume waiting and save results in the task's original evidence folder.
-    #[command(after_help = channel::help(help::TASK))]
+    #[command(after_help = help::TASK)]
     Wait {
+        /// Server task ID submitted by the local session.
         id: Uuid,
         /// Existing local session that submitted this task.
         #[arg(long)]
@@ -122,7 +131,10 @@ pub enum TaskCommand {
     },
     /// Request cancellation and check whether it is confirmed.
     #[command(after_help = help::TASK)]
-    Cancel { id: Uuid },
+    Cancel {
+        /// Server task ID from a saved result or task listing.
+        id: Uuid,
+    },
 }
 
 #[derive(Args)]

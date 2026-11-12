@@ -113,10 +113,20 @@ async function main() {
   const smokeCase = process.env.SMOKE_CASE ?? "withdraw";
   const prove = smokeCase === "withdraw";
   const output = path.resolve(requireValue(process.env.SMOKE_OUTPUT_DIR, "Set SMOKE_OUTPUT_DIR"));
+  const artifact = path.join(output, "artifact");
   fs.mkdirSync(output, { recursive: true });
   const keys = [process.env.OPENROUTER_API_KEY, process.env.INTENT_STAGING_API_KEY].filter(Boolean);
   const redact = (text) => keys.reduce((value, key) => value.replaceAll(key, "[REDACTED]"), text);
   const write = (name, value) => fs.writeFileSync(path.join(output, name), redact(typeof value === "string" ? value : `${JSON.stringify(value, null, 2)}\n`));
+  const retainIntent = (directory) => {
+    for (const file of files(directory)) {
+      const destination = path.join(artifact, ".intent", path.relative(directory, file));
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      // Preserve binary evidence while redacting the ASCII API keys from every file.
+      const bytes = Buffer.from(redact(fs.readFileSync(file).toString("latin1")), "latin1");
+      fs.writeFileSync(destination, bytes);
+    }
+  };
   const result = {
     status: "failed", case: smokeCase, runner: prove ? "pi" : "deterministic", promptSource: "https://prover.intentcomputing.org/",
     headSha: null, baseSha: null, mergeSha: process.env.GITHUB_SHA ?? null,
@@ -322,23 +332,12 @@ async function main() {
             process.exitCode = 1;
           }
         }
-        for (const file of files(path.join(project, ".intent/prove"))) {
-          if (!/\.(?:k|kpyc|md|py|sh)$/.test(file) && path.basename(file) !== "result.json") continue;
-          const relative = path.relative(project, file);
-          fs.mkdirSync(path.dirname(path.join(output, relative)), { recursive: true });
-          write(relative, fs.readFileSync(file, "utf8"));
-        }
+        retainIntent(path.join(project, ".intent"));
         for (const scan of scanRecords(env)) {
           if (!/^[0-9a-f-]{36}$/.test(scan.job_id)) continue;
           const repo = fs.realpathSync(scan.repo_root);
           if (!repo.startsWith(`${fs.realpathSync(project)}${path.sep}`)) continue;
-          for (const name of ["meta.json", "report.json"]) {
-            const file = path.join(repo, ".intent/scan", scan.job_id, name);
-            if (!fs.existsSync(file)) continue;
-            const relative = path.join(".intent/scan", scan.job_id, name);
-            fs.mkdirSync(path.dirname(path.join(output, relative)), { recursive: true });
-            write(relative, fs.readFileSync(file, "utf8"));
-          }
+          retainIntent(path.join(repo, ".intent"));
         }
       } catch (error) {
         result.cleanup.push({ error: error.message });
@@ -346,16 +345,20 @@ async function main() {
         process.exitCode = 1;
       }
     }
-    if (files(path.join(output, ".intent")).length) {
+    if (files(path.join(artifact, ".intent")).length) {
       try {
-        execFileSync(CLI, ["--project", output, "view", "--output", path.join(output, "report.html")], { env, encoding: "utf8", timeout: 20_000, stdio: ["ignore", "pipe", "pipe"] });
-        result.html = "report.html";
+        execFileSync(CLI, ["--project", artifact, "view", "--output", path.join(artifact, ".intent/report.html")], { env, encoding: "utf8", timeout: 20_000, stdio: ["ignore", "pipe", "pipe"] });
+        result.html = ".intent/report.html";
       } catch {
         result.reportError = "Could not export the local HTML evidence; retained source evidence is still available.";
       }
     }
     result.runtimeSeconds = (Date.now() - started) / 1000;
     write("result.json", result);
+    if (process.env.GITHUB_OUTPUT) {
+      const report = { status: result.status, runtimeSeconds: result.runtimeSeconds, proof: result.proof, scan: result.scan };
+      fs.appendFileSync(process.env.GITHUB_OUTPUT, `${smokeCase}=${JSON.stringify(report)}\n`);
+    }
     const runner = prove ? `Model: ${result.model}; thinking: ${result.thinking}\n\nPi estimated cost: $${result.usage.estimatedUsd.toFixed(4)} (backend compute excluded).` : "Deterministic Scan launcher; no outer Pi/model call. Backend Scan model/compute costs are not measured here.";
     const summary = `## Smoke tests: ${result.case} — ${result.status}\n\n${runner}\n\nRuntime: ${result.runtimeSeconds.toFixed(1)}s.\n\n${result.adequacyReview}\n\n${result.error ? `Failure: ${result.error}\n\n` : ""}Task IDs: ${result.tasks.join(", ") || "none recorded"}.\n`;
     write("summary.md", summary);
