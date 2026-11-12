@@ -1,5 +1,5 @@
 ---
-description: Show Intent Prover connection and configuration diagnostics
+description: Show Intent Prover Staging connection and configuration diagnostics
 allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js":*)
 ---
 

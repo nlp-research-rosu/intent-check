@@ -7,27 +7,27 @@ Use [onboarding](onboarding.md) for missing setup; setup questions do not start 
 
 ## CLI commands
 
-Use `intent-prover --help` and `<command> --help` for exact syntax, including
-nested commands such as `intent-prover session start --help`.
+Use `intent-prover-staging --help` and `<command> --help` for exact syntax, including
+nested commands such as `intent-prover-staging session start --help`.
 
 | Command | When it helps |
 |---|---|
-| `intent-prover config` | Inspect the endpoint and effective resource limits |
-| `intent-prover health` | Check whether live verification is available |
-| `intent-prover semantics` | List server-supported language revisions |
-| `intent-prover semantics fetch` | Download shared semantics sources for inspection |
-| `intent-prover run` | Check the program's concrete behavior under that definition |
-| `intent-prover validate` | Check source and module structure without proving claims |
-| `intent-prover session start` | Create a session and locate its working directory |
-| `intent-prover session show` | Inspect a session's pin, workspace, and used counters |
-| `intent-prover prove` | Submit a proof attempt or inspect a stuck claim |
-| `intent-prover task list / show / wait / cancel` | Inspect or recover accepted tasks without resubmitting |
-| `intent-prover view --output <new-report.html>` | Export the local HTML handoff with saved remote job links; no network or sign-in |
+| `intent-prover-staging config` | Inspect the endpoint and effective resource limits |
+| `intent-prover-staging health` | Check whether live verification is available |
+| `intent-prover-staging semantics` | List server-supported language revisions |
+| `intent-prover-staging semantics fetch` | Download shared semantics sources for inspection |
+| `intent-prover-staging run` | Check the program's concrete behavior under that definition |
+| `intent-prover-staging validate` | Check source and module structure without proving claims |
+| `intent-prover-staging session start` | Create a session and locate its working directory |
+| `intent-prover-staging session show` | Inspect a session's pin, workspace, and used counters |
+| `intent-prover-staging prove` | Submit a proof attempt or inspect a stuck claim |
+| `intent-prover-staging task list / show / wait / cancel` | Inspect or recover accepted tasks without resubmitting |
+| `intent-prover-staging view --output <new-report.html>` | Export the local HTML handoff with saved remote job links; no network or sign-in |
 
 ## Connection
 
-Reuse saved login or `INTENT_API_KEY`. For authentication/permission errors, run
-`intent-prover login`, show `verification_url` and wait for saved approval. Never
+Reuse saved login or `INTENT_STAGING_API_KEY`. For authentication/permission errors, run
+`intent-prover-staging login`, show `verification_url` and wait for saved approval. Never
 read credential files into context.
 
 If polling fails after acceptance, recover by task ID with `task show/wait`;

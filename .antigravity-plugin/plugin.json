@@ -1,12 +1,18 @@
 {
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
-  "name": "intent",
-  "displayName": "Intent Prover",
-  "version": "1.1.2",
-  "description": "Code analysis and verification for AI coding assistants.",
+  "name": "intent-staging",
+  "displayName": "Intent Prover Staging",
+  "version": "1.3.0-staging.2",
+  "description": "Intent Prover Staging: code analysis and verification for AI coding assistants.",
   "logo": "assets/logo.svg",
-  "author": { "name": "Intent Computing" },
+  "author": {
+    "name": "Intent Computing"
+  },
   "homepage": "https://prover.intentcomputing.org/privacy",
   "repository": "https://github.com/nlp-research-rosu/intent-prover",
-  "keywords": ["code-review", "intent", "formal-verification"]
+  "keywords": [
+    "code-review",
+    "intent",
+    "formal-verification"
+  ]
 }
