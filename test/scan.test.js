@@ -3,13 +3,10 @@ import { test, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import zlib from "node:zlib";
 import { spawn } from "node:child_process";
 import { createFakeProver, TEST_KEY } from "./helpers/fake-prover.js";
 import { tmpdir, makeRepo, baseEnv, saveKey, BIN, symlink, SKIP_FILE_SYMLINKS } from "./helpers/env.js";
 import { validateScan } from "./helpers/schema.js";
-import { buildSnapshot } from "../lib/snapshot.js";
-import { renderScan } from "../lib/scan.js";
 
 let fp;
 before(async () => { fp = createFakeProver(); await fp.listen(); });
@@ -27,7 +24,7 @@ const read = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 const idOf = (text) => /\/tasks\/([0-9a-f-]{36})/.exec(text)[1];
 function cli(args, ctx, extraEnv = {}) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [BIN, "scan", ...args], { cwd: ctx.cwd || ctx.repo, env: { ...ctx.env, ...extraEnv } });
+    const child = spawn(BIN, ["scan", ...args], { cwd: ctx.cwd || ctx.repo, env: { ...ctx.env, ...extraEnv } });
     let out = "";
     let err = "";
     child.stdout.on("data", (bytes) => { out += bytes; });
@@ -46,9 +43,9 @@ test("snapshot filters/redacts tracked and non-ignored untracked files, preservi
   write(ctx.repo, "binary.dat", Buffer.from([0, 1, 2]));
   write(ctx.repo, ".intent/NOTES.md", "- Intended behaviour.\n");
   write(ctx.repo, ".intent/prove/old/PROOF.md", "private evidence\n");
-  const snapshot = await buildSnapshot({ cwd: ctx.repo, depth: "fast" });
-  assert.equal(snapshot.ok, true);
-  const upload = JSON.parse(zlib.gunzipSync(snapshot.gz));
+  const result = await cli(["fast"], ctx);
+  assert.equal(result.code, 0, result.err);
+  const [upload] = fp.scanUploads();
   assert.deepEqual(validateScan(upload, "ScanUpload"), []);
   assert.deepEqual(upload.files.map((file) => file.path), [".intent/NOTES.md", "README.md", "src/app.py", "src/secret.py"]);
   assert.ok(!JSON.stringify(upload.files).includes("abcdefghijklmnopqrstuvwxyz"));
@@ -61,9 +58,11 @@ test("snapshot scope is literal, rejects outside paths and does not follow symli
   const outside = tmpdir();
   write(outside, "private.py", "private = 1\n");
   symlink(outside, path.join(ctx.repo, "link"));
-  assert.equal((await buildSnapshot({ cwd: ctx.repo, scope: "link" })).ok, false);
-  const snapshot = await buildSnapshot({ cwd: ctx.repo, scope: "src" });
-  assert.deepEqual(JSON.parse(zlib.gunzipSync(snapshot.gz)).files.map((file) => file.path), ["src/app.py"]);
+  assert.match((await cli(["link"], ctx)).out, /outside the repo/);
+  assert.equal(fp.scanUploads().length, 0);
+  const result = await cli(["src"], ctx);
+  assert.equal(result.code, 0, result.err);
+  assert.deepEqual(fp.scanUploads()[0].files.map((file) => file.path), ["src/app.py"]);
 });
 
 test("Scan from a subdirectory submits once and saves the report at the repository root", async () => {
@@ -127,7 +126,7 @@ test("corrupt reports are rejected without replacing a saved report", async () =
 test("an interrupted Scan keeps its task record and collect resumes without another upload", async () => {
   const ctx = setup();
   fp.state.scan.statuses = ["running"];
-  const child = spawn(process.execPath, [BIN, "scan"], { cwd: ctx.repo, env: ctx.env });
+  const child = spawn(BIN, ["scan"], { cwd: ctx.repo, env: ctx.env });
   let err = "";
   let id;
   child.stderr.on("data", (bytes) => {
@@ -178,7 +177,8 @@ test("failed scans and malformed summaries do not claim clean results", async ()
   assert.equal(collected.code, 1);
   assert.match(collected.err, /could not finish/);
   assert.doesNotMatch(collected.out + collected.err, /no findings/);
-  const rendered = renderScan({ status: "done", url: "https://example.test/report", summary: {} });
-  assert.doesNotMatch(rendered.context, /no findings/);
-  assert.match(rendered.context, /open the report/);
+  fp.state.scan = { summary: {} };
+  const malformed = await cli([], ctx);
+  assert.doesNotMatch(malformed.out, /no findings/);
+  assert.match(malformed.out, /open the report/);
 });

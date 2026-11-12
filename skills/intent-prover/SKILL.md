@@ -29,15 +29,16 @@ Claude Code: `/intent:scan [file or folder] [fast|balanced|full]`, `/intent:scan
 
 For Scan and diagnostics, run:
 
-    node "${CLAUDE_PLUGIN_ROOT}/bin/intent.js" <subcommand> --data "${CLAUDE_PLUGIN_DATA}"
+    intent-prover <subcommand> --data "${CLAUDE_PLUGIN_DATA}" --plugin-root "${CLAUDE_PLUGIN_ROOT}"
 
 Codex has no plugin slash commands. Use the path relative to this skill:
 
-    node <folder of this SKILL.md>/../../bin/intent.js <subcommand> --host codex
+    intent-prover <subcommand> --host codex --plugin-root <folder of this SKILL.md>/../..
 
 These commands may need permission for network access and writing plugin data
-outside the sandbox. Prove uses the global `intent-prover` CLI on `PATH`, not
-this script. Its executable help owns command syntax.
+outside the sandbox. Scan, diagnostics, Prove and login all use the global
+`intent-prover` CLI on `PATH`; Node.js is not needed. Its executable help owns
+command syntax. The plugin-root option only locates existing Scan recovery data.
 
 ## Deliver results
 

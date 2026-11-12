@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-export const BIN = path.join(ROOT, "bin", "intent.js");
+export const BIN = process.env.INTENT_TEST_BIN || path.join(ROOT, "cli", "target", "debug", process.platform === "win32" ? "intent-prover.exe" : "intent-prover");
 
 // realpathSync.native: on Windows the temp dir can be a short name (C:\Users\RUNNER~1\...), which only
 // the native call expands to the long form git and the plugin report.

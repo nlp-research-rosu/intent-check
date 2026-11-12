@@ -1,9 +1,0 @@
-#!/bin/sh
-# Optional POSIX launcher for explicitly requested plugin commands.
-set -eu
-dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-if command -v node >/dev/null 2>&1; then
-  exec node "$dir/intent.js" "$@"
-fi
-echo "Intent Prover commands need Node.js 18 or newer." >&2
-exit 1

@@ -20,7 +20,7 @@ Project knowledge and evidence under `.intent/` are meant to be committed with s
 
 ## Install (Claude Code)
 
-Requirements: Node.js 18+ for Scan commands, and the global `intent-prover` CLI for sign-in and Prove.
+Requirements: Git and the global native `intent-prover` CLI. Scan, sign-in and Prove do not require Node.js.
 
 In Claude Code:
 
@@ -47,7 +47,7 @@ Restart Claude Code or run `/reload-plugins`. Use the Intent Prover skill's onbo
 | `/intent:prove [what to prove]` | Formal proof with K through the global CLI. |
 | `/intent:doctor` | Read connection/configuration diagnostics; does not log in, clear credentials or update the plugin. |
 
-On Codex, ask the agent to invoke the corresponding skill. Scan and diagnostics use `node <plugin>/bin/intent.js`; Prove and login use the global `intent-prover` CLI. Network access and plugin-data writes may need sandbox approval.
+On Codex, ask the agent to invoke the corresponding skill. Scan, diagnostics, Prove and login use the global `intent-prover` CLI. Network access and plugin-data writes may need sandbox approval.
 
 ## Signing in
 
@@ -153,9 +153,9 @@ findings into formal proof or add assurance to a proof's recorded claims.
 
 ## Development
 
-- Zero runtime dependencies; plain ESM JavaScript, Node 18+.
+- The native Rust CLI runs Scan and Prove. Node 18+ is used only for development checks and release tooling.
 - `npm test` checks core Scan behavior, repository-root evidence, upload safety and corrupt-report retention. The three `cli/tests/check-cli-*.py` scripts check the built CLI for run/validate/prove, failure results, retry identity, each operation's attempt limit, input boundaries, repository-root evidence, offline HTML, login and Ctrl-C. `npm run test:integration` checks that loading each real Claude/Codex plugin does not automatically submit code, using local mock APIs without paid inference. These checks do not replace a real Scan/Prove smoke check before release.
 - Ordinary CI runs the core checks on Linux with Node 22, plus native CLI checks. Relevant plugin changes also run both host checks on Linux. Release/manual host checks use Linux too; native release binaries still build for all six platform/architecture targets.
-- `lib/snapshot.js` builds scoped repository snapshots; `lib/scan.js` submits, waits for and collects Scans. No host session capture or worker spawning remains.
+- `cli/src/scan/` builds scoped repository snapshots and saves reports; `cli/src/scan.rs` submits, waits for and collects Scans. No host session capture or worker spawning remains.
 - Backend contract: the Intent Prover service API (`nlp-research-rosu/prover`); `test/helpers/fake-prover.js` provides a controlled service for checks.
 - CLI: `cli/` (Rust). CI runs formatting, clippy, build and existing tests.
