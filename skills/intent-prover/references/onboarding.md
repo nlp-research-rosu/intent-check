@@ -34,14 +34,14 @@ On macOS or Linux, install or update with:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/nlp-research-rosu/intent-prover/releases/latest/download/install-intent-prover.sh | sh
+  https://github.com/nlp-research-rosu/intent-prover/releases/download/v1.2.0/install-intent-prover.sh | sh
 ```
 
 On Windows PowerShell:
 
 ```powershell
 Invoke-WebRequest `
-  https://github.com/nlp-research-rosu/intent-prover/releases/latest/download/install-intent-prover.ps1 `
+  https://github.com/nlp-research-rosu/intent-prover/releases/download/v1.2.0/install-intent-prover.ps1 `
   -OutFile install-intent-prover.ps1
 & ./install-intent-prover.ps1
 ```

@@ -6,6 +6,8 @@ Maintainers: add a line under Unreleased in the same pull request as the change.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-12
+
 ### Changed
 
 - Add a separately installed staging plugin and CLI release channel with staging defaults, independent configuration and manually supplied matching plugin/CLI versions. Stable installs remain on the production catalog.
